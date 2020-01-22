@@ -1,18 +1,21 @@
 use std::i32;
 use bitset_fixed::BitSet;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
+pub struct Variable(pub usize);
+
+#[derive(Copy, Clone, Debug)]
 pub struct Decision {
-    pub variable : u32,
+    pub variable : Variable,
     pub value    : i32
 }
 
 pub trait Problem<T> {
-    fn nb_vars      (&self) -> u32;
+    fn nb_vars      (&self) -> usize;
     fn initial_state(&self) -> T;
     fn initial_value(&self) -> i32;
 
-    fn domain_of      (&self, state: &T, var: u32)          -> &[i32];
+    fn domain_of      (&self, state: &T, var: Variable)     -> &[i32];
     fn transition     (&self, vars : &BitSet, d: &Decision) -> T;
     fn transition_cost(&self, vars : &BitSet, d: &Decision) -> i32;
 
@@ -20,7 +23,7 @@ pub trait Problem<T> {
     // Returns true iff taking a decision on 'variable' might have an impact (state or lp)
     // on a node having the given 'state'
     #[allow(unused_variables)]
-    fn impacted_by(&self, state: &T, variable: u32) -> bool {
+    fn impacted_by(&self, state: &T, variable: Variable) -> bool {
         true
     }
 }
