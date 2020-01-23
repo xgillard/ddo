@@ -29,7 +29,7 @@ pub trait Problem<T> {
 }
 
 pub trait Relaxation<T> {
-    fn merge_states(&self, states: &[T])                          -> T;
+    fn merge_states(&self, states: &[&T])                         -> T;
     fn relax_cost  (&self, from: &T, to: &T, decision: &Decision) -> i32;
 
     // Optionally compute a rough upper bound on the objective value reachable

@@ -42,7 +42,7 @@ pub trait MDD<T, N>
 
     fn mdd_type(&self)        -> MDDType;
     fn current_layer(&self)   -> &[Rc<N>];
-    fn exact_cutset(&self)    -> &[N];
+    fn exact_cutset(&self)    -> &[Rc<N>];
     fn last_assigned(&self)   -> Variable;
     fn unassigned_vars(&self) -> &BitSet;
 

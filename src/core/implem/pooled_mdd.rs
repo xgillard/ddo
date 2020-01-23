@@ -1,13 +1,13 @@
 use super::super::abstraction::mdd::*;
 use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable};
-use std::cmp::max;
+use std::cmp::{max, Ordering};
 use std::rc::Rc;
-use crate::core::abstraction::heuristics::{VariableHeuristic, NodeHeuristic, WidthHeuristic};
+use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
 use std::collections::HashMap;
 use bitset_fixed::BitSet;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed};
+use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 
 // --- POOLED NODE -------------------------------------------------------------
 #[derive(Clone)]
@@ -79,11 +79,11 @@ struct PooledMDD<T> where T : Hash + Eq + Clone {
     vs               : Rc<dyn VariableHeuristic<T, PooledNode<T>>>,
 
     width            : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
-    ns               : Rc<dyn NodeHeuristic<T, PooledNode<T>>>,
+    ns               : Box<dyn Fn(&Rc<PooledNode<T>>, &Rc<PooledNode<T>>) -> Ordering>,
 
     pool             : HashMap<T, Rc<PooledNode<T>>>,
     current          : Vec<Rc<PooledNode<T>>>,
-    cutset           : Vec<PooledNode<T>>,
+    cutset           : Vec<Rc<PooledNode<T>>>,
 
     last_assigned    : Variable,
     unassigned_vars  : BitSet,
@@ -97,7 +97,7 @@ impl <T> PooledMDD<T> where T : Clone + Hash + Eq {
                relax : Rc<dyn Relaxation<T>>,
                vs    : Rc<dyn VariableHeuristic<T, PooledNode<T>>>,
                width : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
-               ns    : Rc<dyn NodeHeuristic<T, PooledNode<T>>>) -> PooledMDD<T> {
+               ns    : Box<dyn Fn(&Rc<PooledNode<T>>, &Rc<PooledNode<T>>) -> Ordering>) -> PooledMDD<T> {
         PooledMDD{
             mddtype          : Exact,
             last_assigned    : Variable(std::usize::MAX),
@@ -125,21 +125,26 @@ impl <T> PooledMDD<T> where T : Clone + Hash + Eq {
         self.current          .clear();
         self.cutset           .clear();
     }
-
-    pub fn relaxed(&mut self, vars: BitSet, root_s : T, root_lp : i32, root_ub: i32, best_lb : i32) {
+    pub fn exact(&mut self, vars: BitSet, root: Rc<PooledNode<T>>, best_lb : i32) {
+        self.develop(Exact, vars, root, best_lb);
+    }
+    pub fn restricted(&mut self, vars: BitSet, root: Rc<PooledNode<T>>, best_lb : i32) {
+        self.develop(Restricted, vars, root, best_lb);
+    }
+    pub fn relaxed(&mut self, vars: BitSet, root: Rc<PooledNode<T>>, best_lb : i32) {
+        self.develop(Relaxed, vars, root, best_lb);
+    }
+    fn develop(&mut self, kind: MDDType, vars: BitSet, root: Rc<PooledNode<T>>, best_lb : i32) {
         self.clear();
-        self.mddtype         = Relaxed;
+        self.mddtype         = kind;
         self.unassigned_vars = vars;
 
-        let root = PooledNode::<T>::new(root_s.clone(), true);
-        self.pool.insert(root_s.clone(), Rc::new(root));
-
+        self.pool.insert(root.state.clone(), root);
 
         let nbvars= self.unassigned_vars.count_ones();
         let mut i = 0;
 
         while i < nbvars && !self.pool.is_empty() {
-            i += 1;
             let selected = self.vs.next_var(self, &self.unassigned_vars);
 
             self.pick_nodes_from_pool(selected);
@@ -176,6 +181,7 @@ impl <T> PooledMDD<T> where T : Clone + Hash + Eq {
             }
 
             self.last_assigned = selected;
+            i += 1;
         }
 
         self.find_best_node();
@@ -200,14 +206,14 @@ impl <T> PooledMDD<T> where T : Clone + Hash + Eq {
     }
     fn maybe_squash(&mut self, i : u32) {
         match self.mddtype {
-            Exact        => /* nothing to do ! */(),
-            Relaxed      => self.maybe_relax(i),
-            Restricted => self.maybe_restrict(i)
+            MDDType::Exact      => /* nothing to do ! */(),
+            MDDType::Relaxed    => self.maybe_relax(i),
+            MDDType::Restricted => self.maybe_restrict(i),
         }
     }
-    fn maybe_add_to_cutset(cutset: &mut Vec<PooledNode<T>>, node: &PooledNode<T>, arc: &Arc<T, PooledNode<T>>) {
+    fn maybe_add_to_cutset(cutset: &mut Vec<Rc<PooledNode<T>>>, node: &PooledNode<T>, arc: &Arc<T, PooledNode<T>>) {
         if node.is_exact && !arc.src.is_exact {
-            cutset.push(node.clone());
+            cutset.push(Rc::new(node.clone()));
         }
     }
 
@@ -222,11 +228,117 @@ impl <T> PooledMDD<T> where T : Clone + Hash + Eq {
     }
 
     fn maybe_relax(&mut self, i: u32) {
-        // TODO
+        if i <= 1 {
+            return /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */;
+        } else {
+            let w = max(2, self.width.max_width(self));
+            while self.current.len() > w {
+                // we do squash the current layer so the mdd is now inexact
+                self.is_exact = false;
+
+                // actually squash the layer
+                self.current.sort_by(&self.ns);
+                let (_keep, squash) = self.current.split_at_mut(w-1);
+
+                // 0. We are going to change the content of the central node. Hence it must go to
+                //    cutset if it is an exact node.
+                let mut central_rc = Rc::clone(squash.first().unwrap());
+                let mut central = Rc::get_mut(&mut central_rc).unwrap();
+                if central.is_exact {
+                    let copy = Rc::new(PooledNode {
+                        state   : central.state.clone(),
+                        lp_arc  : central.lp_arc.clone(),
+                        lp_len  : central.lp_len,
+                        is_exact: true,
+                        ub      : central.ub
+                    });
+                    self.cutset.push(copy);
+                }
+
+                // 1. merge state of the worst node into that of central
+                let mut states = vec![];
+                for n in squash.iter() {
+                    states.push(&n.state);
+                }
+                central.state = self.relax.merge_states(states.as_slice());
+                central.is_exact = false;
+
+                // 2. relax edges from the parents of all merged nodes (central + squashed)
+                let mut arc = central.lp_arc.as_mut().unwrap();
+                central.lp_len -= arc.weight;
+                arc.weight = self.relax.relax_cost(&arc.src.state, &central.state, &arc.decision);
+                central.lp_len += arc.weight;
+
+                for n in squash.iter_mut() {
+                    let narc = n.lp_arc.clone().unwrap();
+
+                    let cost = self.relax.relax_cost(&narc.src.state, &central.state, &narc.decision);
+
+                    if n.lp_len - narc.weight + cost > central.lp_len {
+                        central.lp_len -= arc.weight;
+                        arc.src     = Rc::clone(&narc.src);
+                        arc.decision= narc.decision;
+                        arc.weight  = cost;
+                        central.lp_len += arc.weight;
+                    }
+
+                    // n was an exact node, it must to to the cutset
+                    if n.is_exact {
+                        self.cutset.push(Rc::clone(n))
+                    }
+                }
+
+                // We can now recompute the rough ub of central
+                central.ub = self.relax.rough_ub(central.lp_len, &central.state, &self.unassigned_vars);
+
+                // 3. all nodes have been merged into central: resize the current layer and add central
+                let mut must_add = true;
+                self.current.truncate(w - 1);
+                for n in self.current.iter_mut() {
+                    if n.state.eq(&central.state) {
+                        // if n is exact, it must go to the cutset
+                        if n.is_exact {
+                            let copy = Rc::new(PooledNode {
+                                state   : n.state.clone(),
+                                lp_arc  : n.lp_arc.clone(),
+                                lp_len  : n.lp_len,
+                                is_exact: true,
+                                ub      : n.ub
+                            });
+                            self.cutset.push(copy);
+                        }
+
+                        must_add = false;
+                        let n = Rc::get_mut(n).unwrap();
+                        n.is_exact = false;
+                        if n.lp_len < central.lp_len {
+                            n.lp_len = central.lp_len;
+                            n.lp_arc = central.lp_arc.clone();
+                            n.ub     = central.ub;
+                        }
+
+                        break;
+                    }
+                }
+                if must_add {
+                    self.current.push(central_rc);
+                }
+            }
+        }
     }
 
     fn maybe_restrict(&mut self, i: u32) {
-        // TODO
+        if i <= 1 {
+            return /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */;
+        } else {
+            let w = max(2, self.width.max_width(self));
+            while self.current.len() > w {
+                // we do squash the current layer so the mdd is now inexact
+                self.is_exact = false;
+                self.current.sort_by(&self.ns);
+                self.current.truncate(w);
+            }
+        }
     }
 }
 
@@ -260,7 +372,7 @@ impl <T> MDD<T, PooledNode<T>> for PooledMDD<T> where T : Clone + Hash + Eq {
             self.best_node.as_ref().unwrap().longest_path()
         }
     }
-    fn exact_cutset(&self) -> &[PooledNode<T>] {
+    fn exact_cutset(&self) -> &[Rc<PooledNode<T>>] {
         &self.cutset
     }
     fn current_layer(&self) -> &[Rc<PooledNode<T>>] {

@@ -14,9 +14,3 @@ pub trait VariableHeuristic<T, N>
           N : Node<T, N> {
     fn next_var(&self, dd: &dyn MDD<T, N>, vars: &BitSet) -> Variable;
 }
-
-pub trait NodeHeuristic<T, N>
-    where T : Clone + Hash + Eq,
-          N : Node<T, N> {
-    fn select_nodes(&self, dd: &dyn MDD<T, N>) -> &[u32];
-}
