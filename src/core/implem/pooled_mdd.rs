@@ -151,7 +151,11 @@ impl <T, NS> PooledMDD<T, NS>
 
         while i < nbvars && !self.pool.is_empty() {
             let selected = self.vs.next_var(self, &self.unassigned_vars);
+            if selected.is_none() {
+                break;
+            }
 
+            let selected = selected.unwrap();
             self.pick_nodes_from_pool(selected);
             self.maybe_squash(i);
 
@@ -189,7 +193,6 @@ impl <T, NS> PooledMDD<T, NS>
             i += 1;
         }
 
-        println!("nb vars : {} // i : {}", nbvars, i);
         self.find_best_node();
     }
 
@@ -358,6 +361,10 @@ impl <T, NS> MDD<T, PooledNode<T>> for PooledMDD<T, NS>
 
     fn current_layer(&self) -> &[Rc<PooledNode<T>>] {
         &self.current
+    }
+
+    fn next_layer(&self) -> &HashMap<T, Rc<PooledNode<T>>> {
+        &self.pool
     }
 
     fn exact_cutset(&self) -> &[Rc<PooledNode<T>>] {

@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use bitset_fixed::BitSet;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Arc<T, N>
@@ -43,6 +44,9 @@ pub trait MDD<T, N>
     fn mdd_type(&self)        -> MDDType;
     fn current_layer(&self)   -> &[Rc<N>];
     fn exact_cutset(&self)    -> &[Rc<N>];
+
+    fn next_layer(&self)      -> &HashMap<T, Rc<N>>;
+
     fn last_assigned(&self)   -> Variable;
     fn unassigned_vars(&self) -> &BitSet;
 

@@ -12,5 +12,5 @@ pub trait WidthHeuristic<T, N>
 pub trait VariableHeuristic<T, N>
     where T : Clone + Hash + Eq,
           N : Node<T, N> {
-    fn next_var(&self, dd: &dyn MDD<T, N>, vars: &BitSet) -> Variable;
+    fn next_var(&self, dd: &dyn MDD<T, N>, vars: &BitSet) -> Option<Variable>;
 }

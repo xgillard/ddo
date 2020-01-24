@@ -10,8 +10,10 @@ use rust_mdd_solver::core::abstraction::dp::{Variable, Problem};
 use rust_mdd_solver::core::abstraction::mdd::{MDD, Node};
 use rust_mdd_solver::core::implem::heuristics::FixedWidth;
 use std::cmp::Ordering;
-use std::cmp::Ordering::{Greater, Less};
+use std::cmp::Ordering::{Greater, Less, Equal};
 use std::ops::Not;
+use std::time::SystemTime;
+use rust_mdd_solver::core::utils::BitSetIter;
 
 struct ActiveLexOrder {
     pb: Rc<Misp>
@@ -22,20 +24,26 @@ impl ActiveLexOrder {
     }
 }
 impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
-    fn next_var(&self, _dd: &dyn MDD<BitSet, PooledNode<BitSet>>, vars: &BitSet) -> Variable {
+    fn next_var(&self, dd: &dyn MDD<BitSet, PooledNode<BitSet>>, vars: &BitSet) -> Option<Variable> {
         /*
         let mut active_vertices = BitSet::new(self.pb.nb_vars());
-        for n in dd.current_layer() {
-            active_vertices |= n.get_state();
-        }
-        */
-        for i in 0..self.pb.nb_vars() {
-            if vars[i] {
-                return Variable(i);
-            }
+        for (state, _) in dd.next_layer() {
+            active_vertices |= state;
         }
 
-        panic!("No variable to branch on")
+        for v in BitSetIter::new(active_vertices) {
+            return Some(Variable(v));
+        }
+
+        None
+        */
+
+        for i in 0..self.pb.nb_vars() {
+            if vars[i] {
+                return Some(Variable(i))
+            }
+        }
+        None
     }
 }
 
@@ -48,7 +56,7 @@ fn misp_min_lp(a: &Rc<PooledNode<BitSet>>, b: &Rc<PooledNode<BitSet>>) -> Orderi
 }
 
 fn main() {
-    let fname = "/Users/user/Documents/REPO/scala-mdd-solver/src/test/resources/instances/complement/keller4.clq";
+    let fname = "/Users/user/Desktop/mdd_cpp/instances/keller4.clq";
 
     let misp = Rc::new(Misp::from_file(fname));
     let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
@@ -60,9 +68,17 @@ fn main() {
 
 
     let vars = BitSet::new(misp.nb_vars()).not();
-    let root = Rc::new(PooledNode::new(vars.clone(), 0, None,true));
+    let root = Rc::new(PooledNode::new(vars.clone(), misp.initial_value(), None,true));
 
-    mdd.relaxed(vars, root, 0);
+    let start = SystemTime::now();
+    mdd.restricted(vars.clone(), Rc::clone(&root), misp.initial_value());
 
-    println!("UB = {}", mdd.best_value())
+    let lb = mdd.best_value();
+    mdd.relaxed(vars, root, lb);
+    let end = SystemTime::now();
+    println!("Tm {:?}", end.duration_since(start).unwrap());
+
+    println!("LB = {}", lb);
+    println!("UB = {}", mdd.best_value());
+    println!("Cutset = {}", mdd.exact_cutset().len());
 }

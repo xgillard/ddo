@@ -11,9 +11,10 @@ pub struct Misp {
 
 impl Misp {
     pub fn from_file(fname : &str) -> Misp {
-        let mut g = Graph::from_file(fname);
-        g.complement();
-        Misp {graph: g, yes_no: vec![1, 0], no: vec![0]}
+        //let mut g = Graph::from_file(fname);
+        //g.complement();
+        //Misp {graph: g, yes_no: vec![1, 0], no: vec![0]}
+        Misp {graph: Graph::from_file(fname), yes_no: vec![1, 0], no: vec![0]}
     }
 }
 
