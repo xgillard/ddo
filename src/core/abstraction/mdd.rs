@@ -1,8 +1,7 @@
-use crate::core::abstraction::dp::{Decision, Variable};
+use crate::core::abstraction::dp::{Decision, Variable, VarSet};
 use std::rc::Rc;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use bitset_fixed::BitSet;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -48,7 +47,7 @@ pub trait MDD<T, N>
     fn next_layer(&self)      -> &HashMap<T, Rc<N>>;
 
     fn last_assigned(&self)   -> Variable;
-    fn unassigned_vars(&self) -> &BitSet;
+    fn unassigned_vars(&self) -> &VarSet;
 
     fn is_exact(&self)        -> bool;
     fn best_value(&self)      -> i32;

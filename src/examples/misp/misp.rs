@@ -1,5 +1,5 @@
 use crate::examples::misp::graph::Graph;
-use crate::core::abstraction::dp::{Variable, Problem, Decision};
+use crate::core::abstraction::dp::{Variable, Problem, Decision, VarSet};
 use bitset_fixed::BitSet;
 use std::ops::Not;
 
@@ -11,10 +11,9 @@ pub struct Misp {
 
 impl Misp {
     pub fn from_file(fname : &str) -> Misp {
-        //let mut g = Graph::from_file(fname);
-        //g.complement();
-        //Misp {graph: g, yes_no: vec![1, 0], no: vec![0]}
-        Misp {graph: Graph::from_file(fname), yes_no: vec![1, 0], no: vec![0]}
+        let mut g = Graph::from_file(fname);
+        g.complement();
+        Misp {graph: g, yes_no: vec![1, 0], no: vec![0]}
     }
 }
 
@@ -35,7 +34,7 @@ impl Problem<BitSet> for Misp {
         if state[var.0] { &self.yes_no } else { &self.no }
     }
 
-    fn transition(&self, state: &BitSet, _vars: &BitSet, d: &Decision) -> BitSet {
+    fn transition(&self, state: &BitSet, _vars: &VarSet, d: &Decision) -> BitSet {
         let mut bs = state.clone();
         bs.set(d.variable.0, false);
 
@@ -47,7 +46,7 @@ impl Problem<BitSet> for Misp {
         bs
     }
 
-    fn transition_cost(&self, _state: &BitSet, _vars: &BitSet, d: &Decision) -> i32 {
+    fn transition_cost(&self, _state: &BitSet, _vars: &VarSet, d: &Decision) -> i32 {
         if d.value == 0 {
             0
         } else {
