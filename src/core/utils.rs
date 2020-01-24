@@ -48,3 +48,36 @@ impl <T, CMP> Decreasing<T, CMP>
         }
     }
 }
+
+/// A totally ordered Bitset wrapper. Useful to implement tie break mechanisms
+#[derive(Eq, PartialEq)]
+pub struct LexBitSet<'a>(pub &'a BitSet);
+
+impl <'a> Ord for LexBitSet<'a> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+impl <'a> PartialOrd for LexBitSet<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let x = self.0.buffer();
+        let y = other.0.buffer();
+
+        for i in 0..x.len() {
+            if x[i] != y[i] {
+                let mut mask = 1_u64;
+                let block_x = x[i];
+                let block_y = y[i];
+                for _ in 0..64 {
+                    let bit_x = block_x & mask;
+                    let bit_y = block_y & mask;
+                    if bit_x != bit_y {
+                        return Some(bit_x.cmp(&bit_y));
+                    }
+                    mask <<= 1;
+                }
+            }
+        }
+        Some(Equal)
+    }
+}

@@ -9,7 +9,7 @@ pub struct Variable(pub usize);
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct VarSet(pub BitSet);
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Decision {
     pub variable : Variable,
     pub value    : i32

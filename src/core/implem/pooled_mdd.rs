@@ -8,16 +8,17 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::utils::Decreasing;
+use std::cmp::Ordering::Equal;
 
 // --- POOLED NODE -------------------------------------------------------------
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct PooledNode<T> where T : Hash + Eq + Clone {
-    state   : T,
-    is_exact: bool,
-    lp_len  : i32,
-    ub      : i32,
+    pub state   : T,
+    pub is_exact: bool,
+    pub lp_len  : i32,
+    pub lp_arc  : Option<Arc<T, PooledNode<T>>>,
 
-    lp_arc  : Option<Arc<T, PooledNode<T>>>
+    pub ub      : i32
 }
 
 impl <T> PooledNode<T> where T : Hash + Eq + Clone {
@@ -69,6 +70,28 @@ impl <T> Node<T, PooledNode<T>> for PooledNode<T> where T : Hash + Eq + Clone {
         }
 
         ret
+    }
+}
+
+impl <T> Ord for PooledNode<T> where T : Hash + Eq + Clone + Ord {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl <T> PartialOrd for PooledNode<T> where T : Hash + Eq + Clone + PartialOrd {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let cmp_ub = self.ub.cmp(&other.ub);
+        if cmp_ub != Equal {
+            Some(cmp_ub)
+        } else {
+            let cmp_lp = self.lp_len.cmp(&other.lp_len);
+            if cmp_lp != Equal {
+                Some(cmp_lp)
+            } else {
+                self.state.partial_cmp(other.get_state())
+            }
+        }
     }
 }
 

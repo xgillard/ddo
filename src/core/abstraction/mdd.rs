@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::collections::HashMap;
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Arc<T, N>
     where T : Clone + Hash + Eq,
           N : Node<T, N> {
@@ -40,16 +40,15 @@ pub trait MDD<T, N>
     where T : Clone + Hash + Eq,
           N : Node<T, N> {
 
-    fn mdd_type(&self)        -> MDDType;
-    fn current_layer(&self)   -> &[Rc<N>];
-    fn exact_cutset(&self)    -> &[Rc<N>];
+    fn mdd_type(&self)           -> MDDType;
+    fn current_layer(&self)      -> &[Rc<N>];
+    fn exact_cutset(&self)       -> &[Rc<N>];
+    fn next_layer(&self)         -> &HashMap<T, Rc<N>>;
 
-    fn next_layer(&self)      -> &HashMap<T, Rc<N>>;
+    fn last_assigned(&self)      -> Variable;
+    fn unassigned_vars(&self)    -> &VarSet;
 
-    fn last_assigned(&self)   -> Variable;
-    fn unassigned_vars(&self) -> &VarSet;
-
-    fn is_exact(&self)        -> bool;
-    fn best_value(&self)      -> i32;
-    fn longest_path(&self)    -> Vec<Decision>;
+    fn is_exact(&self)           -> bool;
+    fn best_value(&self)         -> i32;
+    fn longest_path(&self)       -> Vec<Decision>;
 }
