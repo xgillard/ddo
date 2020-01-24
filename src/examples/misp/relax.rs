@@ -1,6 +1,6 @@
 use crate::examples::misp::misp::Misp;
 use std::rc::Rc;
-use crate::core::abstraction::dp::{Relaxation, Decision, Problem, VarSet};
+use crate::core::abstraction::dp::{Relaxation, Decision, Problem};
 use bitset_fixed::BitSet;
 
 pub struct MispRelax {
@@ -26,13 +26,16 @@ impl Relaxation<BitSet> for MispRelax {
         if decision.value == 0 { 0 } else { self.pb.graph.weights[decision.variable.0] }
     }
 
-    fn rough_ub(&self, lp: i32, s: &BitSet, vars: &VarSet) -> i32 {
+    fn rough_ub(&self, lp: i32, s: &BitSet) -> i32 {
+        lp + s.count_ones() as i32
+        /*
         let mut res = lp;
-        for x in vars.iter() {
+        for x in BitSetIter::new(s.clone()) {
             if s[x.0] {
                 res += self.pb.graph.weights[x.0];
             }
         }
         res
+        */
     }
 }

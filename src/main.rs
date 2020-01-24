@@ -7,7 +7,7 @@ use std::time::SystemTime;
 
 use bitset_fixed::BitSet;
 
-use rust_mdd_solver::core::abstraction::dp::{Variable, VarSet, Problem};
+use rust_mdd_solver::core::abstraction::dp::{Variable, VarSet};
 use rust_mdd_solver::core::abstraction::heuristics::VariableHeuristic;
 use rust_mdd_solver::core::abstraction::mdd::{MDD, Node};
 use rust_mdd_solver::core::implem::heuristics::FixedWidth;
@@ -15,31 +15,17 @@ use rust_mdd_solver::core::implem::pooled_mdd::PooledNode;
 use rust_mdd_solver::core::solver::Solver;
 use rust_mdd_solver::examples::misp::misp::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
-use rust_mdd_solver::core::utils::{LexBitSet, BitSetIter};
+use rust_mdd_solver::core::utils::LexBitSet;
 
-struct ActiveLexOrder{
-    pb: Rc<Misp>
-}
+struct ActiveLexOrder{}
 
 impl ActiveLexOrder {
-    pub fn new(pb: Rc<Misp>) -> ActiveLexOrder {
-        ActiveLexOrder{pb}
+    pub fn new() -> ActiveLexOrder {
+        ActiveLexOrder{}
     }
 }
 impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
-    fn next_var(&self, dd: &dyn MDD<BitSet, PooledNode<BitSet>>, vars: &VarSet) -> Option<Variable> {
-        /*
-        let mut active_vertices = BitSet::new(self.pb.nb_vars());
-        for (state, _) in dd.next_layer() {
-            active_vertices |= state;
-        }
-
-        for v in BitSetIter::new(active_vertices) {
-            return Some(Variable(v));
-        }
-
-        None
-        */
+    fn next_var(&self, _dd: &dyn MDD<BitSet, PooledNode<BitSet>>, vars: &VarSet) -> Option<Variable> {
         for x in vars.iter() {
             return Some(x)
         }
@@ -47,7 +33,7 @@ impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
     }
 }
 
-fn misp_min_lp(a: &Rc<PooledNode<BitSet>>, b: &Rc<PooledNode<BitSet>>) -> Ordering {
+fn misp_min_lp(a: &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
     match a.get_lp_len().cmp(&b.get_lp_len()) {
         Ordering::Greater => Greater,
         Ordering::Less    => Less,
@@ -66,7 +52,7 @@ fn misp_ub_order(a : &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
             if by_lp_len == Equal {
                 LexBitSet(a.get_state()).cmp(&LexBitSet(b.get_state()))
             } else { by_lp_len }
-        } else { by_sz.reverse() }
+        } else { by_sz }
     } else { by_ub }
 }
 
@@ -76,7 +62,7 @@ fn main() {
 
     let misp = Rc::new(Misp::from_file(fname));
     let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
-    let vs = Rc::new(ActiveLexOrder::new(Rc::clone(&misp)));
+    let vs = Rc::new(ActiveLexOrder::new());
     let w = Rc::new(FixedWidth(100));
 
     let mut solver = Solver::new(misp, relax, vs, w,

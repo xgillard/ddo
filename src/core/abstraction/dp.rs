@@ -40,7 +40,7 @@ pub trait Relaxation<T> {
     // Optionally compute a rough upper bound on the objective value reachable
     // from the given state.
     #[allow(unused_variables)]
-    fn rough_ub(&self, lp: i32, s: &T, vars: &VarSet) -> i32 {
+    fn rough_ub(&self, lp: i32, s: &T) -> i32 {
         i32::max_value()
     }
 }

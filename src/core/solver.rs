@@ -10,7 +10,7 @@ use binary_heap_plus::{BinaryHeap, FnComparator};
 
 pub struct Solver<T, NS, BO>
     where T : Clone + Hash + Eq,
-          NS: Fn(&Rc<PooledNode<T>>, &Rc<PooledNode<T>>) -> Ordering,
+          NS: Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
           BO: Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
 
     pb           : Rc<dyn Problem<T>>,
@@ -27,7 +27,7 @@ pub struct Solver<T, NS, BO>
 
 impl <T, NS, BO> Solver<T, NS, BO>
     where T : Clone + Hash + Eq + Ord,
-          NS: Fn(&Rc<PooledNode<T>>, &Rc<PooledNode<T>>) -> Ordering,
+          NS: Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
           BO: Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
 
     pub fn new(pb    : Rc<dyn Problem<T>>,
@@ -60,7 +60,7 @@ impl <T, NS, BO> Solver<T, NS, BO>
 
         // 0. Initial relaxation:
         self.explored = 1;
-        self.mdd.relaxed(VarSet::all(self.pb.nb_vars()), Rc::new(root), self.best_lb);
+        self.mdd.relaxed(VarSet::all(self.pb.nb_vars()), &root, self.best_lb);
         if self.mdd.is_exact() {
             if self.mdd.best_value() > self.best_lb {
                 self.best_lb = self.mdd.best_value();
@@ -87,7 +87,6 @@ impl <T, NS, BO> Solver<T, NS, BO>
         println!("After root : UB {}, Fringe {}", self.best_ub, self.fringe.len());
         while !self.fringe.is_empty() {
             let node = self.fringe.pop().unwrap();
-            let node= Rc::new(node);
 
             // Nodes are sorted on UB as first criterion. It can be updated
             // whenever we encounter a tighter value
@@ -110,13 +109,22 @@ impl <T, NS, BO> Solver<T, NS, BO>
                 vars.remove(d.variable);
             }
 
-            // 1. RELAXATION
-            self.mdd.relaxed(vars.clone(), Rc::clone(&node), self.best_lb);
+
+            // 1. RESTRICTION
+            self.mdd.restricted(vars.clone(),&node, self.best_lb);
+            if self.mdd.best_value() > self.best_lb {
+                self.best_lb = self.mdd.best_value();
+            }
+            if self.mdd.is_exact() {
+                continue;
+            }
+
+            // 2. RELAXATION
+            self.mdd.relaxed(vars, &node, self.best_lb);
             if self.mdd.is_exact() {
                 if self.mdd.best_value() > self.best_lb {
                     self.best_lb = self.mdd.best_value();
                 }
-                continue;
             } else {
                 for branch in self.mdd.exact_cutset() {
                     let branch_ub = self.best_ub.min(branch.get_ub());
@@ -131,12 +139,6 @@ impl <T, NS, BO> Solver<T, NS, BO>
                         });
                     }
                 }
-            }
-
-            // 2. RESTRICTION
-            self.mdd.restricted(vars,Rc::clone(&node), self.best_lb);
-            if self.mdd.best_value() > self.best_lb {
-                self.best_lb = self.mdd.best_value();
             }
         }
 
