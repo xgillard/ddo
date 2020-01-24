@@ -1,3 +1,5 @@
+extern crate regex;
 extern crate bitset_fixed;
 
-mod core;
+pub mod core;
+pub mod examples;
