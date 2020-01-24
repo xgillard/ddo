@@ -19,6 +19,7 @@ pub struct Solver<T, NS, BO>
     fringe       : BinaryHeap<PooledNode<T>, FnComparator<BO>>,
 
     pub explored : usize,
+    pub best_ub  : i32,
     pub best_lb  : i32,
     pub best_sol : Option<Vec<Decision>>,
     phantom      : PhantomData<T>
@@ -41,6 +42,7 @@ impl <T, NS, BO> Solver<T, NS, BO>
             mdd        : PooledMDD::new(Rc::clone(&pb), relax, vs, width, ns),
             fringe     : BinaryHeap::new_by(bo),
             explored   : 0,
+            best_ub    : std::i32::MAX,
             best_lb    : std::i32::MIN,
             best_sol   : None,
             phantom    : PhantomData
@@ -56,11 +58,42 @@ impl <T, NS, BO> Solver<T, NS, BO>
             true
         );
 
-        self.fringe.push(root);
+        // 0. Initial relaxation:
+        self.explored = 1;
+        self.mdd.relaxed(VarSet::all(self.pb.nb_vars()), Rc::new(root), self.best_lb);
+        if self.mdd.is_exact() {
+            if self.mdd.best_value() > self.best_lb {
+                self.best_lb = self.mdd.best_value();
+                self.best_sol= Some(self.mdd.longest_path());
+            }
+            return (self.best_lb, &self.best_sol);
+        } else {
+            self.best_ub = self.mdd.best_value();
+            for branch in self.mdd.exact_cutset() {
+                let branch_ub = self.best_ub.min(branch.get_ub());
 
+                if branch.get_ub() > self.best_lb {
+                    self.fringe.push(PooledNode {
+                        state   : branch.get_state().clone(),
+                        is_exact: true,
+                        lp_len  : branch.get_lp_len(),
+                        lp_arc  : branch.get_lp_arc().clone(),
+                        ub      : branch_ub
+                    });
+                }
+            }
+        }
+
+        println!("After root : UB {}, Fringe {}", self.best_ub, self.fringe.len());
         while !self.fringe.is_empty() {
             let node = self.fringe.pop().unwrap();
             let node= Rc::new(node);
+
+            // Nodes are sorted on UB as first criterion. It can be updated
+            // whenever we encounter a tighter value
+            if node.get_ub() < self.best_ub {
+                self.best_ub = node.get_ub();
+            }
 
             // Skip if this node cannot improve the current best solution
             if node.get_ub() < self.best_lb {
@@ -69,7 +102,7 @@ impl <T, NS, BO> Solver<T, NS, BO>
 
             self.explored += 1;
             if self.explored % 100 == 0 {
-                println!("Explored {}, LB {}, Fringe sz {}", self.explored, self.best_lb, self.fringe.len());
+                println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
             }
 
             let mut vars = VarSet::all(self.pb.nb_vars());
@@ -86,7 +119,7 @@ impl <T, NS, BO> Solver<T, NS, BO>
                 continue;
             } else {
                 for branch in self.mdd.exact_cutset() {
-                    let branch_ub = branch.get_ub().min(node.get_ub());
+                    let branch_ub = self.best_ub.min(branch.get_ub());
 
                     if branch.get_ub() > self.best_lb {
                         self.fringe.push(PooledNode {

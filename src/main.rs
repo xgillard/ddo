@@ -27,7 +27,8 @@ impl ActiveLexOrder {
     }
 }
 impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
-    fn next_var(&self, dd: &dyn MDD<BitSet, PooledNode<BitSet>>, _vars: &VarSet) -> Option<Variable> {
+    fn next_var(&self, dd: &dyn MDD<BitSet, PooledNode<BitSet>>, vars: &VarSet) -> Option<Variable> {
+        /*
         let mut active_vertices = BitSet::new(self.pb.nb_vars());
         for (state, _) in dd.next_layer() {
             active_vertices |= state;
@@ -38,12 +39,11 @@ impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
         }
 
         None
-        /*
+        */
         for x in vars.iter() {
             return Some(x)
         }
         None
-        */
     }
 }
 
@@ -66,7 +66,7 @@ fn misp_ub_order(a : &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
             if by_lp_len == Equal {
                 LexBitSet(a.get_state()).cmp(&LexBitSet(b.get_state()))
             } else { by_lp_len }
-        } else { by_sz }
+        } else { by_sz.reverse() }
     } else { by_ub }
 }
 
