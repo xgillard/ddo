@@ -7,12 +7,12 @@ use std::time::SystemTime;
 
 use bitset_fixed::BitSet;
 
-use rust_mdd_solver::core::abstraction::dp::{Variable, VarSet};
+use rust_mdd_solver::core::abstraction::dp::{Variable, VarSet, Problem};
 use rust_mdd_solver::core::abstraction::heuristics::VariableHeuristic;
 use rust_mdd_solver::core::abstraction::mdd::{MDD, Node};
 use rust_mdd_solver::core::implem::heuristics::FixedWidth;
 use rust_mdd_solver::core::implem::pooled_mdd::PooledNode;
-use rust_mdd_solver::core::solver::Solver;
+use rust_mdd_solver::core::solver::{Solver, FromFunction};
 use rust_mdd_solver::examples::misp::misp::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::utils::LexBitSet;
@@ -31,6 +31,10 @@ impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
         }
         None
     }
+}
+
+fn vars_from_misp_state(_pb: &dyn Problem<BitSet>, n: &PooledNode<BitSet>) -> VarSet {
+    VarSet(n.get_state().clone())
 }
 
 fn misp_min_lp(a: &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
@@ -66,8 +70,10 @@ fn main() {
     let w = Rc::new(FixedWidth(100));
 
     let mut solver = Solver::new(misp, relax, vs, w,
-                                 misp_min_lp,
-                                 misp_ub_order);
+                      misp_min_lp,
+                      misp_ub_order,
+                      FromFunction::new(vars_from_misp_state));
+
     let (opt, _) = solver.maximize();
     println!("Optimum  {}", opt);
     println!("Explored {}", solver.explored);
