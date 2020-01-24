@@ -48,11 +48,23 @@ fn misp_min_lp(a: &Rc<PooledNode<BitSet>>, b: &Rc<PooledNode<BitSet>>) -> Orderi
         Ordering::Less    => Less,
         Ordering::Equal   => {
             //a.get_state().cmp(b.get_state())
-            let x = a.get_state();
-            let y = b.get_state();
-            for i in 0..x.size() {
+
+            let x = a.get_state().buffer();
+            let y = b.get_state().buffer();
+
+            for i in 0..x.len() {
                 if x[i] != y[i] {
-                    return x[i].cmp(&y[i]);
+                    let mut mask = 1_u64;
+                    let block_x = x[i];
+                    let block_y = y[i];
+                    for _ in 0..64 {
+                        let bit_x = block_x & mask;
+                        let bit_y = block_y & mask;
+                        if bit_x != bit_y {
+                            return bit_x.cmp(&bit_y);
+                        }
+                        mask <<= 1;
+                    }
                 }
             }
             Equal
