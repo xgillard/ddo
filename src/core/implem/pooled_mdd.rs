@@ -286,15 +286,14 @@ impl <T, NS> PooledMDD<T, NS>
                 for n in squash.iter() {
                     states.push(&n.state);
                 }
-                central.state = self.relax.merge_states(states.as_slice());
-                central.is_exact = false;
+                let central_state = self.relax.merge_states(states.as_slice());
 
                 // 2. relax edges from the parents of all merged nodes (central + squashed)
                 let mut arc = central.lp_arc.as_mut().unwrap();
                 for n in squash.iter_mut() {
                     let narc = n.lp_arc.clone().unwrap();
 
-                    let cost = self.relax.relax_cost(&narc.src.state, &central.state, &narc.decision);
+                    let cost = self.relax.relax_cost(&narc.src.state, &central_state, &narc.decision);
 
                     if n.lp_len - narc.weight + cost > central.lp_len {
                         central.lp_len -= arc.weight;
@@ -309,6 +308,9 @@ impl <T, NS> PooledMDD<T, NS>
                         self.cutset.push(n.clone())
                     }
                 }
+
+                central.state    = central_state;
+                central.is_exact = false;
 
                 // 3. all nodes have been merged into central: resize the current layer and add central
                 let mut must_add = true;
