@@ -191,19 +191,27 @@ impl <T, NS> PooledMDD<T, NS>
                     let cost = self.pb.transition_cost(&node.state, &self.unassigned_vars, &decision);
                     let arc = Arc {src: Rc::new(node.clone()), decision: decision, weight: cost, phantom: PhantomData};
 
-                    match self.pool.get_mut(&state) {
+                    let dest = PooledNode::new(state, node.lp_len + cost, Some(arc), node.is_exact);
+                    match self.pool.get_mut(&dest.state) {
                         Some(old) => {
-                            if old.is_exact && !arc.src.is_exact {
+                            if old.is_exact && !dest.is_exact {
                                 self.cutset.push(old.clone());
                             }
-                            old.add_arc(arc);
+                            if !old.is_exact && dest.is_exact {
+                                self.cutset.push(dest.clone());
+                            }
+                            // FIXME: maybe call add_arc here ?
+                            if old.lp_len < dest.lp_len {
+                                old.lp_len = dest.lp_len;
+                                old.lp_arc = dest.lp_arc;
+                            }
+                            old.is_exact &= dest.is_exact;
                         },
                         None => {
-                            let lp_len = node.lp_len + cost;
-                            let ub = root.ub.min(self.relax.rough_ub(lp_len, &state));
+                            let ub = root.ub.min(self.relax.rough_ub(dest.lp_len, &dest.state));
 
                             if ub > best_lb {
-                                self.pool.insert(state.clone(), PooledNode::new(state, lp_len, Some(arc), node.is_exact));
+                                self.pool.insert(dest.state.clone(), dest);
                             }
                         }
                     }
