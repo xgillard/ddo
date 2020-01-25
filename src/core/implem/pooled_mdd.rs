@@ -283,10 +283,6 @@ impl <T, NS> PooledMDD<T, NS>
 
                 // 2. relax edges from the parents of all merged nodes (central + squashed)
                 let mut arc = central.lp_arc.as_mut().unwrap();
-                central.lp_len -= arc.weight;
-                arc.weight = self.relax.relax_cost(&arc.src.state, &central.state, &arc.decision);
-                central.lp_len += arc.weight;
-
                 for n in squash.iter_mut() {
                     let narc = n.lp_arc.clone().unwrap();
 
