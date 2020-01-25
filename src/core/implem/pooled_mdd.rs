@@ -191,11 +191,11 @@ impl <T, NS> PooledMDD<T, NS>
                     let cost = self.pb.transition_cost(&node.state, &self.unassigned_vars, &decision);
                     let arc = Arc {src: Rc::new(node.clone()), decision: decision, weight: cost, phantom: PhantomData};
 
-                    let cs = &mut self.cutset;
-                    let pl = &mut self.pool;
-                    match pl.get_mut(&state) {
+                    match self.pool.get_mut(&state) {
                         Some(old) => {
-                            PooledMDD::<T, NS>::maybe_add_to_cutset(cs, old, &arc);
+                            if old.is_exact && !arc.src.is_exact {
+                                self.cutset.push(old.clone());
+                            }
                             old.add_arc(arc);
                         },
                         None => {
@@ -203,7 +203,7 @@ impl <T, NS> PooledMDD<T, NS>
                             let ub = root.ub.min(self.relax.rough_ub(lp_len, &state));
 
                             if ub > best_lb {
-                                pl.insert(state.clone(), PooledNode::new(state, lp_len, Some(arc), node.is_exact));
+                                self.pool.insert(state.clone(), PooledNode::new(state, lp_len, Some(arc), node.is_exact));
                             }
                         }
                     }
@@ -246,11 +246,6 @@ impl <T, NS> PooledMDD<T, NS>
             MDDType::Restricted => self.maybe_restrict(i),
         }
     }
-    fn maybe_add_to_cutset(cutset: &mut Vec<PooledNode<T>>, node: &PooledNode<T>, arc: &Arc<T, PooledNode<T>>) {
-        if node.is_exact && !arc.src.is_exact {
-            cutset.push(node.clone());
-        }
-    }
 
     fn find_best_node(&mut self) {
         let mut best_value = std::i32::MIN;
@@ -276,19 +271,7 @@ impl <T, NS> PooledMDD<T, NS>
                 self.current.sort_by(|a, b| ns.compare(a, b));
                 let (_keep, squash) = self.current.split_at_mut(w-1);
 
-                // 0. We are going to change the content of the central node. Hence it must go to
-                //    cutset if it is an exact node.
-                if squash[0].is_exact {
-                    self.cutset.push(squash[0].clone());
-                }
-
-                let mut central = PooledNode {
-                    state   : squash[0].state.clone(),
-                    is_exact: squash[0].is_exact,
-                    lp_len  : squash[0].lp_len,
-                    lp_arc  : squash[0].lp_arc.clone(),
-                    ub      : squash[0].ub
-                };
+                let mut central = squash[0].clone();
 
                 // 1. merge state of the worst node into that of central
                 let mut states = vec![];
