@@ -117,17 +117,9 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
         } else {
             self.best_ub = self.mdd.best_value();
             for branch in self.mdd.exact_cutset() {
-                let branch_ub = self.best_ub.min(branch.get_ub());
-
-                if branch.get_ub() > self.best_lb {
-                    self.fringe.push(PooledNode {
-                        state   : branch.get_state().clone(),
-                        is_exact: true,
-                        lp_len  : branch.get_lp_len(),
-                        lp_arc  : branch.get_lp_arc().clone(),
-                        ub      : branch_ub
-                    });
-                }
+                let mut copy = branch.clone();
+                copy.ub = self.best_ub.min(branch.get_ub());
+                self.fringe.push(copy);
             }
         }
 
