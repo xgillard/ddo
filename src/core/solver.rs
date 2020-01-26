@@ -115,11 +115,8 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
             }
             return (self.best_lb, &self.best_sol);
         } else {
-            self.best_ub = self.mdd.best_value();
-            for branch in self.mdd.exact_cutset() {
-                let mut copy = branch.clone();
-                copy.ub = self.best_ub.min(branch.get_ub());
-                self.fringe.push(copy);
+            for node in self.mdd.exact_cutset() {
+                self.fringe.push(node.clone());
             }
         }
 

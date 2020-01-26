@@ -184,7 +184,7 @@ impl <T, NS> PooledMDD<T, NS>
             // FIXME: Just to keep it perfectly reproductible
             let ns = &self.ns;
             let lr = &mut self.current;
-            lr.sort_by(|a, b| ns.compare(a, b).reverse());
+            lr.sort_by(|a, b| ns.compare(a, b));
             //println!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
 
             self.maybe_squash(i);
@@ -232,12 +232,20 @@ impl <T, NS> PooledMDD<T, NS>
             i += 1;
         }
 
-        // We are done, we should assign a rough upper bound on all nodes from the exact cutset
-        for node in self.cutset.iter_mut() {
-            node.ub = root.ub.min(self.relax.rough_ub(node.lp_len, &node.state));
-        }
-
         self.find_best_node();
+
+        // We are done, we should assign a rough upper bound on all nodes from the exact cutset
+        if let Some(best) = &self.best_node {
+            let lp_length = best.lp_len;
+
+            for node in self.cutset.iter_mut() {
+                node.ub = lp_length.min(self.relax.rough_ub(node.lp_len, &node.state));
+            }
+        } else {
+            // If no best node is found, it means this problem is unsat.
+            // Hence, there is no relevant cutset to return
+            self.cutset.clear();
+        }
     }
 
     fn pick_nodes_from_pool(&mut self, selected: Variable) {
