@@ -119,8 +119,7 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
                 self.fringe.push(node.clone());
             }
         }
-
-        println!("After root : UB {}, Fringe {}", self.best_ub, self.fringe.len());
+        
         while !self.fringe.is_empty() {
             let node = self.fringe.pop().unwrap();
 

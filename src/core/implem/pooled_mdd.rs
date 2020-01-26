@@ -182,9 +182,9 @@ impl <T, NS> PooledMDD<T, NS>
             self.pick_nodes_from_pool(selected);
 
             // FIXME: Just to keep it perfectly reproductible
-            let ns = &self.ns;
-            let lr = &mut self.current;
-            lr.sort_by(|a, b| ns.compare(a, b));
+            //let ns = &self.ns;
+            //let lr = &mut self.current;
+            //lr.sort_by(|a, b| ns.compare(a, b));
             //println!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
 
             self.maybe_squash(i);
