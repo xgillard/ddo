@@ -11,4 +11,6 @@ bitset-fixed     = "0.1.0"
 binary-heap-plus = "0.2.0"
 
 # parsing examples
-regex = "1.3.3"
+regex   = "1.3.3"
+clap    = "2.33.0"
+thunder = "0.3.1"

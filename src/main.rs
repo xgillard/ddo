@@ -1,9 +1,10 @@
 extern crate rust_mdd_solver;
+extern crate thunder;
+use thunder::thunderclap;
 
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::rc::Rc;
-use std::time::SystemTime;
 
 use bitset_fixed::BitSet;
 
@@ -60,25 +61,34 @@ fn misp_ub_order(a : &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
     } else { by_ub }
 }
 
+
+struct MispApp;
+/// Solves MISP instances in DIMACS (.clq) format with an MDD branch and bound.
+#[thunderclap]
+impl MispApp {
+    /// Solves the given misp instance with fixed width mdds
+    ///
+    /// # Arguments
+    ///
+    /// fname is the path name of some dimacs .clq file holding graph
+    ///           description of the instance to solve
+    /// width is the maximum allowed width of a layer.
+    ///
+    pub fn misp(fname: &str, width: usize) {
+        let misp = Rc::new(Misp::from_file(fname));
+        let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
+        let vs = Rc::new(ActiveLexOrder::new());
+        let w = Rc::new(FixedWidth(width));
+
+        let mut solver = Solver::new(misp, relax, vs, w,
+                                     misp_min_lp,
+                                     misp_ub_order,
+                                     FromFunction::new(vars_from_misp_state));
+
+        solver.maximize();
+    }
+}
+
 fn main() {
-    let fname = "/Users/user/Desktop/mdd_cpp/instances/keller4.clq";
-    let start = SystemTime::now();
-
-    let misp = Rc::new(Misp::from_file(fname));
-    let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
-    let vs = Rc::new(ActiveLexOrder::new());
-    let w = Rc::new(FixedWidth(100));
-
-    let mut solver = Solver::new(misp, relax, vs, w,
-                      misp_min_lp,
-                      misp_ub_order,
-                      FromFunction::new(vars_from_misp_state));
-
-    let (opt, _) = solver.maximize();
-    println!("Optimum  {}", opt);
-    println!("Explored {}", solver.explored);
-
-    let end = SystemTime::now();
-    println!("Tm {:?}", end.duration_since(start).unwrap());
-
+    MispApp::start();
 }
