@@ -113,6 +113,7 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
                 self.best_lb = self.mdd.best_value();
                 self.best_sol= Some(self.mdd.longest_path());
             }
+            println!("Immediate {} ", self.best_lb);
             return (self.best_lb, &self.best_sol);
         } else {
             for node in self.mdd.exact_cutset() {
@@ -183,6 +184,7 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
         }
 
         // return
+        println!("Final {}, Explored {}", self.best_lb, self.explored);
         (self.best_lb, &self.best_sol)
     }
 }
