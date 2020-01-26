@@ -8,31 +8,14 @@ use std::rc::Rc;
 
 use bitset_fixed::BitSet;
 
-use rust_mdd_solver::core::abstraction::dp::{Variable, VarSet, Problem};
-use rust_mdd_solver::core::abstraction::heuristics::VariableHeuristic;
-use rust_mdd_solver::core::abstraction::mdd::{MDD, Node};
-use rust_mdd_solver::core::implem::heuristics::FixedWidth;
+use rust_mdd_solver::core::abstraction::dp::{VarSet, Problem};
+use rust_mdd_solver::core::abstraction::mdd::Node;
+use rust_mdd_solver::core::implem::heuristics::{FixedWidth, NaturalOrder};
 use rust_mdd_solver::core::implem::pooled_mdd::PooledNode;
 use rust_mdd_solver::core::solver::{Solver, FromFunction};
 use rust_mdd_solver::examples::misp::misp::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::utils::LexBitSet;
-
-struct ActiveLexOrder{}
-
-impl ActiveLexOrder {
-    pub fn new() -> ActiveLexOrder {
-        ActiveLexOrder{}
-    }
-}
-impl VariableHeuristic<BitSet, PooledNode<BitSet>> for ActiveLexOrder {
-    fn next_var(&self, _dd: &dyn MDD<BitSet, PooledNode<BitSet>>, vars: &VarSet) -> Option<Variable> {
-        for x in vars.iter() {
-            return Some(x)
-        }
-        None
-    }
-}
 
 fn vars_from_misp_state(_pb: &dyn Problem<BitSet>, n: &PooledNode<BitSet>) -> VarSet {
     VarSet(n.get_state().clone())
@@ -77,7 +60,7 @@ impl MispApp {
     pub fn misp(fname: &str, width: usize) {
         let misp = Rc::new(Misp::from_file(fname));
         let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
-        let vs = Rc::new(ActiveLexOrder::new());
+        let vs = Rc::new(NaturalOrder::new());
         let w = Rc::new(FixedWidth(width));
 
         let mut solver = Solver::new(misp, relax, vs, w,
