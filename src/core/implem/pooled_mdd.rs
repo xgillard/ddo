@@ -1,15 +1,16 @@
-use super::super::abstraction::mdd::*;
-use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable, VarSet};
 use std::cmp::{max, Ordering};
-use std::rc::Rc;
-use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
+use std::cmp::Ordering::Equal;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::rc::Rc;
+
+use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable, VarSet};
+use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::utils::Decreasing;
-use std::cmp::Ordering::Equal;
-use fnv::FnvBuildHasher;
+
+use super::super::abstraction::mdd::*;
 
 // --- POOLED NODE -------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq)]
@@ -106,7 +107,7 @@ pub struct PooledMDD<T, NS>
     width            : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
     ns               : Decreasing<PooledNode<T>, NS>,
 
-    pool             : HashMap<T, PooledNode<T>, FnvBuildHasher>,
+    pool             : HashMap<T, PooledNode<T>>,
     current          : Vec<PooledNode<T>>,
     cutset           : Vec<PooledNode<T>>,
 
@@ -137,7 +138,7 @@ impl <T, NS> PooledMDD<T, NS>
             vs               : vs,
             width            : width,
             ns               : Decreasing::from(ns),
-            pool             : HashMap::with_hasher(FnvBuildHasher::default()),
+            pool             : HashMap::new(),
             current          : vec![],
             cutset           : vec![]}
     }
@@ -388,7 +389,7 @@ impl <T, NS> MDD<T, PooledNode<T>> for PooledMDD<T, NS>
         &self.current
     }
 
-    fn next_layer(&self) -> &HashMap<T, PooledNode<T>, FnvBuildHasher> {
+    fn next_layer(&self) -> &HashMap<T, PooledNode<T>> {
         &self.pool
     }
 
