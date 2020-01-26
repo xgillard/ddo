@@ -129,6 +129,11 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
                 self.best_ub = node.get_ub();
             }
 
+            // We just proved optimality, Yay !
+            if self.best_lb == self.best_ub {
+                break;
+            }
+
             // Skip if this node cannot improve the current best solution
             if node.get_ub() < self.best_lb {
                 continue;
