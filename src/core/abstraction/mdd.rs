@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::collections::HashMap;
+use fnv::FnvBuildHasher;
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct Arc<T, N>
@@ -43,7 +44,7 @@ pub trait MDD<T, N>
     fn mdd_type(&self)           -> MDDType;
     fn current_layer(&self)      -> &[N];
     fn exact_cutset(&self)       -> &[N];
-    fn next_layer(&self)         -> &HashMap<T, N>;
+    fn next_layer(&self)         -> &HashMap<T, N, FnvBuildHasher>;
 
     fn last_assigned(&self)      -> Variable;
     fn unassigned_vars(&self)    -> &VarSet;

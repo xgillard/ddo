@@ -9,6 +9,7 @@ use std::marker::PhantomData;
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::utils::Decreasing;
 use std::cmp::Ordering::Equal;
+use fnv::FnvBuildHasher;
 
 // --- POOLED NODE -------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq)]
@@ -105,7 +106,7 @@ pub struct PooledMDD<T, NS>
     width            : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
     ns               : Decreasing<PooledNode<T>, NS>,
 
-    pool             : HashMap<T, PooledNode<T>>,
+    pool             : HashMap<T, PooledNode<T>, FnvBuildHasher>,
     current          : Vec<PooledNode<T>>,
     cutset           : Vec<PooledNode<T>>,
 
@@ -136,7 +137,7 @@ impl <T, NS> PooledMDD<T, NS>
             vs               : vs,
             width            : width,
             ns               : Decreasing::from(ns),
-            pool             : HashMap::new(),
+            pool             : HashMap::with_hasher(FnvBuildHasher::default()),
             current          : vec![],
             cutset           : vec![]}
     }
@@ -368,7 +369,7 @@ impl <T, NS> MDD<T, PooledNode<T>> for PooledMDD<T, NS>
         &self.current
     }
 
-    fn next_layer(&self) -> &HashMap<T, PooledNode<T>> {
+    fn next_layer(&self) -> &HashMap<T, PooledNode<T>, FnvBuildHasher> {
         &self.pool
     }
 
