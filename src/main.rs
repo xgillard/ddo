@@ -1,6 +1,7 @@
 extern crate rust_mdd_solver;
-extern crate thunder;
-use thunder::thunderclap;
+extern crate structopt;
+
+use structopt::StructOpt;
 
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Equal, Greater, Less};
@@ -10,12 +11,15 @@ use bitset_fixed::BitSet;
 
 use rust_mdd_solver::core::abstraction::dp::{VarSet, Problem};
 use rust_mdd_solver::core::abstraction::mdd::Node;
-use rust_mdd_solver::core::implem::heuristics::{FixedWidth, NaturalOrder};
+use rust_mdd_solver::core::implem::heuristics::{FixedWidth, NaturalOrder, NbUnassigned};
 use rust_mdd_solver::core::implem::pooled_mdd::PooledNode;
 use rust_mdd_solver::core::solver::{Solver, FromFunction};
 use rust_mdd_solver::examples::misp::misp::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::utils::LexBitSet;
+use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
+use simplelog::{SimpleLogger, Config};
+use log::LevelFilter;
 
 fn vars_from_misp_state(_pb: &dyn Problem<BitSet>, n: &PooledNode<BitSet>) -> VarSet {
     VarSet(n.get_state().clone())
@@ -44,34 +48,56 @@ fn misp_ub_order(a : &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
     } else { by_ub }
 }
 
-
-struct MispApp;
-/// Solves MISP instances in DIMACS (.clq) format with an MDD branch and bound.
-#[thunderclap]
-impl MispApp {
-    /// Solves the given misp instance with fixed width mdds
-    ///
-    /// # Arguments
-    ///
-    /// fname is the path name of some dimacs .clq file holding graph
-    ///           description of the instance to solve
-    /// width is the maximum allowed width of a layer.
-    ///
-    pub fn misp(fname: &str, width: usize) {
-        let misp = Rc::new(Misp::from_file(fname));
-        let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
-        let vs = Rc::new(NaturalOrder::new());
-        let w = Rc::new(FixedWidth(width));
-
-        let mut solver = Solver::new(misp, relax, vs, w,
-                                     misp_min_lp,
-                                     misp_ub_order,
-                                     FromFunction::new(vars_from_misp_state));
-
-        solver.maximize();
+/// Solves hard combinatorial problems with bounded width MDDs
+#[derive(StructOpt)]
+enum RustMddSolver {
+    /// Solve maximum weighted independent set problem from DIMACS (.clq) files
+    Misp {
+        /// Path to the DIMACS MSIP instance
+        fname: String,
+        /// Log the progression
+        #[structopt(short = "v", long = "verbose")]
+        verbose: bool,
+        /// If specified, the max width allowed for any layer
+        width: Option<usize>
     }
 }
 
+/// Solves the given misp instance with fixed width mdds
+///
+/// # Arguments
+///
+/// fname is the path name of some dimacs .clq file holding graph
+///           description of the instance to solve
+/// width is the maximum allowed width of a layer.
+///
+fn misp(fname: &str, verbose: bool, width: Option<usize>) -> i32 {
+    let loglevel = if verbose { LevelFilter::Info } else { LevelFilter::Off };
+    SimpleLogger::init(loglevel, Config::default()).unwrap();
+
+    let misp = Rc::new(Misp::from_file(fname));
+    let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
+    let vs = Rc::new(NaturalOrder::new());
+    let w: Rc<dyn WidthHeuristic<BitSet, PooledNode<BitSet>>> =
+        if let Some(width) = width {
+        Rc::new(FixedWidth(width))
+    } else {
+        Rc::new(NbUnassigned)
+    };
+
+    let mut solver = Solver::new(misp, relax, vs, w,
+                                 misp_min_lp,
+                                 misp_ub_order,
+                                 FromFunction::new(vars_from_misp_state));
+
+    let (opt, _) = solver.maximize();
+    opt
+}
+
 fn main() {
-    MispApp::start();
+    let args = RustMddSolver::from_args();
+    match args {
+        RustMddSolver::Misp {fname, verbose, width} =>
+            misp(&fname,verbose, width)
+    };
 }

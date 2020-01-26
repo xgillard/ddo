@@ -1,3 +1,4 @@
+use log::info;
 use std::rc::Rc;
 use crate::core::abstraction::dp::{Problem, Relaxation, Decision, VarSet};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
@@ -113,7 +114,7 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
                 self.best_lb = self.mdd.best_value();
                 self.best_sol= Some(self.mdd.longest_path());
             }
-            println!("Immediate {} ", self.best_lb);
+            info!("Immediate {} ", self.best_lb);
             return (self.best_lb, &self.best_sol);
         } else {
             for node in self.mdd.exact_cutset() {
@@ -142,7 +143,7 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
 
             self.explored += 1;
             if self.explored % 100 == 0 {
-                println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
+                info!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
             }
 
             let vars = self.load_vars.variables(self.pb.as_ref(), &node);
@@ -184,7 +185,7 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
         }
 
         // return
-        println!("Final {}, Explored {}", self.best_lb, self.explored);
+        info!("Final {}, Explored {}", self.best_lb, self.explored);
         (self.best_lb, &self.best_sol)
     }
 }

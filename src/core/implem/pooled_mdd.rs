@@ -186,7 +186,7 @@ impl <T, NS> PooledMDD<T, NS>
             //let ns = &self.ns;
             //let lr = &mut self.current;
             //lr.sort_by(|a, b| ns.compare(a, b));
-            //println!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
+            //trace!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
 
             self.maybe_squash(i);
 
@@ -204,11 +204,11 @@ impl <T, NS> PooledMDD<T, NS>
                     match self.pool.get_mut(&dest.state) {
                         Some(old) => {
                             if old.is_exact && !dest.is_exact {
-                                //println!("main loop:: old was exact but new was not");
+                                //trace!("main loop:: old was exact but new was not");
                                 self.cutset.push(old.clone());
                             }
                             if !old.is_exact && dest.is_exact {
-                                //println!("main loop:: new was exact but old was not");
+                                //trace!("main loop:: new was exact but old was not");
                                 self.cutset.push(dest.clone());
                             }
                             // FIXME: maybe call add_arc here ?
@@ -324,7 +324,7 @@ impl <T, NS> PooledMDD<T, NS>
 
                     // n was an exact node, it must to to the cutset
                     if n.is_exact {
-                        //println!("squash:: squashed node was exact");
+                        //trace!("squash:: squashed node was exact");
                         self.cutset.push(n.clone())
                     }
                 }
@@ -339,7 +339,7 @@ impl <T, NS> PooledMDD<T, NS>
                     if n.state.eq(&central.state) {
                         // if n is exact, it must go to the cutset
                         if n.is_exact {
-                            //println!("squash:: there existed an equivalent");
+                            //trace!("squash:: there existed an equivalent");
                             self.cutset.push(n.clone());
                         }
 
