@@ -169,10 +169,10 @@ impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
 
                     if branch.get_ub() > self.best_lb {
                         self.fringe.push(PooledNode {
-                            state   : branch.get_state().clone(),
+                            state   : branch.state.clone(),
                             is_exact: true,
-                            lp_len  : branch.get_lp_len(),
-                            lp_arc  : branch.get_lp_arc().clone(),
+                            lp_len  : branch.lp_len,
+                            lp_arc  : branch.lp_arc.clone(),
                             ub      : branch_ub
                         });
                     }

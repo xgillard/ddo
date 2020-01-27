@@ -2,7 +2,6 @@ use std::cmp::{max, Ordering};
 use std::cmp::Ordering::Equal;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable, VarSet};
@@ -12,24 +11,32 @@ use crate::core::utils::Decreasing;
 
 use super::super::abstraction::mdd::*;
 
+#[derive(Clone, Eq, PartialEq)]
+pub struct Arc<T>
+    where T : Clone + Hash + Eq {
+    pub src     : Rc<PooledNode<T>>,
+    pub decision: Decision,
+    pub weight  : i32
+}
+
 // --- POOLED NODE -------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq)]
 pub struct PooledNode<T> where T : Hash + Eq + Clone {
     pub state   : T,
     pub is_exact: bool,
     pub lp_len  : i32,
-    pub lp_arc  : Option<Arc<T, PooledNode<T>>>,
+    pub lp_arc  : Option<Arc<T>>,
 
     pub ub      : i32
 }
 
 impl <T> PooledNode<T> where T : Hash + Eq + Clone {
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T, PooledNode<T>>>, is_exact: bool) -> PooledNode<T> {
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> PooledNode<T> {
         PooledNode{state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
     }
 }
 
-impl <T> Node<T, PooledNode<T>> for PooledNode<T> where T : Hash + Eq + Clone {
+impl <T> Node<T> for PooledNode<T> where T : Hash + Eq + Clone {
     fn is_exact(&self) -> bool {
         self.is_exact
     }
@@ -39,23 +46,11 @@ impl <T> Node<T, PooledNode<T>> for PooledNode<T> where T : Hash + Eq + Clone {
     fn get_lp_len(&self) -> i32 {
         self.lp_len
     }
-    fn get_lp_arc(&self) -> &Option<Arc<T, Self>> {
-        &self.lp_arc
-    }
     fn get_ub(&self) -> i32 {
         self.ub
     }
     fn set_ub(&mut self, ub: i32) {
         self.ub = max(self.ub, ub);
-    }
-
-    fn add_arc (&mut self, arc: Arc<T, Self>) {
-        self.is_exact &= arc.src.is_exact();
-
-        if self.lp_arc.is_none() || arc.src.get_lp_len() + arc.weight > self.lp_len {
-            self.lp_len = arc.src.lp_len + arc.weight;
-            self.lp_arc = Some(arc);
-        }
     }
 
     fn longest_path(&self) -> Vec<Decision> {
@@ -65,7 +60,7 @@ impl <T> Node<T, PooledNode<T>> for PooledNode<T> where T : Hash + Eq + Clone {
         while arc.is_some() {
             let a = arc.as_ref().unwrap();
             ret.push(a.decision);
-            arc = &a.src.get_lp_arc();
+            arc = &a.src.lp_arc;
         }
 
         ret
@@ -198,7 +193,7 @@ impl <T, NS> PooledMDD<T, NS>
                     let decision = Decision{variable: selected, value: *value};
                     let state = self.pb.transition(&node.state, &self.unassigned_vars,&decision);
                     let cost = self.pb.transition_cost(&node.state, &self.unassigned_vars, &decision);
-                    let arc = Arc {src: Rc::new(node.clone()), decision: decision, weight: cost, phantom: PhantomData};
+                    let arc = Arc {src: Rc::new(node.clone()), decision: decision, weight: cost};
 
                     let dest = PooledNode::new(state, node.lp_len + cost, Some(arc), node.is_exact);
                     match self.pool.get_mut(&dest.state) {
