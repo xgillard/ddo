@@ -51,14 +51,18 @@ impl <T, F> LoadVars<T> for FromFunction<T, F>
     }
 }
 
-pub struct Solver<T, NS, BO, VARS = FromLongestPath>
-    where T   : Clone + Hash + Eq,
-          NS  : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          BO  : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          VARS: LoadVars<T> {
+pub struct Solver<T, PB, RLX, VS, WDTH, NS, BO, VARS = FromLongestPath>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T, PooledNode<T>>,
+          WDTH : WidthHeuristic<T, PooledNode<T>>,
+          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
+          BO   : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
+          VARS : LoadVars<T> {
 
-    pb           : Rc<dyn Problem<T>>,
-    mdd          : PooledMDD<T, NS>,
+    pb           : Rc<PB>,
+    mdd          : PooledMDD<T, PB, RLX, VS, WDTH, NS>,
 
     fringe       : BinaryHeap<PooledNode<T>, FnComparator<BO>>,
     load_vars    : VARS,
@@ -70,19 +74,23 @@ pub struct Solver<T, NS, BO, VARS = FromLongestPath>
     phantom      : PhantomData<T>
 }
 
-impl <T, NS, BO, VARS> Solver<T, NS, BO, VARS>
-    where T   : Clone + Hash + Eq,
-          NS  : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          BO  : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          VARS: LoadVars<T> {
+impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, VARS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T, PooledNode<T>>,
+          WDTH : WidthHeuristic<T, PooledNode<T>>,
+          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
+          BO   : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
+          VARS : LoadVars<T> {
 
-    pub fn new(pb       : Rc<dyn Problem<T>>,
-               relax    : Rc<dyn Relaxation<T>>,
-               vs       : Rc<dyn VariableHeuristic<T, PooledNode<T>>>,
-               width    : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
+    pub fn new(pb       : Rc<PB>,
+               relax    : RLX,
+               vs       : VS,
+               width    : WDTH,
                ns       : NS,
                bo       : BO,
-               load_vars: VARS) -> Solver<T, NS, BO, VARS> {
+               load_vars: VARS) -> Solver<T, PB, RLX, VS, WDTH, NS, BO, VARS> {
 
         Solver {
             pb         : Rc::clone(&pb),

@@ -7,7 +7,6 @@ use std::rc::Rc;
 use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable, VarSet};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
-use crate::core::utils::Decreasing;
 
 use super::super::abstraction::mdd::*;
 
@@ -90,17 +89,20 @@ impl <T> PartialOrd for PooledNode<T> where T : Hash + Eq + Clone + PartialOrd {
 }
 
 // --- POOLED MDD --------------------------------------------------------------
-pub struct PooledMDD<T, NS>
-    where T : Hash + Eq + Clone,
-          NS: Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
+pub struct PooledMDD<T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T, PooledNode<T>>,
+          WDTH : WidthHeuristic<T, PooledNode<T>>,
+          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
     mddtype          : MDDType,
 
-    pb               : Rc<dyn Problem<T>>,
-    relax            : Rc<dyn Relaxation<T>>,
-    vs               : Rc<dyn VariableHeuristic<T, PooledNode<T>>>,
-
-    width            : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
-    ns               : Decreasing<PooledNode<T>, NS>,
+    pb               : Rc<PB>,
+    relax            : RLX,
+    vs               : VS,
+    width            : WDTH,
+    ns               : NS,
 
     pool             : HashMap<T, PooledNode<T>>,
     current          : Vec<PooledNode<T>>,
@@ -112,16 +114,15 @@ pub struct PooledMDD<T, NS>
     best_node        : Option<PooledNode<T>>
 }
 
-impl <T, NS> PooledMDD<T, NS>
-    where T : Clone + Hash + Eq,
-          NS: Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
+impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T, PooledNode<T>>,
+          WDTH : WidthHeuristic<T, PooledNode<T>>,
+          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
 
-    pub fn new(pb    : Rc<dyn Problem<T>>,
-               relax : Rc<dyn Relaxation<T>>,
-               vs    : Rc<dyn VariableHeuristic<T, PooledNode<T>>>,
-               width : Rc<dyn WidthHeuristic<T, PooledNode<T>>>,
-               ns    : NS)
-        -> PooledMDD<T, NS> {
+    pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDD<T, PB, RLX, VS, WDTH, NS> {
         PooledMDD{
             mddtype          : Exact,
             last_assigned    : Variable(std::usize::MAX),
@@ -132,7 +133,7 @@ impl <T, NS> PooledMDD<T, NS>
             relax            : relax,
             vs               : vs,
             width            : width,
-            ns               : Decreasing::from(ns),
+            ns               : ns,
             pool             : HashMap::new(),
             current          : vec![],
             cutset           : vec![]}
@@ -180,7 +181,7 @@ impl <T, NS> PooledMDD<T, NS>
             // FIXME: Just to keep it perfectly reproductible
             //let ns = &self.ns;
             //let lr = &mut self.current;
-            //lr.sort_by(|a, b| ns.compare(a, b));
+            //lr.sort_by(|a, b| ns(a, b));
             //trace!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
 
             self.maybe_squash(i);
@@ -290,7 +291,7 @@ impl <T, NS> PooledMDD<T, NS>
                 self.is_exact = false;
 
                 // actually squash the layer
-                self.current.sort_by(|a, b| ns.compare(a, b));
+                self.current.sort_by(|a, b| ns(a, b).reverse());
                 let (_keep, squash) = self.current.split_at_mut(w-1);
 
                 let mut central = squash[0].clone();
@@ -365,16 +366,20 @@ impl <T, NS> PooledMDD<T, NS>
             while self.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.is_exact = false;
-                self.current.sort_by(|a, b| ns.compare(a, b));
+                self.current.sort_by(|a, b| ns(a, b).reverse());
                 self.current.truncate(w);
             }
         }
     }
 }
 
-impl <T, NS> MDD<T, PooledNode<T>> for PooledMDD<T, NS>
-    where T : Clone + Hash + Eq,
-          NS: Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
+impl <T, PB, RLX, VS, WDTH, NS> MDD<T, PooledNode<T>> for PooledMDD<T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T, PooledNode<T>>,
+          WDTH : WidthHeuristic<T, PooledNode<T>>,
+          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
 
     fn mdd_type(&self) -> MDDType {
         self.mddtype
@@ -384,12 +389,12 @@ impl <T, NS> MDD<T, PooledNode<T>> for PooledMDD<T, NS>
         &self.current
     }
 
-    fn next_layer(&self) -> &HashMap<T, PooledNode<T>> {
-        &self.pool
-    }
-
     fn exact_cutset(&self) -> &[PooledNode<T>] {
         &self.cutset
+    }
+
+    fn next_layer(&self) -> &HashMap<T, PooledNode<T>> {
+        &self.pool
     }
 
     fn last_assigned(&self) -> Variable {

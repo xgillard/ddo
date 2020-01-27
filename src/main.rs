@@ -71,25 +71,20 @@ enum RustMddSolver {
 ///           description of the instance to solve
 /// width is the maximum allowed width of a layer.
 ///
-fn misp(fname: &str, verbose: bool, width: Option<usize>) -> i32 {
+fn misp<WDTH>(fname: &str, verbose: bool, width: WDTH) -> i32
+    where WDTH : WidthHeuristic<BitSet, PooledNode<BitSet>> {
     let loglevel = if verbose { LevelFilter::Info } else { LevelFilter::Off };
     SimpleLogger::init(loglevel, Config::default()).unwrap();
 
     let misp = Rc::new(Misp::from_file(fname));
-    let relax = Rc::new(MispRelax::new(Rc::clone(&misp)));
-    let vs = Rc::new(NaturalOrder::new());
-    let w: Rc<dyn WidthHeuristic<BitSet, PooledNode<BitSet>>> =
-        if let Some(width) = width {
-        Rc::new(FixedWidth(width))
-    } else {
-        Rc::new(NbUnassigned)
-    };
+    let relax = MispRelax::new(Rc::clone(&misp));
+    let vs = NaturalOrder::new();
 
-    let mut solver = Solver::new(misp, relax, vs, w,
+    let mut solver = Solver::new(misp, relax, vs,
+                                 width,
                                  misp_min_lp,
                                  misp_ub_order,
                                  FromFunction::new(vars_from_misp_state));
-
     let (opt, _) = solver.maximize();
     opt
 }
@@ -98,6 +93,10 @@ fn main() {
     let args = RustMddSolver::from_args();
     match args {
         RustMddSolver::Misp {fname, verbose, width} =>
-            misp(&fname,verbose, width)
+        if let Some(width) = width {
+            misp(&fname, verbose, FixedWidth(width))
+        } else {
+            misp(&fname, verbose, NbUnassigned)
+        }
     };
 }
