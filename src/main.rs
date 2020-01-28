@@ -19,7 +19,8 @@ use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::utils::LexBitSet;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 use simplelog::{SimpleLogger, Config};
-use log::LevelFilter;
+use log::{debug, warn, log_enabled, Level, LevelFilter};
+use std::time::SystemTime;
 
 fn vars_from_misp_state(_pb: &dyn Problem<BitSet>, n: &PooledNode<BitSet>) -> VarSet {
     VarSet(n.get_state().clone())
@@ -56,8 +57,8 @@ enum RustMddSolver {
         /// Path to the DIMACS MSIP instance
         fname: String,
         /// Log the progression
-        #[structopt(short = "v", long = "verbose")]
-        verbose: bool,
+        #[structopt(short, long, parse(from_occurrences))]
+        verbose: u8,
         /// If specified, the max width allowed for any layer
         width: Option<usize>
     }
@@ -71,9 +72,14 @@ enum RustMddSolver {
 ///           description of the instance to solve
 /// width is the maximum allowed width of a layer.
 ///
-fn misp<WDTH>(fname: &str, verbose: bool, width: WDTH) -> i32
+fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<BitSet, PooledNode<BitSet>> {
-    let loglevel = if verbose { LevelFilter::Info } else { LevelFilter::Off };
+    let loglevel = match verbose {
+        0 => LevelFilter::Off,
+        1 => LevelFilter::Info,
+        2 => LevelFilter::Debug,
+        _ => LevelFilter::Trace
+    };
     SimpleLogger::init(loglevel, Config::default()).unwrap();
 
     let misp = Rc::new(Misp::from_file(fname));
@@ -85,7 +91,30 @@ fn misp<WDTH>(fname: &str, verbose: bool, width: WDTH) -> i32
                                  misp_min_lp,
                                  misp_ub_order,
                                  FromFunction::new(vars_from_misp_state));
-    let (opt, _) = solver.maximize();
+
+    let start = SystemTime::now();
+    let (opt, sln) = solver.maximize();
+    let end = SystemTime::now();
+
+    if log_enabled!(Level::Debug) {
+        debug!("Optimum computed in {:?}", (end.duration_since(start).unwrap()));
+    }
+
+    if log_enabled!(Level::Debug) {
+        debug!("### Solution: ################################################");
+        if let Some(sln) = sln {
+            let mut sln = sln.clone();
+            sln.sort_by_key(|d| d.variable.0);
+            let solution_txt = sln.iter()
+                .filter(|&d|d.value == 1)
+                .fold(String::new(), |a, i| format!("{} {}", a, i.variable.0 + 1));
+
+            debug!("{}", solution_txt);
+        }
+    }
+    if sln.is_none() {
+        warn!("No solution !");
+    }
     opt
 }
 

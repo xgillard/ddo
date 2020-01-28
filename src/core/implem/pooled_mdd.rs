@@ -413,6 +413,9 @@ impl <T, PB, RLX, VS, WDTH, NS> MDD<T, PooledNode<T>> for PooledMDD<T, PB, RLX, 
             self.best_node.as_ref().unwrap().lp_len
         }
     }
+    fn best_node(&self) -> &Option<PooledNode<T>> {
+        &self.best_node
+    }
     fn longest_path(&self) -> Vec<Decision> {
         if self.best_node.is_none() {
             vec![]

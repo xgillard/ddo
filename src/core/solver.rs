@@ -70,6 +70,7 @@ pub struct Solver<T, PB, RLX, VS, WDTH, NS, BO, VARS = FromLongestPath>
     pub explored : usize,
     pub best_ub  : i32,
     pub best_lb  : i32,
+    pub best_node: Option<PooledNode<T>>,
     pub best_sol : Option<Vec<Decision>>,
     phantom      : PhantomData<T>
 }
@@ -100,6 +101,7 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             explored   : 0,
             best_ub    : std::i32::MAX,
             best_lb    : std::i32::MIN,
+            best_node  : None,
             best_sol   : None,
             phantom    : PhantomData
         }
@@ -119,8 +121,9 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
         self.mdd.relaxed(VarSet::all(self.pb.nb_vars()), &root, self.best_lb);
         if self.mdd.is_exact() {
             if self.mdd.best_value() > self.best_lb {
-                self.best_lb = self.mdd.best_value();
-                self.best_sol= Some(self.mdd.longest_path());
+                self.best_lb   = self.mdd.best_value();
+                self.best_node = self.mdd.best_node().clone();
+                self.best_sol  = Some(self.best_node.as_ref().unwrap().longest_path());
             }
             info!("Immediate {} ", self.best_lb);
             return (self.best_lb, &self.best_sol);
@@ -159,7 +162,8 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             // 1. RESTRICTION
             self.mdd.restricted(vars.clone(),&node, self.best_lb);
             if self.mdd.best_value() > self.best_lb {
-                self.best_lb = self.mdd.best_value();
+                self.best_lb   = self.mdd.best_value();
+                self.best_node = self.mdd.best_node().clone();
             }
             if self.mdd.is_exact() {
                 continue;
@@ -169,7 +173,8 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             self.mdd.relaxed(vars, &node, self.best_lb);
             if self.mdd.is_exact() {
                 if self.mdd.best_value() > self.best_lb {
-                    self.best_lb = self.mdd.best_value();
+                    self.best_lb   = self.mdd.best_value();
+                    self.best_node = self.mdd.best_node().clone();
                 }
             } else {
                 for branch in self.mdd.exact_cutset() {
@@ -188,8 +193,8 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             }
         }
 
-        if self.mdd.is_exact() {
-            self.best_sol = Some(self.mdd.longest_path());
+        if let Some(bn) = &self.best_node {
+            self.best_sol = Some(bn.longest_path());
         }
 
         // return

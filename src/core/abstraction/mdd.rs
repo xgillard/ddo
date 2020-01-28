@@ -34,5 +34,6 @@ pub trait MDD<T, N>
 
     fn is_exact(&self)           -> bool;
     fn best_value(&self)         -> i32;
+    fn best_node(&self)          -> &Option<N>;
     fn longest_path(&self)       -> Vec<Decision>;
 }
