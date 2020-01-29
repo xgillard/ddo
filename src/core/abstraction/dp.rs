@@ -45,7 +45,7 @@ pub trait Relaxation<T> {
     }
 }
 
-pub struct VarSetIter(pub BitSetIter);
+pub struct VarSetIter<'a>(pub BitSetIter<'a>);
 
 impl VarSet {
     pub fn all(n: usize) -> VarSet {
@@ -64,10 +64,10 @@ impl VarSet {
         self.0.count_ones() as usize
     }
     pub fn iter(&self) -> VarSetIter {
-        VarSetIter(BitSetIter::new(self.0.clone()))
+        VarSetIter(BitSetIter::new(&self.0))
     }
 }
-impl Iterator for VarSetIter {
+impl Iterator for VarSetIter<'_> {
     type Item = Variable;
 
     fn next(&mut self) -> Option<Variable> {
