@@ -181,7 +181,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
             // FIXME: Just to keep it perfectly reproductible
             //let ns = &self.ns;
             //let lr = &mut self.current;
-            //lr.sort_by(|a, b| ns(a, b));
+            //lr.sort_unstable_by(|a, b| ns(a, b));
             //trace!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
 
             self.maybe_squash(i);
@@ -291,7 +291,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
                 self.is_exact = false;
 
                 // actually squash the layer
-                self.current.sort_by(|a, b| ns(a, b).reverse());
+                self.current.sort_unstable_by(|a, b| ns(a, b).reverse());
                 let (_keep, squash) = self.current.split_at_mut(w-1);
 
                 let mut central = squash[0].clone();
@@ -366,7 +366,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
             while self.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.is_exact = false;
-                self.current.sort_by(|a, b| ns(a, b).reverse());
+                self.current.sort_unstable_by(|a, b| ns(a, b).reverse());
                 self.current.truncate(w);
             }
         }
