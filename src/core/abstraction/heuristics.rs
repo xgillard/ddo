@@ -2,7 +2,7 @@
 //! use to customize the development of MDDs.
 use crate::core::abstraction::mdd::{MDD, Node};
 use std::hash::Hash;
-use crate::core::abstraction::dp::{Variable, VarSet};
+use crate::core::abstraction::dp::{Variable, VarSet, Problem};
 
 /// This trait defines an heuristic to determine the maximum allowed width of a
 /// layer in a relaxed or restricted MDD.
@@ -22,4 +22,13 @@ pub trait VariableHeuristic<T, N>
     /// or `None` in case no branching is useful (`vars` is empty, no decision
     /// left to make, etc...).
     fn next_var(&self, dd: &dyn MDD<T, N>, vars: &VarSet) -> Option<Variable>;
+}
+
+/// This trait defines a strategy/heuristic to retrieve the smallest set of free
+/// variables from a given `node`, for some given `problem`.
+pub trait LoadVars<T>
+    where T: Hash + Clone + Eq {
+    /// Returns the minimal set of free variables for the given `problem` when
+    /// starting an exploration in the given `node`.
+    fn variables(&self, pb: &dyn Problem<T>, node: &dyn Node<T>) -> VarSet;
 }
