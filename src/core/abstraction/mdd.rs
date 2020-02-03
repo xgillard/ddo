@@ -3,32 +3,10 @@
 use crate::core::abstraction::dp::{Decision, Variable, VarSet};
 use std::hash::Hash;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cmp::{max, Ordering};
+use std::cmp::Ordering::Equal;
 
-/// This is a node from a given `MDD`.
-///
-/// # Type param
-/// The type parameter `<T>` denotes the type of the state defined/manipulated
-/// by the `Problem` definition.
-pub trait Node<T>
-    where T : Clone + Hash + Eq  {
-    /// Returns true iff this node is an exact node (none of its ancestors
-    /// is a merged node).
-    fn is_exact(&self) -> bool;
-    /// Returns the state (as defined by the `Problem` and `Relaxation`
-    /// associated to this node.
-    fn get_state(&self)-> &T;
-    /// Returns the length of the longest path to this node.
-    fn get_lp_len(&self) -> i32;
-    /// Returns an upper bound on the length of the longest path (from root to
-    /// terminal node) passing through the current node.
-    fn get_ub(&self) -> i32;
-    /// Sets an upper bound `ub` on the length of the longest path (from root to
-    /// terminal node) passing through the current node.
-    fn set_ub(&mut self, ub: i32);
-    /// Returns the list of decisions along the longest path between the
-    /// root node and this node.
-    fn longest_path(&self) -> Vec<Decision>;
-}
 
 /// This enumeration characterizes the kind of MDD being generated. It can
 /// either be
@@ -42,27 +20,39 @@ pub enum MDDType {
     Exact
 }
 
+/// This structure is in charge of unrolling an MDD according to the requested
+/// level of exactitude
+pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
+    /// Expands this MDD into  an exact MDD
+    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
+    /// Expands this MDD into a restricted (lower bound approximation)
+    /// version of the exact MDD.
+    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
+    /// Expands this MDD into a relaxed (upper bound approximation)
+    /// version of the exact MDD.
+    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
+    /// Returns a reference to the expanded MDD.
+    fn mdd(&self) -> &dyn MDD<T>;
+}
+
 /// This trait describes an MDD
 ///
 /// # Type param
 /// The type parameter `<T>` denotes the type of the state defined/manipulated
 /// by the `Problem` definition.
-///
-/// The type parameter `<N>` denotes the type of nodes in use in this MDD.
-pub trait MDD<T, N>
-    where T : Clone + Hash + Eq,
-          N : Node<T> {
+pub trait MDD<T>
+    where T : Clone + Hash + Eq {
 
     /// Tells whether this MDD is exact, relaxed, or restricted.
     fn mdd_type(&self) -> MDDType;
     /// Returns the nodes from the current layer.
-    fn current_layer(&self) -> &[N];
+    fn current_layer(&self) -> &[Node<T>];
     /// Returns a set of nodes constituting an exact cutset of this `MDD`.
-    fn exact_cutset(&self) -> &[N];
+    fn exact_cutset(&self) -> &[Node<T>];
     /// Returns a the map State -> Node of nodes already recorded to participate
     /// in the next layer. (All these nodes will have to be expanded to explore
     /// the complete state space).
-    fn next_layer(&self) -> &HashMap<T, N>;
+    fn next_layer(&self) -> &HashMap<T, Node<T>>;
 
     /// Returns the latest `Variable` that acquired a value during the
     /// development of this `MDD`.
@@ -83,8 +73,85 @@ pub trait MDD<T, N>
     /// node of this `MDD`.
     fn best_value(&self) -> i32;
     /// Returns the terminal node having the longest associated path in this `MDD`.
-    fn best_node(&self) -> &Option<N>;
+    fn best_node(&self) -> &Option<Node<T>>;
     /// Returns the list of decisions along the longest path between the
     /// root node and the best terminal node of this `MDD`.
     fn longest_path(&self) -> Vec<Decision>;
+}
+
+// --- NODE --------------------------------------------------------------------
+#[derive(Clone, Eq, PartialEq)]
+pub struct Arc<T>
+    where T : Clone + Hash + Eq {
+    pub src     : Rc<Node<T>>,
+    pub decision: Decision,
+    pub weight  : i32
+}
+
+// --- NODE --------------------------------------------------------------------
+#[derive(Clone, Eq, PartialEq)]
+pub struct Node<T> where T : Hash + Eq + Clone {
+    pub state   : T,
+    pub is_exact: bool,
+    pub lp_len  : i32,
+    pub lp_arc  : Option<Arc<T>>,
+
+    pub ub      : i32
+}
+
+impl <T> Node<T> where T : Hash + Eq + Clone {
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
+        Node{state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
+    }
+
+    pub fn is_exact(&self) -> bool {
+        self.is_exact
+    }
+    pub fn get_state(&self)-> &T {
+        &self.state
+    }
+    pub fn get_lp_len(&self) -> i32 {
+        self.lp_len
+    }
+    pub fn get_ub(&self) -> i32 {
+        self.ub
+    }
+    pub fn set_ub(&mut self, ub: i32) {
+        self.ub = max(self.ub, ub);
+    }
+
+    pub fn longest_path(&self) -> Vec<Decision> {
+        let mut ret = vec![];
+        let mut arc = &self.lp_arc;
+
+        while arc.is_some() {
+            let a = arc.as_ref().unwrap();
+            ret.push(a.decision);
+            arc = &a.src.lp_arc;
+        }
+
+        ret
+    }
+}
+
+impl <T> Ord for Node<T> where T : Hash + Eq + Clone + Ord {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl <T> PartialOrd for Node<T> where T : Hash + Eq + Clone + PartialOrd {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let cmp_ub = self.ub.cmp(&other.ub);
+        if cmp_ub != Equal {
+            Some(cmp_ub)
+        } else {
+            let cmp_lp = self.lp_len.cmp(&other.lp_len);
+            if cmp_lp != Equal {
+                Some(cmp_lp)
+            } else {
+                self.state.partial_cmp(other.get_state())
+            }
+        }
+    }
 }

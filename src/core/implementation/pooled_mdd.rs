@@ -1,5 +1,4 @@
-use std::cmp::{max, Ordering};
-use std::cmp::Ordering::Equal;
+use std::cmp::max;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -10,133 +9,47 @@ use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 
 use super::super::abstraction::mdd::*;
 
-#[derive(Clone, Eq, PartialEq)]
-pub struct Arc<T>
-    where T : Clone + Hash + Eq {
-    pub src     : Rc<PooledNode<T>>,
-    pub decision: Decision,
-    pub weight  : i32
-}
-
-// --- POOLED NODE -------------------------------------------------------------
-#[derive(Clone, Eq, PartialEq)]
-pub struct PooledNode<T> where T : Hash + Eq + Clone {
-    pub state   : T,
-    pub is_exact: bool,
-    pub lp_len  : i32,
-    pub lp_arc  : Option<Arc<T>>,
-
-    pub ub      : i32
-}
-
-impl <T> PooledNode<T> where T : Hash + Eq + Clone {
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> PooledNode<T> {
-        PooledNode{state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
-    }
-}
-
-impl <T> Node<T> for PooledNode<T> where T : Hash + Eq + Clone {
-    fn is_exact(&self) -> bool {
-        self.is_exact
-    }
-    fn get_state(&self)-> &T {
-        &self.state
-    }
-    fn get_lp_len(&self) -> i32 {
-        self.lp_len
-    }
-    fn get_ub(&self) -> i32 {
-        self.ub
-    }
-    fn set_ub(&mut self, ub: i32) {
-        self.ub = max(self.ub, ub);
-    }
-
-    fn longest_path(&self) -> Vec<Decision> {
-        let mut ret = vec![];
-        let mut arc = &self.lp_arc;
-
-        while arc.is_some() {
-            let a = arc.as_ref().unwrap();
-            ret.push(a.decision);
-            arc = &a.src.lp_arc;
-        }
-
-        ret
-    }
-}
-
-impl <T> Ord for PooledNode<T> where T : Hash + Eq + Clone + Ord {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl <T> PartialOrd for PooledNode<T> where T : Hash + Eq + Clone + PartialOrd {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let cmp_ub = self.ub.cmp(&other.ub);
-        if cmp_ub != Equal {
-            Some(cmp_ub)
-        } else {
-            let cmp_lp = self.lp_len.cmp(&other.lp_len);
-            if cmp_lp != Equal {
-                Some(cmp_lp)
-            } else {
-                self.state.partial_cmp(other.get_state())
-            }
-        }
-    }
-}
-
 // --- POOLED MDD --------------------------------------------------------------
-pub struct PooledMDD<T, PB, RLX, VS, WDTH, NS>
+pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T, PooledNode<T>>,
-          WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : NodeOrdering<T, PooledNode<T>> {
-    mddtype          : MDDType,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : NodeOrdering<T> {
 
     pb               : Rc<PB>,
     relax            : RLX,
     vs               : VS,
     width            : WDTH,
     ns               : NS,
+    dd               : PooledMDD<T>
+}
 
-    pool             : HashMap<T, PooledNode<T>>,
-    current          : Vec<PooledNode<T>>,
-    cutset           : Vec<PooledNode<T>>,
+pub struct PooledMDD<T> where T: Hash + Eq + Clone {
+    mddtype          : MDDType,
+    pool             : HashMap<T, Node<T>>,
+    current          : Vec<Node<T>>,
+    cutset           : Vec<Node<T>>,
 
     last_assigned    : Variable,
     unassigned_vars  : VarSet,
     is_exact         : bool,
-    best_node        : Option<PooledNode<T>>
+    best_node        : Option<Node<T>>
 }
 
-impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T, PooledNode<T>>,
-          WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : NodeOrdering<T, PooledNode<T>> {
-
-    pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDD<T, PB, RLX, VS, WDTH, NS> {
-        PooledMDD{
+impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
+    pub fn new() -> PooledMDD<T> {
+        PooledMDD {
             mddtype          : Exact,
             last_assigned    : Variable(std::usize::MAX),
-            unassigned_vars  : VarSet::all(pb.nb_vars()),
+            unassigned_vars  : VarSet::all(0),
             is_exact         : true,
             best_node        : None,
-            pb,
-            relax,
-            vs,
-            width,
-            ns,
             pool             : HashMap::new(),
             current          : vec![],
-            cutset           : vec![]}
+            cutset           : vec![]
+        }
     }
 
     pub fn clear(&mut self) {
@@ -150,27 +63,50 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
         self.current          .clear();
         self.cutset           .clear();
     }
-    pub fn exact(&mut self, vars: VarSet, root: &PooledNode<T>, best_lb : i32) {
-        self.develop(Exact, vars, root, best_lb);
-    }
-    pub fn restricted(&mut self, vars: VarSet, root: &PooledNode<T>, best_lb : i32) {
-        self.develop(Restricted, vars, root, best_lb);
-    }
-    pub fn relaxed(&mut self, vars: VarSet, root: &PooledNode<T>, best_lb : i32) {
-        self.develop(Relaxed, vars, root, best_lb);
-    }
-    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &PooledNode<T>, best_lb : i32) {
-        self.clear();
-        self.mddtype         = kind;
-        self.unassigned_vars = vars;
 
-        self.pool.insert(root.state.clone(), root.clone());
+    fn find_best_node(&mut self) {
+        let mut best_value = std::i32::MIN;
+        for (_, node) in self.pool.iter() {
+            if node.lp_len > best_value {
+                best_value = node.lp_len;
+                self.best_node = Some(node.clone());
+            }
+        }
+    }
+}
 
-        let nbvars= self.unassigned_vars.len();
+impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : NodeOrdering<T> {
+
+    pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
+        PooledMDDGenerator{
+            pb,
+            relax,
+            vs,
+            width,
+            ns,
+            dd: PooledMDD::new()
+        }
+    }
+
+
+    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
+        self.dd.clear();
+        self.dd.mddtype         = kind;
+        self.dd.unassigned_vars = vars;
+
+        self.dd.pool.insert(root.state.clone(), root.clone());
+
+        let nbvars= self.dd.unassigned_vars.len();
         let mut i = 0;
 
-        while i < nbvars && !self.pool.is_empty() {
-            let selected = self.vs.next_var(self, &self.unassigned_vars);
+        while i < nbvars && !self.dd.pool.is_empty() {
+            let selected = self.vs.next_var(&self.dd, &self.dd.unassigned_vars);
             if selected.is_none() {
                 break;
             }
@@ -186,26 +122,26 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
 
             self.maybe_squash(i);
 
-            self.unassigned_vars.remove(selected);
+            self.dd.unassigned_vars.remove(selected);
 
-            for node in self.current.iter() {
+            for node in self.dd.current.iter() {
                 let domain = self.pb.domain_of(&node.state, selected);
                 for value in domain {
                     let decision = Decision{variable: selected, value: *value};
-                    let state = self.pb.transition(&node.state, &self.unassigned_vars,&decision);
-                    let cost = self.pb.transition_cost(&node.state, &self.unassigned_vars, &decision);
+                    let state = self.pb.transition(&node.state, &self.dd.unassigned_vars,&decision);
+                    let cost = self.pb.transition_cost(&node.state, &self.dd.unassigned_vars, &decision);
                     let arc = Arc {src: Rc::new(node.clone()), decision, weight: cost};
 
-                    let dest = PooledNode::new(state, node.lp_len + cost, Some(arc), node.is_exact);
-                    match self.pool.get_mut(&dest.state) {
+                    let dest = Node::new(state, node.lp_len + cost, Some(arc), node.is_exact);
+                    match self.dd.pool.get_mut(&dest.state) {
                         Some(old) => {
                             if old.is_exact && !dest.is_exact {
                                 //trace!("main loop:: old was exact but new was not");
-                                self.cutset.push(old.clone());
+                                self.dd.cutset.push(old.clone());
                             }
                             if !old.is_exact && dest.is_exact {
                                 //trace!("main loop:: new was exact but old was not");
-                                self.cutset.push(dest.clone());
+                                self.dd.cutset.push(dest.clone());
                             }
                             // FIXME: maybe call add_arc here ?
                             if old.lp_len < dest.lp_len {
@@ -218,38 +154,38 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
                             let ub = root.ub.min(self.relax.rough_ub(dest.lp_len, &dest.state));
 
                             if ub > best_lb {
-                                self.pool.insert(dest.state.clone(), dest);
+                                self.dd.pool.insert(dest.state.clone(), dest);
                             }
                         }
                     }
                 }
             }
 
-            self.last_assigned = selected;
+            self.dd.last_assigned = selected;
             i += 1;
         }
 
-        self.find_best_node();
+        self.dd.find_best_node();
 
         // We are done, we should assign a rough upper bound on all nodes from the exact cutset
-        if let Some(best) = &self.best_node {
+        if let Some(best) = &self.dd.best_node {
             let lp_length = best.lp_len;
 
-            for node in self.cutset.iter_mut() {
+            for node in self.dd.cutset.iter_mut() {
                 node.ub = lp_length.min(self.relax.rough_ub(node.lp_len, &node.state));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
             // Hence, there is no relevant cutset to return
-            self.cutset.clear();
+            self.dd.cutset.clear();
         }
     }
 
     fn pick_nodes_from_pool(&mut self, selected: Variable) {
-        self.current.clear();
+        self.dd.current.clear();
 
-        let pl = &mut self.pool;
-        let lr = &mut self.current;
+        let pl = &mut self.dd.pool;
+        let lr = &mut self.dd.current;
 
         for (state, node) in pl.iter() {
             if self.pb.impacted_by(state, selected) {
@@ -260,38 +196,28 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
         for node in lr.iter() {
             pl.remove(&node.state);
         }
-
     }
+
     fn maybe_squash(&mut self, i : usize) {
-        match self.mddtype {
+        match self.dd.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
             MDDType::Relaxed    => self.maybe_relax(i),
             MDDType::Restricted => self.maybe_restrict(i),
         }
     }
 
-    fn find_best_node(&mut self) {
-        let mut best_value = std::i32::MIN;
-        for (_, node) in self.pool.iter() {
-            if node.lp_len > best_value {
-                best_value = node.lp_len;
-                self.best_node = Some(node.clone());
-            }
-        }
-    }
-
     fn maybe_relax(&mut self, i: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
-            let w = max(2, self.width.max_width(self));
+            let w = max(2, self.width.max_width(&self.dd));
             let ns = &self.ns;
-            while self.current.len() > w {
+            while self.dd.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
-                self.is_exact = false;
+                self.dd.is_exact = false;
 
                 // actually squash the layer
-                self.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                let (_keep, squash) = self.current.split_at_mut(w-1);
+                self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+                let (_keep, squash) = self.dd.current.split_at_mut(w-1);
 
                 let mut central = squash[0].clone();
 
@@ -320,7 +246,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
                     // n was an exact node, it must to to the cutset
                     if n.is_exact {
                         //trace!("squash:: squashed node was exact");
-                        self.cutset.push(n.clone())
+                        self.dd.cutset.push(n.clone())
                     }
                 }
 
@@ -329,13 +255,13 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
 
                 // 3. all nodes have been merged into central: resize the current layer and add central
                 let mut must_add = true;
-                self.current.truncate(w - 1);
-                for n in self.current.iter_mut() {
+                self.dd.current.truncate(w - 1);
+                for n in self.dd.current.iter_mut() {
                     if n.state.eq(&central.state) {
                         // if n is exact, it must go to the cutset
                         if n.is_exact {
                             //trace!("squash:: there existed an equivalent");
-                            self.cutset.push(n.clone());
+                            self.dd.cutset.push(n.clone());
                         }
 
                         must_add   = false;
@@ -350,7 +276,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
                     }
                 }
                 if must_add {
-                    self.current.push(central);
+                    self.dd.current.push(central);
                 }
             }
         }
@@ -359,39 +285,51 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
     fn maybe_restrict(&mut self, i: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
-            let w = max(2, self.width.max_width(self));
+            let w = max(2, self.width.max_width(&self.dd));
             let ns = &self.ns;
-            while self.current.len() > w {
+            while self.dd.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
-                self.is_exact = false;
-                self.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                self.current.truncate(w);
+                self.dd.is_exact = false;
+                self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+                self.dd.current.truncate(w);
             }
         }
     }
 }
 
-impl <T, PB, RLX, VS, WDTH, NS> MDD<T, PooledNode<T>> for PooledMDD<T, PB, RLX, VS, WDTH, NS>
+impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T, PooledNode<T>>,
-          WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : NodeOrdering<T, PooledNode<T>> {
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : NodeOrdering<T> {
+    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Exact, vars, root, best_lb);
+    }
+    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Restricted, vars, root, best_lb);
+    }
+    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Relaxed, vars, root, best_lb);
+    }
+    fn mdd(&self) -> &dyn MDD<T> { &self.dd }
+}
 
+impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
 
-    fn current_layer(&self) -> &[PooledNode<T>] {
+    fn current_layer(&self) -> &[Node<T>] {
         &self.current
     }
 
-    fn exact_cutset(&self) -> &[PooledNode<T>] {
+    fn exact_cutset(&self) -> &[Node<T>] {
         &self.cutset
     }
 
-    fn next_layer(&self) -> &HashMap<T, PooledNode<T>> {
+    fn next_layer(&self) -> &HashMap<T, Node<T>> {
         &self.pool
     }
 
@@ -411,7 +349,7 @@ impl <T, PB, RLX, VS, WDTH, NS> MDD<T, PooledNode<T>> for PooledMDD<T, PB, RLX, 
             self.best_node.as_ref().unwrap().lp_len
         }
     }
-    fn best_node(&self) -> &Option<PooledNode<T>> {
+    fn best_node(&self) -> &Option<Node<T>> {
         &self.best_node
     }
     fn longest_path(&self) -> Vec<Decision> {

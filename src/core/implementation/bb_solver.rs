@@ -1,58 +1,49 @@
 use std::rc::Rc;
 use crate::core::abstraction::dp::{Problem, Relaxation, Decision, VarSet};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, LoadVars, NodeOrdering};
-use crate::core::abstraction::mdd::{Node, MDD};
+use crate::core::abstraction::mdd::{Node, MDD, MDDGenerator};
 use crate::core::abstraction::solver::Solver;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use crate::core::implementation::pooled_mdd::{PooledMDD, PooledNode};
+use crate::core::implementation::pooled_mdd::PooledMDD;
 use binary_heap_plus::BinaryHeap;
 use crate::core::implementation::heuristics::FromLongestPath;
 
-pub struct BBSolver<T, PB, RLX, VS, WDTH, NS, BO, VARS = FromLongestPath>
+pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T, PooledNode<T>>,
-          WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : NodeOrdering<T, PooledNode<T>>,
-          BO   : NodeOrdering<T, PooledNode<T>>,
-          VARS : LoadVars<T, PB, PooledNode<T>> {
+          DDG  : MDDGenerator<T>,
+          BO   : NodeOrdering<T>,
+          VARS : LoadVars<T, PB> {
 
     pb           : Rc<PB>,
-    mdd          : PooledMDD<T, PB, RLX, VS, WDTH, NS>,
+    ddg          : DDG,
 
-    fringe       : BinaryHeap<PooledNode<T>, BO>,
+    fringe       : BinaryHeap<Node<T>, BO>,
     load_vars    : VARS,
 
     pub explored : usize,
     pub best_ub  : i32,
     pub best_lb  : i32,
-    pub best_node: Option<PooledNode<T>>,
+    pub best_node: Option<Node<T>>,
     pub best_sol : Option<Vec<Decision>>,
     pub verbosity: u8,
     phantom      : PhantomData<T>
 }
 
-impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> BBSolver<T, PB, RLX, VS, WDTH, NS, BO, VARS>
+impl <T, PB, DDG, BO, VARS> BBSolver<T, PB, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T, PooledNode<T>>,
-          WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : NodeOrdering<T, PooledNode<T>>,
-          BO   : NodeOrdering<T, PooledNode<T>>,
-          VARS : LoadVars<T, PB, PooledNode<T>> {
+          DDG  : MDDGenerator<T>,
+          BO   : NodeOrdering<T>,
+          VARS : LoadVars<T, PB> {
     pub fn new(pb: Rc<PB>,
-               relax: RLX,
-               vs: VS,
-               width: WDTH,
-               ns: NS,
+               ddg: DDG,
                bo: BO,
-               load_vars: VARS) -> BBSolver<T, PB, RLX, VS, WDTH, NS, BO, VARS> {
+               load_vars: VARS) -> BBSolver<T, PB, DDG, BO, VARS> {
         BBSolver {
-            pb: Rc::clone(&pb),
-            mdd: PooledMDD::new(Rc::clone(&pb), relax, vs, width, ns),
+            pb,
+            ddg,
             fringe: BinaryHeap::from_vec_cmp(vec![], bo),
             load_vars,
             explored: 0,
@@ -66,18 +57,15 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> BBSolver<T, PB, RLX, VS, WDTH, NS, BO,
     }
 }
 
-impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver for BBSolver<T, PB, RLX, VS, WDTH, NS, BO, VARS>
+impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T, PooledNode<T>>,
-          WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : NodeOrdering<T, PooledNode<T>>,
-          BO   : NodeOrdering<T, PooledNode<T>>,
-          VARS : LoadVars<T, PB, PooledNode<T>> {
+          DDG  : MDDGenerator<T>,
+          BO   : NodeOrdering<T>,
+          VARS : LoadVars<T, PB> {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
-        let root = PooledNode::new(
+        let root = Node::new(
             self.pb.initial_state(),
             self.pb.initial_value(),
             None,
@@ -86,11 +74,11 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver for BBSolver<T, PB, RLX, VS, WD
 
         // 0. Initial relaxation:
         self.explored = 1;
-        self.mdd.relaxed(VarSet::all(self.pb.nb_vars()), &root, self.best_lb);
-        if self.mdd.is_exact() {
-            if self.mdd.best_value() > self.best_lb {
-                self.best_lb   = self.mdd.best_value();
-                self.best_node = self.mdd.best_node().clone();
+        self.ddg.relaxed(VarSet::all(self.pb.nb_vars()), &root, self.best_lb);
+        if self.ddg.mdd().is_exact() {
+            if self.ddg.mdd().best_value() > self.best_lb {
+                self.best_lb   = self.ddg.mdd().best_value();
+                self.best_node = self.ddg.mdd().best_node().clone();
                 self.best_sol  = Some(self.best_node.as_ref().unwrap().longest_path());
             }
             if self.verbosity >= 1 {
@@ -98,7 +86,7 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver for BBSolver<T, PB, RLX, VS, WD
             }
             return (self.best_lb, &self.best_sol);
         } else {
-            for node in self.mdd.exact_cutset() {
+            for node in self.ddg.mdd().exact_cutset() {
                 self.fringe.push(node.clone());
             }
         }
@@ -123,35 +111,35 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver for BBSolver<T, PB, RLX, VS, WD
             }
 
             self.explored += 1;
-            if self.verbosity >= 1 && self.explored % 100 == 0 {
+            if self.verbosity >= 2 && self.explored % 100 == 0 {
                 println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
             }
 
             let vars = self.load_vars.variables(self.pb.as_ref(), &node);
 
             // 1. RESTRICTION
-            self.mdd.restricted(vars.clone(),&node, self.best_lb);
-            if self.mdd.best_value() > self.best_lb {
-                self.best_lb   = self.mdd.best_value();
-                self.best_node = self.mdd.best_node().clone();
+            self.ddg.restricted(vars.clone(),&node, self.best_lb);
+            if self.ddg.mdd().best_value() > self.best_lb {
+                self.best_lb   = self.ddg.mdd().best_value();
+                self.best_node = self.ddg.mdd().best_node().clone();
             }
-            if self.mdd.is_exact() {
+            if self.ddg.mdd().is_exact() {
                 continue;
             }
 
             // 2. RELAXATION
-            self.mdd.relaxed(vars, &node, self.best_lb);
-            if self.mdd.is_exact() {
-                if self.mdd.best_value() > self.best_lb {
-                    self.best_lb   = self.mdd.best_value();
-                    self.best_node = self.mdd.best_node().clone();
+            self.ddg.relaxed(vars, &node, self.best_lb);
+            if self.ddg.mdd().is_exact() {
+                if self.ddg.mdd().best_value() > self.best_lb {
+                    self.best_lb   = self.ddg.mdd().best_value();
+                    self.best_node = self.ddg.mdd().best_node().clone();
                 }
             } else {
-                for branch in self.mdd.exact_cutset() {
+                for branch in self.ddg.mdd().exact_cutset() {
                     let branch_ub = self.best_ub.min(branch.get_ub());
 
                     if branch.get_ub() > self.best_lb {
-                        self.fringe.push(PooledNode {
+                        self.fringe.push(Node {
                             state   : branch.state.clone(),
                             is_exact: true,
                             lp_len  : branch.lp_len,

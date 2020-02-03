@@ -8,19 +8,17 @@ use compare::Compare;
 
 //~~~~~ Max Width Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 pub struct FixedWidth(pub usize);
-impl <T, N> WidthHeuristic<T, N> for FixedWidth
-    where T : Clone + Hash + Eq,
-          N : Node<T> {
-    fn max_width(&self, _dd: &impl MDD<T, N>) -> usize {
+impl <T> WidthHeuristic<T> for FixedWidth
+    where T : Clone + Hash + Eq {
+    fn max_width(&self, _dd: &dyn MDD<T>) -> usize {
         self.0
     }
 }
 
 pub struct NbUnassigned;
-impl <T, N> WidthHeuristic<T, N> for NbUnassigned
-    where T : Clone + Hash + Eq,
-          N : Node<T> {
-    fn max_width(&self, dd: &impl MDD<T, N>) -> usize {
+impl <T> WidthHeuristic<T> for NbUnassigned
+    where T : Clone + Hash + Eq  {
+    fn max_width(&self, dd: &dyn MDD<T>) -> usize {
         dd.unassigned_vars().len()
     }
 }
@@ -33,54 +31,47 @@ impl NaturalOrder {
         NaturalOrder{}
     }
 }
-impl <T, N> VariableHeuristic<T, N> for NaturalOrder
-    where T : Clone + Hash + Eq,
-          N : Node<T> {
+impl <T> VariableHeuristic<T> for NaturalOrder
+    where T : Clone + Hash + Eq {
 
-    fn next_var(&self, _dd: &impl MDD<T, N>, vars: &VarSet) -> Option<Variable> {
+    fn next_var(&self, _dd: &dyn MDD<T>, vars: &VarSet) -> Option<Variable> {
         vars.iter().next()
     }
 }
 
 //~~~~~ Node Ordering Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #[derive(Clone)]
-pub struct FnNodeOrder<T, N, F>
+pub struct FnNodeOrder<T, F>
     where T: Clone + Hash + Eq,
-          N: Clone + Node<T>,
-          F: Clone + Fn(&N, &N) -> Ordering {
+          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
     func : F,
-    phantom_t : PhantomData<T>,
-    phantom_n : PhantomData<N>
+    phantom : PhantomData<T>
 }
-impl <T, N, F> FnNodeOrder<T, N, F>
+impl <T, F> FnNodeOrder<T, F>
     where T: Clone + Hash + Eq,
-          N: Clone + Node<T>,
-          F: Clone + Fn(&N, &N) -> Ordering {
-    pub fn new(func: F) -> FnNodeOrder<T, N, F> {
-        FnNodeOrder { func, phantom_t: PhantomData, phantom_n: PhantomData }
+          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
+    pub fn new(func: F) -> FnNodeOrder<T, F> {
+        FnNodeOrder { func, phantom: PhantomData }
     }
 }
-impl <T, N, F> NodeOrdering<T, N> for FnNodeOrder<T, N, F>
+impl <T, F> NodeOrdering<T> for FnNodeOrder<T, F>
     where T: Clone + Hash + Eq,
-          N: Clone + Node<T>,
-          F: Clone + Fn(&N, &N) -> Ordering {
+          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
 }
-impl <T, N, F> Compare<N, N> for FnNodeOrder<T, N, F>
+impl <T, F> Compare<Node<T>> for FnNodeOrder<T, F>
     where T: Clone + Hash + Eq,
-          N: Clone + Node<T>,
-          F: Clone + Fn(&N, &N) -> Ordering {
-    fn compare(&self, a: &N, b: &N) -> Ordering {
+          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
+    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
         (self.func)(a, b)
     }
 }
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 pub struct FromLongestPath;
-impl <T, P, N> LoadVars<T, P, N> for FromLongestPath
+impl <T, P> LoadVars<T, P> for FromLongestPath
     where T: Hash + Clone + Eq,
-          P: Problem<T>,
-          N: Node<T> {
+          P: Problem<T> {
 
-    fn variables(&self, pb: &P, node: &N) -> VarSet {
+    fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
         let mut vars = VarSet::all(pb.nb_vars());
         for d in node.longest_path() {
             vars.remove(d.variable);
@@ -89,33 +80,29 @@ impl <T, P, N> LoadVars<T, P, N> for FromLongestPath
     }
 }
 
-pub struct FnLoadVars<T, P, N, F>
+pub struct FnLoadVars<T, P, F>
     where T: Hash + Clone + Eq,
           P: Problem<T>,
-          N: Node<T>,
-          F: Fn(&P, &N) -> VarSet {
+          F: Fn(&P, &Node<T>) -> VarSet {
     func: F,
     phantom_t: PhantomData<T>,
-    phantom_p: PhantomData<P>,
-    phantom_n: PhantomData<N>,
+    phantom_p: PhantomData<P>
 }
-impl <T, P, N, F> FnLoadVars<T, P, N, F>
+impl <T, P, F> FnLoadVars<T, P, F>
     where T: Hash + Clone + Eq,
           P: Problem<T>,
-          N: Node<T>,
-          F: Fn(&P, &N) -> VarSet {
+          F: Fn(&P, &Node<T>) -> VarSet {
 
-    pub fn new(func: F) -> FnLoadVars<T, P, N, F> {
-        FnLoadVars{func, phantom_t: PhantomData, phantom_p: PhantomData, phantom_n: PhantomData}
+    pub fn new(func: F) -> FnLoadVars<T, P, F> {
+        FnLoadVars{func, phantom_t: PhantomData, phantom_p: PhantomData }
     }
 }
-impl <T, P, N, F> LoadVars<T, P, N> for FnLoadVars<T, P, N, F>
+impl <T, P, F> LoadVars<T, P> for FnLoadVars<T, P, F>
     where T: Hash + Clone + Eq,
           P: Problem<T>,
-          N: Node<T>,
-          F: Fn(&P, &N) -> VarSet {
+          F: Fn(&P, &Node<T>) -> VarSet {
 
-    fn variables(&self, pb: &P, node: &N) -> VarSet {
+    fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
         (self.func)(pb, node)
     }
 }

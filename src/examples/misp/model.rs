@@ -1,4 +1,4 @@
-use crate::examples::misp::graph::Graph;
+use crate::examples::misp::instance::Graph;
 use crate::core::abstraction::dp::{Variable, Problem, Decision, VarSet};
 use bitset_fixed::BitSet;
 use std::ops::Not;

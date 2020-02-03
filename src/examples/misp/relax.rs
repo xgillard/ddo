@@ -2,6 +2,7 @@ use crate::examples::misp::model::Misp;
 use std::rc::Rc;
 use crate::core::abstraction::dp::{Relaxation, Decision, Problem};
 use bitset_fixed::BitSet;
+use crate::core::abstraction::mdd::MDD;
 
 pub struct MispRelax {
     pb: Rc<Misp>

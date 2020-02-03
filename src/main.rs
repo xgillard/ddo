@@ -10,7 +10,7 @@ use bitset_fixed::BitSet;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 
-use rust_mdd_solver::core::implementation::pooled_mdd::PooledNode;
+use rust_mdd_solver::core::implementation::pooled_mdd::{PooledMDDGenerator};
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnNodeOrder, FnLoadVars};
 
@@ -19,6 +19,7 @@ use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::examples::misp::heuristics::{misp_min_lp, misp_ub_order, vars_from_misp_state};
 
 use std::time::SystemTime;
+use rust_mdd_solver::core::abstraction::mdd::Node;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -44,17 +45,15 @@ enum RustMddSolver {
 /// width is the maximum allowed width of a layer.
 ///
 fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
-    where WDTH : WidthHeuristic<BitSet, PooledNode<BitSet>> {
+    where WDTH : WidthHeuristic<BitSet> {
 
     let misp = Rc::new(Misp::from_file(fname));
     let relax = MispRelax::new(Rc::clone(&misp));
     let vs = NaturalOrder::new();
 
-    let mut solver = BBSolver::new(misp, relax, vs,
-                                 width,
-                                 FnNodeOrder::new(misp_min_lp),
-                                   FnNodeOrder::new(misp_ub_order),
-                                 FnLoadVars::new(vars_from_misp_state));
+    let ddg = PooledMDDGenerator::new(Rc::clone(&misp), relax, vs, width,FnNodeOrder::new(misp_min_lp));
+
+    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, FnNodeOrder::new(misp_ub_order),FnLoadVars::new(vars_from_misp_state));
     solver.verbosity = verbose;
     
     let start = SystemTime::now();

@@ -8,6 +8,7 @@ use std::i32;
 use bitset_fixed::BitSet;
 use crate::core::utils::BitSetIter;
 use std::ops::Not;
+use crate::core::abstraction::mdd::MDD;
 
 /// This type denotes a variable from the optimization problem at hand.
 /// In this case, each variable is assumed to be identified with an integer

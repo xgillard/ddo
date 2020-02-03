@@ -1,17 +1,16 @@
 use crate::core::abstraction::dp::VarSet;
 use bitset_fixed::BitSet;
 use crate::core::abstraction::mdd::Node;
-use crate::core::implementation::pooled_mdd::PooledNode;
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Greater, Less, Equal};
 use crate::core::utils::LexBitSet;
 use crate::examples::misp::model::Misp;
 
-pub fn vars_from_misp_state(_pb: &Misp, n: &PooledNode<BitSet>) -> VarSet {
+pub fn vars_from_misp_state(_pb: &Misp, n: &Node<BitSet>) -> VarSet {
     VarSet(n.get_state().clone())
 }
 
-pub fn misp_min_lp(a: &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
+pub fn misp_min_lp(a: &Node<BitSet>, b: &Node<BitSet>) -> Ordering {
     match a.get_lp_len().cmp(&b.get_lp_len()) {
         Ordering::Greater => Greater,
         Ordering::Less    => Less,
@@ -21,7 +20,7 @@ pub fn misp_min_lp(a: &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
     }
 }
 
-pub fn misp_ub_order(a : &PooledNode<BitSet>, b: &PooledNode<BitSet>) -> Ordering {
+pub fn misp_ub_order(a : &Node<BitSet>, b: &Node<BitSet>) -> Ordering {
     let by_ub = a.get_ub().cmp(&b.get_ub());
     if by_ub == Equal {
         let by_sz = a.get_state().count_ones().cmp(&b.get_state().count_ones());
