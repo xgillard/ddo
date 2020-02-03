@@ -75,10 +75,10 @@ pub trait Relaxation<T> {
     /// Merges the given `states` into a relaxed one which is an over
     /// approximation of the given `states`.
     /// The return value is the over approximation state.
-    fn merge_states(&self, states: &[&T]) -> T;
+    fn merge_states(&self, dd: &dyn MDD<T>, states: &[&T]) -> T;
     /// This method yields the _relaxed cost_ of taking the given `decision`
     /// in state `from` to reach the relaxed state `to`.
-    fn relax_cost(&self, from: &T, to: &T, decision: &Decision) -> i32;
+    fn relax_cost(&self, dd: &dyn MDD<T>, from: &T, to: &T, decision: &Decision) -> i32;
 
     /// Optionally compute a rough upper bound on the objective value reachable
     /// from the given state. This method should be *fast* to compute and return

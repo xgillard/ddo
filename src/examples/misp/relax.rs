@@ -15,7 +15,7 @@ impl MispRelax {
 }
 
 impl Relaxation<BitSet> for MispRelax {
-    fn merge_states(&self, states: &[&BitSet]) -> BitSet {
+    fn merge_states(&self, _dd: &dyn MDD<BitSet>, states: &[&BitSet]) -> BitSet {
         let mut bs = BitSet::new(self.pb.nb_vars());
         for s in states {
             bs |= s;
@@ -23,7 +23,7 @@ impl Relaxation<BitSet> for MispRelax {
         bs
     }
 
-    fn relax_cost(&self, _from: &BitSet, _to: &BitSet, decision: &Decision) -> i32 {
+    fn relax_cost(&self, _dd: &dyn MDD<BitSet>, _from: &BitSet, _to: &BitSet, decision: &Decision) -> i32 {
         if decision.value == 0 { 0 } else { self.pb.graph.weights[decision.variable.0] }
     }
 

@@ -217,7 +217,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
 
                 // actually squash the layer
                 self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                let (_keep, squash) = self.dd.current.split_at_mut(w-1);
+                let (_keep, squash) = self.dd.current.split_at(w-1);
 
                 let mut central = squash[0].clone();
 
@@ -226,14 +226,14 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                 for n in squash.iter() {
                     states.push(&n.state);
                 }
-                let central_state = self.relax.merge_states(states.as_slice());
+                let central_state = self.relax.merge_states(&self.dd, states.as_slice());
 
                 // 2. relax edges from the parents of all merged nodes (central + squashed)
                 let mut arc = central.lp_arc.as_mut().unwrap();
-                for n in squash.iter_mut() {
+                for n in squash.iter() {
                     let narc = n.lp_arc.clone().unwrap();
 
-                    let cost = self.relax.relax_cost(&narc.src.state, &central_state, &narc.decision);
+                    let cost = self.relax.relax_cost(&self.dd, &narc.src.state, &central_state, &narc.decision);
 
                     if n.lp_len - narc.weight + cost > central.lp_len {
                         central.lp_len -= arc.weight;

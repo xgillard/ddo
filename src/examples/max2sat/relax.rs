@@ -12,12 +12,12 @@ pub struct Max2SatRelax {
 }
 
 impl Relaxation<State> for Max2SatRelax {
-    fn merge_states(&self, states: &[&State]) -> State {
+    fn merge_states(&self, _dd: &dyn MDD<State>, states: &[&State]) -> State {
         let mut next = State(vec![0; self.problem.nb_vars()]);
         unimplemented!()
     }
 
-    fn relax_cost(&self, from: &State, to: &State, decision: &Decision) -> i32 {
+    fn relax_cost(&self, _dd: &dyn MDD<State>, from: &State, to: &State, decision: &Decision) -> i32 {
         unimplemented!()
     }
 }
