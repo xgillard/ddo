@@ -1,3 +1,3 @@
 pub mod graph;
-pub mod misp;
+pub mod model;
 pub mod relax;

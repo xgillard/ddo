@@ -39,7 +39,7 @@ impl Iterator for BitSetIter<'_> {
                 }
             }
         }
-        return None
+        None
     }
 }
 

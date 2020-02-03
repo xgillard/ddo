@@ -1,4 +1,4 @@
-use crate::examples::misp::misp::Misp;
+use crate::examples::misp::model::Misp;
 use std::rc::Rc;
 use crate::core::abstraction::dp::{Relaxation, Decision, Problem};
 use bitset_fixed::BitSet;

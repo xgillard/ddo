@@ -14,7 +14,7 @@ use rust_mdd_solver::core::abstraction::mdd::Node;
 use rust_mdd_solver::core::implem::heuristics::{FixedWidth, NaturalOrder, NbUnassigned};
 use rust_mdd_solver::core::implem::pooled_mdd::PooledNode;
 use rust_mdd_solver::core::solver::{Solver, FromFunction};
-use rust_mdd_solver::examples::misp::misp::Misp;
+use rust_mdd_solver::examples::misp::model::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::utils::LexBitSet;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;

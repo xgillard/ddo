@@ -129,11 +129,11 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
             unassigned_vars  : VarSet::all(pb.nb_vars()),
             is_exact         : true,
             best_node        : None,
-            pb               : pb,
-            relax            : relax,
-            vs               : vs,
-            width            : width,
-            ns               : ns,
+            pb,
+            relax,
+            vs,
+            width,
+            ns,
             pool             : HashMap::new(),
             current          : vec![],
             cutset           : vec![]}
@@ -194,7 +194,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
                     let decision = Decision{variable: selected, value: *value};
                     let state = self.pb.transition(&node.state, &self.unassigned_vars,&decision);
                     let cost = self.pb.transition_cost(&node.state, &self.unassigned_vars, &decision);
-                    let arc = Arc {src: Rc::new(node.clone()), decision: decision, weight: cost};
+                    let arc = Arc {src: Rc::new(node.clone()), decision, weight: cost};
 
                     let dest = PooledNode::new(state, node.lp_len + cost, Some(arc), node.is_exact);
                     match self.pool.get_mut(&dest.state) {
@@ -281,9 +281,8 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
     }
 
     fn maybe_relax(&mut self, i: usize) {
-        if i <= 1 {
-            return /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */;
-        } else {
+        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
+        if i > 1 {
             let w = max(2, self.width.max_width(self));
             let ns = &self.ns;
             while self.current.len() > w {
@@ -358,9 +357,8 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
     }
 
     fn maybe_restrict(&mut self, i: usize) {
-        if i <= 1 {
-            return /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */;
-        } else {
+        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
+        if i > 1 {
             let w = max(2, self.width.max_width(self));
             let ns = &self.ns;
             while self.current.len() > w {

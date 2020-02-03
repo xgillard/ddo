@@ -97,7 +97,7 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             pb         : Rc::clone(&pb),
             mdd        : PooledMDD::new(Rc::clone(&pb), relax, vs, width, ns),
             fringe     : BinaryHeap::new_by(bo),
-            load_vars  : load_vars,
+            load_vars,
             explored   : 0,
             best_ub    : std::i32::MAX,
             best_lb    : std::i32::MIN,

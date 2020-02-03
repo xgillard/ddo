@@ -63,6 +63,9 @@ impl VarSet {
     pub fn len(&self) -> usize {
         self.0.count_ones() as usize
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn iter(&self) -> VarSetIter {
         VarSetIter(BitSetIter::new(&self.0))
     }
@@ -71,6 +74,6 @@ impl Iterator for VarSetIter<'_> {
     type Item = Variable;
 
     fn next(&mut self) -> Option<Variable> {
-        self.0.next().map(|x| Variable(x))
+        self.0.next().map(Variable)
     }
 }

@@ -21,6 +21,7 @@ impl <T, N> WidthHeuristic<T, N> for NbUnassigned
     }
 }
 
+#[derive(Default)]
 pub struct NaturalOrder;
 impl NaturalOrder {
     pub fn new() -> NaturalOrder {
@@ -32,9 +33,6 @@ impl <T, N> VariableHeuristic<T, N> for NaturalOrder
           N : Node<T> {
 
     fn next_var(&self, _dd: &dyn MDD<T, N>, vars: &VarSet) -> Option<Variable> {
-        for x in vars.iter() {
-            return Some(x)
-        }
-        None
+        vars.iter().next()
     }
 }
