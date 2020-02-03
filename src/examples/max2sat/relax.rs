@@ -12,13 +12,21 @@ pub struct Max2SatRelax {
 }
 
 impl Relaxation<State> for Max2SatRelax {
-    fn merge_states(&self, _dd: &dyn MDD<State>, states: &[&State]) -> State {
+    fn merge_states(&self, dd: &dyn MDD<State>, states: &[&State]) -> State {
         let mut next = State(vec![0; self.problem.nb_vars()]);
-        unimplemented!()
+        next[dd.last_assigned()] = self.merge_substate(dd.last_assigned(), states);
+        for v in dd.unassigned_vars().iter() {
+            next[v] = self.merge_substate(v, states);
+        }
+        next
     }
 
-    fn relax_cost(&self, _dd: &dyn MDD<State>, from: &State, to: &State, decision: &Decision) -> i32 {
-        unimplemented!()
+    fn relax_cost(&self, dd: &dyn MDD<State>, original_cost: i32, from: &State, to: &State, decision: &Decision) -> i32 {
+        let mut sum = self.diff_of_absolute_benefit(dd.last_assigned(), from, to);
+        for v in dd.unassigned_vars().iter() {
+            sum += self.diff_of_absolute_benefit(v, from, to);
+        }
+        original_cost + sum
     }
 }
 

@@ -23,8 +23,8 @@ impl Relaxation<BitSet> for MispRelax {
         bs
     }
 
-    fn relax_cost(&self, _dd: &dyn MDD<BitSet>, _from: &BitSet, _to: &BitSet, decision: &Decision) -> i32 {
-        if decision.value == 0 { 0 } else { self.pb.graph.weights[decision.variable.0] }
+    fn relax_cost(&self, _dd: &dyn MDD<BitSet>, original_cost: i32, _from: &BitSet, _to: &BitSet, decision: &Decision) -> i32 {
+        original_cost
     }
 
     fn rough_ub(&self, lp: i32, s: &BitSet) -> i32 {

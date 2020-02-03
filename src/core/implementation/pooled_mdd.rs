@@ -233,7 +233,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                 for n in squash.iter() {
                     let narc = n.lp_arc.clone().unwrap();
 
-                    let cost = self.relax.relax_cost(&self.dd, &narc.src.state, &central_state, &narc.decision);
+                    let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central_state, &narc.decision);
 
                     if n.lp_len - narc.weight + cost > central.lp_len {
                         central.lp_len -= arc.weight;
