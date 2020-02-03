@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable, VarSet};
-use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
+use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, NodeOrdering};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 
 use super::super::abstraction::mdd::*;
@@ -95,7 +95,7 @@ pub struct PooledMDD<T, PB, RLX, VS, WDTH, NS>
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T, PooledNode<T>>,
           WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
+          NS   : NodeOrdering<T, PooledNode<T>> {
     mddtype          : MDDType,
 
     pb               : Rc<PB>,
@@ -120,7 +120,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T, PooledNode<T>>,
           WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
+          NS   : NodeOrdering<T, PooledNode<T>> {
 
     pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDD<T, PB, RLX, VS, WDTH, NS> {
         PooledMDD{
@@ -290,7 +290,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
                 self.is_exact = false;
 
                 // actually squash the layer
-                self.current.sort_unstable_by(|a, b| ns(a, b).reverse());
+                self.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
                 let (_keep, squash) = self.current.split_at_mut(w-1);
 
                 let mut central = squash[0].clone();
@@ -364,7 +364,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDD<T, PB, RLX, VS, WDTH, NS>
             while self.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.is_exact = false;
-                self.current.sort_unstable_by(|a, b| ns(a, b).reverse());
+                self.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
                 self.current.truncate(w);
             }
         }
@@ -377,7 +377,7 @@ impl <T, PB, RLX, VS, WDTH, NS> MDD<T, PooledNode<T>> for PooledMDD<T, PB, RLX, 
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T, PooledNode<T>>,
           WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering {
+          NS   : NodeOrdering<T, PooledNode<T>> {
 
     fn mdd_type(&self) -> MDDType {
         self.mddtype

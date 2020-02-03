@@ -1,13 +1,12 @@
 use std::rc::Rc;
 use crate::core::abstraction::dp::{Problem, Relaxation, Decision, VarSet};
-use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, LoadVars};
+use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, LoadVars, NodeOrdering};
 use crate::core::abstraction::mdd::{Node, MDD};
 use crate::core::abstraction::solver::Solver;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use crate::core::implementation::pooled_mdd::{PooledMDD, PooledNode};
-use std::cmp::Ordering;
-use binary_heap_plus::{BinaryHeap, FnComparator};
+use binary_heap_plus::BinaryHeap;
 use crate::core::implementation::heuristics::FromLongestPath;
 
 pub struct BBSolver<T, PB, RLX, VS, WDTH, NS, BO, VARS = FromLongestPath>
@@ -16,14 +15,14 @@ pub struct BBSolver<T, PB, RLX, VS, WDTH, NS, BO, VARS = FromLongestPath>
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T, PooledNode<T>>,
           WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          BO   : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          VARS : LoadVars<T> {
+          NS   : NodeOrdering<T, PooledNode<T>>,
+          BO   : NodeOrdering<T, PooledNode<T>>,
+          VARS : LoadVars<T, PB, PooledNode<T>> {
 
     pb           : Rc<PB>,
     mdd          : PooledMDD<T, PB, RLX, VS, WDTH, NS>,
 
-    fringe       : BinaryHeap<PooledNode<T>, FnComparator<BO>>,
+    fringe       : BinaryHeap<PooledNode<T>, BO>,
     load_vars    : VARS,
 
     pub explored : usize,
@@ -41,9 +40,9 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> BBSolver<T, PB, RLX, VS, WDTH, NS, BO,
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T, PooledNode<T>>,
           WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          BO   : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          VARS : LoadVars<T> {
+          NS   : NodeOrdering<T, PooledNode<T>>,
+          BO   : NodeOrdering<T, PooledNode<T>>,
+          VARS : LoadVars<T, PB, PooledNode<T>> {
     pub fn new(pb: Rc<PB>,
                relax: RLX,
                vs: VS,
@@ -54,7 +53,7 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> BBSolver<T, PB, RLX, VS, WDTH, NS, BO,
         BBSolver {
             pb: Rc::clone(&pb),
             mdd: PooledMDD::new(Rc::clone(&pb), relax, vs, width, ns),
-            fringe: BinaryHeap::new_by(bo),
+            fringe: BinaryHeap::from_vec_cmp(vec![], bo),
             load_vars,
             explored: 0,
             best_ub: std::i32::MAX,
@@ -73,9 +72,9 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver for BBSolver<T, PB, RLX, VS, WD
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T, PooledNode<T>>,
           WDTH : WidthHeuristic<T, PooledNode<T>>,
-          NS   : Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          BO   : Clone + Fn(&PooledNode<T>, &PooledNode<T>) -> Ordering,
-          VARS : LoadVars<T> {
+          NS   : NodeOrdering<T, PooledNode<T>>,
+          BO   : NodeOrdering<T, PooledNode<T>>,
+          VARS : LoadVars<T, PB, PooledNode<T>> {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
         let root = PooledNode::new(

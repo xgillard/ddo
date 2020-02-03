@@ -1,12 +1,13 @@
-use crate::core::abstraction::dp::{Problem, VarSet};
+use crate::core::abstraction::dp::VarSet;
 use bitset_fixed::BitSet;
 use crate::core::abstraction::mdd::Node;
 use crate::core::implementation::pooled_mdd::PooledNode;
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Greater, Less, Equal};
 use crate::core::utils::LexBitSet;
+use crate::examples::misp::model::Misp;
 
-pub fn vars_from_misp_state(_pb: &dyn Problem<BitSet>, n: &dyn Node<BitSet>) -> VarSet {
+pub fn vars_from_misp_state(_pb: &Misp, n: &PooledNode<BitSet>) -> VarSet {
     VarSet(n.get_state().clone())
 }
 
