@@ -13,10 +13,10 @@ impl BinaryClause {
     pub fn new(x: i32, y: i32) -> BinaryClause {
         BinaryClause {a: x.min(y), b: x.max(y)}
     }
-    pub fn is_tautology(&self) -> bool {
+    pub fn is_tautology(self) -> bool {
         self.a == -self.b
     }
-    pub fn is_unit(&self) -> bool {
+    pub fn is_unit(self) -> bool {
         self.a == self.b
     }
 }

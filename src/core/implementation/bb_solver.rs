@@ -1,13 +1,12 @@
 use std::rc::Rc;
-use crate::core::abstraction::dp::{Problem, Relaxation, Decision, VarSet};
-use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, LoadVars, NodeOrdering};
-use crate::core::abstraction::mdd::{Node, MDD, MDDGenerator};
+use crate::core::abstraction::dp::{Problem, Decision, VarSet};
+use crate::core::abstraction::heuristics::{LoadVars, NodeOrdering};
+use crate::core::abstraction::mdd::{Node, MDDGenerator};
 use crate::core::abstraction::solver::Solver;
+use crate::core::implementation::heuristics::FromLongestPath;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use crate::core::implementation::pooled_mdd::PooledMDD;
 use binary_heap_plus::BinaryHeap;
-use crate::core::implementation::heuristics::FromLongestPath;
 
 pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
     where T    : Hash + Eq + Clone,

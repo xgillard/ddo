@@ -75,6 +75,12 @@ impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
     }
 }
 
+impl <T> Default for PooledMDD<T> where T : Hash + Clone + Eq {
+    fn default() -> PooledMDD<T> {
+        PooledMDD::new()
+    }
+}
+
 impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,

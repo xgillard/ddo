@@ -10,7 +10,7 @@ use bitset_fixed::BitSet;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 
-use rust_mdd_solver::core::implementation::pooled_mdd::{PooledMDDGenerator};
+use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnNodeOrder, FnLoadVars};
 
@@ -19,7 +19,6 @@ use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::examples::misp::heuristics::{misp_min_lp, misp_ub_order, vars_from_misp_state};
 
 use std::time::SystemTime;
-use rust_mdd_solver::core::abstraction::mdd::Node;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
