@@ -13,3 +13,7 @@ binary-heap-plus = "0.2.0"
 # parsing examples
 regex     = "1.3.3"
 structopt = "0.3.8"
+
+[profile.release]
+lto = true
+panic = 'abort'
