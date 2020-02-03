@@ -1,4 +1,3 @@
-use log::info;
 use std::rc::Rc;
 use crate::core::abstraction::dp::{Problem, Relaxation, Decision, VarSet};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
@@ -72,6 +71,7 @@ pub struct Solver<T, PB, RLX, VS, WDTH, NS, BO, VARS = FromLongestPath>
     pub best_lb  : i32,
     pub best_node: Option<PooledNode<T>>,
     pub best_sol : Option<Vec<Decision>>,
+    pub verbosity: u8,
     phantom      : PhantomData<T>
 }
 
@@ -103,6 +103,7 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             best_lb    : std::i32::MIN,
             best_node  : None,
             best_sol   : None,
+            verbosity  : 0,
             phantom    : PhantomData
         }
 
@@ -125,7 +126,9 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
                 self.best_node = self.mdd.best_node().clone();
                 self.best_sol  = Some(self.best_node.as_ref().unwrap().longest_path());
             }
-            info!("Immediate {} ", self.best_lb);
+            if self.verbosity >= 1 {
+                println!("Immediate {} ", self.best_lb);
+            }
             return (self.best_lb, &self.best_sol);
         } else {
             for node in self.mdd.exact_cutset() {
@@ -153,8 +156,8 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
             }
 
             self.explored += 1;
-            if self.explored % 100 == 0 {
-                info!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
+            if self.verbosity >= 1 && self.explored % 100 == 0 {
+                println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
             }
 
             let vars = self.load_vars.variables(self.pb.as_ref(), &node);
@@ -198,7 +201,9 @@ impl <T, PB, RLX, VS, WDTH, NS, BO, VARS> Solver<T, PB, RLX, VS, WDTH, NS, BO, V
         }
 
         // return
-        info!("Final {}, Explored {}", self.best_lb, self.explored);
+        if self.verbosity >= 1 {
+            println!("Final {}, Explored {}", self.best_lb, self.explored);
+        }
         (self.best_lb, &self.best_sol)
     }
 }

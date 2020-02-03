@@ -18,8 +18,6 @@ use rust_mdd_solver::examples::misp::misp::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::utils::LexBitSet;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
-use simplelog::{SimpleLogger, Config};
-use log::{debug, warn, log_enabled, Level, LevelFilter};
 use std::time::SystemTime;
 
 fn vars_from_misp_state(_pb: &dyn Problem<BitSet>, n: &PooledNode<BitSet>) -> VarSet {
@@ -74,13 +72,6 @@ enum RustMddSolver {
 ///
 fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<BitSet, PooledNode<BitSet>> {
-    let loglevel = match verbose {
-        0 => LevelFilter::Off,
-        1 => LevelFilter::Info,
-        2 => LevelFilter::Debug,
-        _ => LevelFilter::Trace
-    };
-    SimpleLogger::init(loglevel, Config::default()).unwrap();
 
     let misp = Rc::new(Misp::from_file(fname));
     let relax = MispRelax::new(Rc::clone(&misp));
@@ -91,17 +82,18 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
                                  misp_min_lp,
                                  misp_ub_order,
                                  FromFunction::new(vars_from_misp_state));
-
+    solver.verbosity = verbose;
+    
     let start = SystemTime::now();
     let (opt, sln) = solver.maximize();
     let end = SystemTime::now();
 
-    if log_enabled!(Level::Debug) {
-        debug!("Optimum computed in {:?}", (end.duration_since(start).unwrap()));
+    if verbose >= 1 {
+        println!("Optimum computed in {:?}", (end.duration_since(start).unwrap()));
     }
 
-    if log_enabled!(Level::Debug) {
-        debug!("### Solution: ################################################");
+    if verbose >= 2 {
+        println!("### Solution: ################################################");
         if let Some(sln) = sln {
             let mut sln = sln.clone();
             sln.sort_by_key(|d| d.variable.0);
@@ -109,11 +101,11 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
                 .filter(|&d|d.value == 1)
                 .fold(String::new(), |a, i| format!("{} {}", a, i.variable.0 + 1));
 
-            debug!("{}", solution_txt);
+            println!("{}", solution_txt);
         }
     }
-    if sln.is_none() {
-        warn!("No solution !");
+    if verbose >= 1 && sln.is_none() {
+        println!("No solution !");
     }
     opt
 }
