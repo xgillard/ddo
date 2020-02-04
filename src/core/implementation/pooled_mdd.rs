@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -99,16 +99,6 @@ impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
         self.current          .clear();
         self.cutset           .clear();
     }
-
-    fn find_best_node(&mut self) {
-        let mut best_value = std::i32::MIN;
-        for (_, node) in self.pool.iter() {
-            if node.lp_len > best_value {
-                best_value = node.lp_len;
-                self.best_node = Some(node.clone());
-            }
-        }
-    }
 }
 
 // --- GENERATOR ---------------------------------------------------------------
@@ -144,8 +134,13 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RL
     fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
         self.develop(Relaxed, vars, root, best_lb);
     }
-    fn mdd(&self) -> &dyn MDD<T> { &self.dd }
+    fn mdd(&self) -> &dyn MDD<T> {
+        &self.dd
+    }
 }
+
+#[derive(Debug, Copy, Clone)]
+struct Bounds {lb: i32, ub: i32}
 
 impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
@@ -166,84 +161,110 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         }
     }
 
-    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
+    fn nb_vars(&self) -> usize {
+        self.dd.unassigned_vars.len()
+    }
+    fn exhausted(&self) -> bool {
+        self.dd.pool.is_empty()
+    }
+    fn select_var(&self) -> Option<Variable> {
+        self.vs.next_var(&self.dd, &self.dd.unassigned_vars)
+    }
+    fn remove_var(&mut self, var: Variable) {
+        self.dd.unassigned_vars.remove(var)
+    }
+    fn transition_state(&self, node: &Node<T>, d: Decision) -> T {
+        self.pb.transition(&node.state, &self.dd.unassigned_vars, d)
+    }
+    fn transition_cost(&self, node: &Node<T>, d: Decision) -> i32 {
+        self.pb.transition_cost(&node.state, &self.dd.unassigned_vars, d)
+    }
+    fn branch(&self, node: &Node<T>, d: Decision) -> Node<T> {
+        let state = self.transition_state(node, d);
+        let cost  = self.transition_cost (node, d);
+        let arc   = Arc {src: Rc::new(node.clone()), decision: d, weight: cost};
+
+        Node::new(state, node.lp_len + cost, Some(arc), node.is_exact)
+    }
+    fn is_relevant(&self, n: &Node<T>, bounds: Bounds) -> bool {
+        min(self.relax.rough_ub(n.lp_len, &n.state), bounds.ub) > bounds.lb
+    }
+
+    fn init(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>) {
         self.dd.clear();
         self.dd.mddtype         = kind;
         self.dd.unassigned_vars = vars;
 
         self.dd.pool.insert(root.state.clone(), root.clone());
+    }
 
-        let nbvars= self.dd.unassigned_vars.len();
-        let mut i = 0;
+    fn pick_nodes_from_pool(&mut self, var: Variable) {
+        self.dd.current.clear();
 
-        while i < nbvars && !self.dd.pool.is_empty() {
-            let selected = self.vs.next_var(&self.dd, &self.dd.unassigned_vars);
-            if selected.is_none() {
-                break;
+        // Add all selected nodes to the next layer
+        for n in self.dd.pool.values() {
+            if self.pb.impacted_by(&n.state, var) {
+                self.dd.current.push(n.clone());
             }
+        }
+        // Remove all nodes that belong to the current layer from the pool
+        for n in self.dd.current.iter() {
+            self.dd.pool.remove(&n.state);
+        }
+    }
 
-            let selected = selected.unwrap();
-            self.pick_nodes_from_pool(selected);
+    fn develop_layer(&mut self, var: Variable, bounds: Bounds) {
+        for node in self.dd.current.iter() {
+            let domain = self.pb.domain_of(&node.state, var);
+            for value in domain {
+                let decision  = Decision{variable: var, value: *value};
+                let branching = self.branch(node, decision);
 
-            // FIXME: Just to keep it perfectly reproductible
-            //let ns = &self.ns;
-            //let lr = &mut self.current;
-            //lr.sort_unstable_by(|a, b| ns(a, b));
-            //trace!("v {}, current {}, pool {}, cutset {}", selected.0, self.current.len(), self.pool.len(), self.cutset.len());
-
-            self.maybe_squash(i);
-
-            self.dd.unassigned_vars.remove(selected);
-
-            for node in self.dd.current.iter() {
-                let domain = self.pb.domain_of(&node.state, selected);
-                for value in domain {
-                    let decision = Decision{variable: selected, value: *value};
-                    let state = self.pb.transition(&node.state, &self.dd.unassigned_vars,&decision);
-                    let cost = self.pb.transition_cost(&node.state, &self.dd.unassigned_vars, &decision);
-                    let arc = Arc {src: Rc::new(node.clone()), decision, weight: cost};
-
-                    let dest = Node::new(state, node.lp_len + cost, Some(arc), node.is_exact);
-                    match self.dd.pool.get_mut(&dest.state) {
-                        Some(old) => {
-                            if old.is_exact && !dest.is_exact {
-                                //trace!("main loop:: old was exact but new was not");
-                                self.dd.cutset.push(old.clone());
-                            }
-                            if !old.is_exact && dest.is_exact {
-                                //trace!("main loop:: new was exact but old was not");
-                                self.dd.cutset.push(dest.clone());
-                            }
-                            // FIXME: maybe call add_arc here ?
-                            if old.lp_len < dest.lp_len {
-                                old.lp_len = dest.lp_len;
-                                old.lp_arc = dest.lp_arc;
-                            }
-                            old.is_exact &= dest.is_exact;
-                        },
-                        None => {
-                            let ub = root.ub.min(self.relax.rough_ub(dest.lp_len, &dest.state));
-
-                            if ub > best_lb {
-                                self.dd.pool.insert(dest.state.clone(), dest);
-                            }
+                match self.dd.pool.get_mut(&branching.state) {
+                    Some(old) => {
+                        if old.is_exact && !branching.is_exact {
+                            //trace!("main loop:: old was exact but new was not");
+                            self.dd.cutset.push(old.clone());
+                        }
+                        if !old.is_exact && branching.is_exact {
+                            //trace!("main loop:: new was exact but old was not");
+                            self.dd.cutset.push(branching.clone());
+                        }
+                        old.merge(branching)
+                    },
+                    None => {
+                        if self.is_relevant(&branching, bounds) {
+                            self.dd.pool.insert(branching.state.clone(), branching);
                         }
                     }
                 }
             }
-
-            self.dd.last_assigned = selected;
-            i += 1;
         }
+    }
 
-        self.dd.find_best_node();
+    fn set_last_assigned(&mut self, var: Variable) {
+        self.dd.last_assigned = var
+    }
+
+    fn find_best_node(&mut self) {
+        let mut best_value = std::i32::MIN;
+        for node in self.dd.pool.values() {
+            if node.lp_len > best_value {
+                best_value = node.lp_len;
+                self.dd.best_node = Some(node.clone());
+            }
+        }
+    }
+
+    fn finalize(&mut self) {
+        self.find_best_node();
 
         // We are done, we should assign a rough upper bound on all nodes from the exact cutset
         if let Some(best) = &self.dd.best_node {
             let lp_length = best.lp_len;
 
-            for node in self.dd.cutset.iter_mut() {
-                node.ub = lp_length.min(self.relax.rough_ub(node.lp_len, &node.state));
+            for n in self.dd.cutset.iter_mut() {
+                n.ub = lp_length.min(self.relax.rough_ub(n.lp_len, &n.state));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
@@ -252,21 +273,29 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         }
     }
 
-    fn pick_nodes_from_pool(&mut self, selected: Variable) {
-        self.dd.current.clear();
+    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
+        self.init(kind, vars, root);
 
-        let pl = &mut self.dd.pool;
-        let lr = &mut self.dd.current;
+        let bounds = Bounds {lb: best_lb, ub: root.ub};
+        let mut i  = 0;
+        let nbvars = self.nb_vars();
 
-        for (state, node) in pl.iter() {
-            if self.pb.impacted_by(state, selected) {
-                lr.push(node.clone());
+        while i < nbvars && !self.exhausted() {
+            let var = self.select_var();
+            if var.is_none() {
+                break;
             }
+
+            let var = var.unwrap();
+            self.pick_nodes_from_pool(var);
+            self.maybe_squash(i);
+            self.remove_var(var);
+            self.develop_layer(var, bounds);
+            self.set_last_assigned(var);
+            i += 1;
         }
 
-        for node in lr.iter() {
-            pl.remove(&node.state);
-        }
+        self.finalize()
     }
 
     fn maybe_squash(&mut self, i : usize) {
@@ -304,7 +333,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                 for n in squash.iter() {
                     let narc = n.lp_arc.clone().unwrap();
 
-                    let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central_state, &narc.decision);
+                    let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central_state, narc.decision);
 
                     if n.lp_len - narc.weight + cost > central.lp_len {
                         central.lp_len -= arc.weight;

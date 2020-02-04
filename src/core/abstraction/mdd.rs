@@ -120,6 +120,17 @@ impl <T> Node<T> where T : Hash + Eq + Clone {
         self.ub = max(self.ub, ub);
     }
 
+    /// Merge other into this node. That is to say, it combines the information
+    /// from two nodes that are logically equivalent (should be the same).
+    /// Hence, *this has nothing to do with the user-provided `merge_*` operators !*
+    pub fn merge(&mut self, other: Self) {
+        if  self.lp_len < other.lp_len {
+            self.lp_len = other.lp_len;
+            self.lp_arc = other.lp_arc;
+        }
+        self.is_exact &= other.is_exact;
+    }
+
     pub fn longest_path(&self) -> Vec<Decision> {
         let mut ret = vec![];
         let mut arc = &self.lp_arc;
