@@ -10,22 +10,6 @@ use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use super::super::abstraction::mdd::*;
 
 // --- POOLED MDD --------------------------------------------------------------
-pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : NodeOrdering<T> {
-
-    pb               : Rc<PB>,
-    relax            : RLX,
-    vs               : VS,
-    width            : WDTH,
-    ns               : NS,
-    dd               : PooledMDD<T>
-}
-
 pub struct PooledMDD<T> where T: Hash + Eq + Clone {
     mddtype          : MDDType,
     pool             : HashMap<T, Node<T>>,
@@ -38,8 +22,60 @@ pub struct PooledMDD<T> where T: Hash + Eq + Clone {
     best_node        : Option<Node<T>>
 }
 
+impl <T> Default for PooledMDD<T> where T : Hash + Clone + Eq {
+    fn default() -> PooledMDD<T> {
+        PooledMDD::new()
+    }
+}
+
+impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
+    fn mdd_type(&self) -> MDDType {
+        self.mddtype
+    }
+
+    fn current_layer(&self) -> &[Node<T>] {
+        &self.current
+    }
+
+    fn exact_cutset(&self) -> &[Node<T>] {
+        &self.cutset
+    }
+
+    fn next_layer(&self) -> &HashMap<T, Node<T>> {
+        &self.pool
+    }
+
+    fn last_assigned(&self) -> Variable {
+        self.last_assigned
+    }
+    fn unassigned_vars(&self) -> &VarSet {
+        &self.unassigned_vars
+    }
+    fn is_exact(&self) -> bool {
+        self.is_exact
+    }
+    fn best_value(&self) -> i32 {
+        if self.best_node.is_none() {
+            std::i32::MIN
+        } else {
+            self.best_node.as_ref().unwrap().lp_len
+        }
+    }
+    fn best_node(&self) -> &Option<Node<T>> {
+        &self.best_node
+    }
+    fn longest_path(&self) -> Vec<Decision> {
+        if self.best_node.is_none() {
+            vec![]
+        } else {
+            self.best_node.as_ref().unwrap().longest_path()
+        }
+    }
+}
+
+/// Private functions
 impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
-    pub fn new() -> PooledMDD<T> {
+    fn new() -> PooledMDD<T> {
         PooledMDD {
             mddtype          : Exact,
             last_assigned    : Variable(std::usize::MAX),
@@ -52,7 +88,7 @@ impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
         }
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.mddtype          = Exact;
         self.last_assigned    = Variable(std::usize::MAX);
         self.is_exact         = true;
@@ -75,10 +111,40 @@ impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
     }
 }
 
-impl <T> Default for PooledMDD<T> where T : Hash + Clone + Eq {
-    fn default() -> PooledMDD<T> {
-        PooledMDD::new()
+// --- GENERATOR ---------------------------------------------------------------
+pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : NodeOrdering<T> {
+
+    pb               : Rc<PB>,
+    relax            : RLX,
+    vs               : VS,
+    width            : WDTH,
+    ns               : NS,
+    dd               : PooledMDD<T>
+}
+
+impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : NodeOrdering<T> {
+    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Exact, vars, root, best_lb);
     }
+    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Restricted, vars, root, best_lb);
+    }
+    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Relaxed, vars, root, best_lb);
+    }
+    fn mdd(&self) -> &dyn MDD<T> { &self.dd }
 }
 
 impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
@@ -99,7 +165,6 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             dd: PooledMDD::new()
         }
     }
-
 
     fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
         self.dd.clear();
@@ -299,70 +364,6 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                 self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
                 self.dd.current.truncate(w);
             }
-        }
-    }
-}
-
-impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : NodeOrdering<T> {
-    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Exact, vars, root, best_lb);
-    }
-    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Restricted, vars, root, best_lb);
-    }
-    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Relaxed, vars, root, best_lb);
-    }
-    fn mdd(&self) -> &dyn MDD<T> { &self.dd }
-}
-
-impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
-    fn mdd_type(&self) -> MDDType {
-        self.mddtype
-    }
-
-    fn current_layer(&self) -> &[Node<T>] {
-        &self.current
-    }
-
-    fn exact_cutset(&self) -> &[Node<T>] {
-        &self.cutset
-    }
-
-    fn next_layer(&self) -> &HashMap<T, Node<T>> {
-        &self.pool
-    }
-
-    fn last_assigned(&self) -> Variable {
-        self.last_assigned
-    }
-    fn unassigned_vars(&self) -> &VarSet {
-        &self.unassigned_vars
-    }
-    fn is_exact(&self) -> bool {
-        self.is_exact
-    }
-    fn best_value(&self) -> i32 {
-        if self.best_node.is_none() {
-            std::i32::MIN
-        } else {
-            self.best_node.as_ref().unwrap().lp_len
-        }
-    }
-    fn best_node(&self) -> &Option<Node<T>> {
-        &self.best_node
-    }
-    fn longest_path(&self) -> Vec<Decision> {
-        if self.best_node.is_none() {
-            vec![]
-        } else {
-            self.best_node.as_ref().unwrap().longest_path()
         }
     }
 }
