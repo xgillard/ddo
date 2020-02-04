@@ -151,14 +151,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           NS   : NodeOrdering<T> {
 
     pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
-        PooledMDDGenerator{
-            pb,
-            relax,
-            vs,
-            width,
-            ns,
-            dd: PooledMDD::new()
-        }
+        PooledMDDGenerator{ pb, relax, vs, width, ns, dd: PooledMDD::new() }
     }
 
     fn nb_vars(&self) -> usize {
@@ -306,76 +299,74 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         }
     }
 
+    fn mk_merged_node(&mut self, w: usize) -> Node<T> {
+        // 0. Sort the current layer so that the worst nodes are at the end.
+        let ns = &self.ns;
+        self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+        let (_keep, squash) = self.dd.current.split_at(w-1);
+
+        // 1. merge state of the worst node into that of central
+        let mut central = squash[0].clone();
+        let mut states = vec![];
+        for n in squash.iter() {
+            states.push(&n.state);
+        }
+        central.is_exact = false;
+        central.state    = self.relax.merge_states(&self.dd, states.as_slice());
+
+        // 2. relax edges from the parents of all merged nodes (central + squashed)
+        let mut arc = central.lp_arc.as_mut().unwrap();
+        for n in squash.iter() {
+            let narc = n.lp_arc.clone().unwrap();
+            let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central.state, narc.decision);
+
+            if n.lp_len - narc.weight + cost > central.lp_len {
+                central.lp_len -= arc.weight;
+                arc.src         = Rc::clone(&narc.src);
+                arc.decision    = narc.decision;
+                arc.weight      = cost;
+                central.lp_len += arc.weight;
+            }
+
+            // n was an exact node, it must to to the cutset
+            if n.is_exact {
+                //trace!("squash:: squashed node was exact");
+                self.dd.cutset.push(n.clone())
+            }
+        }
+
+        central
+    }
+
+    fn find_same_state<'a>(current: &'a mut[Node<T>], state: &T) -> Option<&'a mut Node<T>> {
+        for n in current.iter_mut() {
+            if n.state.eq(state) {
+                return Some(n);
+            }
+        }
+        None
+    }
+
     fn maybe_relax(&mut self, i: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
             let w = max(2, self.width.max_width(&self.dd));
-            let ns = &self.ns;
             while self.dd.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.dd.is_exact = false;
 
                 // actually squash the layer
-                self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                let (_keep, squash) = self.dd.current.split_at(w-1);
+                let central = self.mk_merged_node(w);
 
-                let mut central = squash[0].clone();
-
-                // 1. merge state of the worst node into that of central
-                let mut states = vec![];
-                for n in squash.iter() {
-                    states.push(&n.state);
-                }
-                let central_state = self.relax.merge_states(&self.dd, states.as_slice());
-
-                // 2. relax edges from the parents of all merged nodes (central + squashed)
-                let mut arc = central.lp_arc.as_mut().unwrap();
-                for n in squash.iter() {
-                    let narc = n.lp_arc.clone().unwrap();
-
-                    let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central_state, narc.decision);
-
-                    if n.lp_len - narc.weight + cost > central.lp_len {
-                        central.lp_len -= arc.weight;
-                        arc.src     = Rc::clone(&narc.src);
-                        arc.decision= narc.decision;
-                        arc.weight  = cost;
-                        central.lp_len += arc.weight;
-                    }
-
-                    // n was an exact node, it must to to the cutset
-                    if n.is_exact {
-                        //trace!("squash:: squashed node was exact");
-                        self.dd.cutset.push(n.clone())
-                    }
-                }
-
-                central.state    = central_state;
-                central.is_exact = false;
-
-                // 3. all nodes have been merged into central: resize the current layer and add central
-                let mut must_add = true;
                 self.dd.current.truncate(w - 1);
-                for n in self.dd.current.iter_mut() {
-                    if n.state.eq(&central.state) {
-                        // if n is exact, it must go to the cutset
-                        if n.is_exact {
-                            //trace!("squash:: there existed an equivalent");
-                            self.dd.cutset.push(n.clone());
-                        }
 
-                        must_add   = false;
-                        n.is_exact = false;
-                        if n.lp_len < central.lp_len {
-                            n.lp_len = central.lp_len;
-                            n.lp_arc = central.lp_arc.clone();
-                            n.ub     = central.ub;
-                        }
-
-                        break;
+                if let Some(old) = Self::find_same_state(&mut self.dd.current, &central.state) {
+                    if old.is_exact {
+                        //trace!("squash:: there existed an equivalent");
+                        self.dd.cutset.push(old.clone());
                     }
-                }
-                if must_add {
+                    old.merge(central);
+                } else {
                     self.dd.current.push(central);
                 }
             }
