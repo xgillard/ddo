@@ -51,11 +51,11 @@ pub trait Problem<T> {
     /// Returns the next state reached by the system if the decision `d` is
     /// taken when the system is in the given `state` and the given set of `vars`
     /// are still free (no value assigned).
-    fn transition(&self, state: &T, vars : &VarSet, d: &Decision) -> T;
+    fn transition(&self, state: &T, vars : &VarSet, d: Decision) -> T;
     /// Returns the marginal benefit (in terms of objective function to maximize)
     /// of taking decision `d` is when the system is in the given `state` and
     /// the given set of `vars` are still free (no value assigned).
-    fn transition_cost(&self, state: &T, vars : &VarSet, d: &Decision) -> i32;
+    fn transition_cost(&self, state: &T, vars : &VarSet, d: Decision) -> i32;
 
     /// Optional method for the case where you'd want to use a pooled mdd implementation.
     /// Returns true iff taking a decision on 'variable' might have an impact (state or lp)
@@ -78,7 +78,7 @@ pub trait Relaxation<T> {
     fn merge_states(&self, dd: &dyn MDD<T>, states: &[&T]) -> T;
     /// This method yields the _relaxed cost_ of taking the given `decision`
     /// in state `from` to reach the relaxed state `to`.
-    fn relax_cost(&self, dd: &dyn MDD<T>, original_cost: i32, from: &T, to: &T, decision: &Decision) -> i32;
+    fn relax_cost(&self, dd: &dyn MDD<T>, original_cost: i32, from: &T, to: &T, decision: Decision) -> i32;
 
     /// Optionally compute a rough upper bound on the objective value reachable
     /// from the given state. This method should be *fast* to compute and return

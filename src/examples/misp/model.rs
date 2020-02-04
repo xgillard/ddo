@@ -34,7 +34,7 @@ impl Problem<BitSet> for Misp {
         if state[var.0] { &self.yes_no } else { &self.no }
     }
 
-    fn transition(&self, state: &BitSet, _vars: &VarSet, d: &Decision) -> BitSet {
+    fn transition(&self, state: &BitSet, _vars: &VarSet, d: Decision) -> BitSet {
         let mut bs = state.clone();
         bs.set(d.variable.0, false);
 
@@ -46,7 +46,7 @@ impl Problem<BitSet> for Misp {
         bs
     }
 
-    fn transition_cost(&self, _state: &BitSet, _vars: &VarSet, d: &Decision) -> i32 {
+    fn transition_cost(&self, _state: &BitSet, _vars: &VarSet, d: Decision) -> i32 {
         if d.value == 0 {
             0
         } else {

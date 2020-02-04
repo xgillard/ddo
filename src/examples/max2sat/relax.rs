@@ -21,7 +21,7 @@ impl Relaxation<State> for Max2SatRelax {
         next
     }
 
-    fn relax_cost(&self, dd: &dyn MDD<State>, original_cost: i32, from: &State, to: &State, _d: &Decision) -> i32 {
+    fn relax_cost(&self, dd: &dyn MDD<State>, original_cost: i32, from: &State, to: &State, _d: Decision) -> i32 {
         let mut sum = self.diff_of_absolute_benefit(dd.last_assigned(), from, to);
         for v in dd.unassigned_vars().iter() {
             sum += self.diff_of_absolute_benefit(v, from, to);

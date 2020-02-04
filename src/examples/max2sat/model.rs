@@ -54,7 +54,7 @@ impl Problem<State> for Max2Sat {
         &TF
     }
 
-    fn transition(&self, state: &State, vars: &VarSet, d: &Decision) -> State {
+    fn transition(&self, state: &State, vars: &VarSet, d: Decision) -> State {
         let k = d.variable;
         let mut ret  = state.clone();
 
@@ -71,7 +71,7 @@ impl Problem<State> for Max2Sat {
         ret
     }
 
-    fn transition_cost(&self, state: &State, vars: &VarSet, d: &Decision) -> i32 {
+    fn transition_cost(&self, state: &State, vars: &VarSet, d: Decision) -> i32 {
         let k = d.variable;
         if d.value == F {
             let res = pos(-state[k]);

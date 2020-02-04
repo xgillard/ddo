@@ -23,7 +23,7 @@ impl Relaxation<BitSet> for MispRelax {
         bs
     }
 
-    fn relax_cost(&self, _dd: &dyn MDD<BitSet>, original_cost: i32, _from: &BitSet, _to: &BitSet, _d: &Decision) -> i32 {
+    fn relax_cost(&self, _dd: &dyn MDD<BitSet>, original_cost: i32, _from: &BitSet, _to: &BitSet, _d: Decision) -> i32 {
         original_cost
     }
 
