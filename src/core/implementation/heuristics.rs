@@ -65,6 +65,26 @@ impl <T, F> Compare<Node<T>> for FnNodeOrder<T, F>
         (self.func)(a, b)
     }
 }
+
+#[derive(Debug, Default)]
+pub struct MinLP;
+impl <T> NodeOrdering<T>  for MinLP where T: Clone + Hash + Eq {}
+impl <T> Compare<Node<T>> for MinLP where T: Clone + Hash + Eq {
+    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
+        a.get_lp_len().cmp(&b.get_lp_len())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MaxUB;
+impl <T> NodeOrdering<T>  for MaxUB where T: Clone + Hash + Eq {}
+impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
+    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
+        a.ub.cmp(&b.ub).then_with(|| a.lp_len.cmp(&b.lp_len))
+    }
+}
+
+
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 pub struct FromLongestPath;
 impl <T, P> LoadVars<T, P> for FromLongestPath

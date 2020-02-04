@@ -12,7 +12,7 @@ use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnNodeOrder, FnLoadVars};
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnNodeOrder, FnLoadVars, MinLP, MaxUB};
 
 use rust_mdd_solver::examples::misp::model::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
@@ -50,9 +50,9 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let relax = MispRelax::new(Rc::clone(&misp));
     let vs = NaturalOrder::new();
 
-    let ddg = PooledMDDGenerator::new(Rc::clone(&misp), relax, vs, width,FnNodeOrder::new(misp_min_lp));
+    let ddg = PooledMDDGenerator::new(Rc::clone(&misp), relax, vs, width, MinLP);//FnNodeOrder::new(misp_min_lp));
 
-    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, FnNodeOrder::new(misp_ub_order),FnLoadVars::new(vars_from_misp_state));
+    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, MaxUB, FnLoadVars::new(vars_from_misp_state));//FnNodeOrder::new(misp_ub_order),FnLoadVars::new(vars_from_misp_state));
     solver.verbosity = verbose;
     
     let start = SystemTime::now();
