@@ -1,6 +1,6 @@
 use bitset_fixed::BitSet;
 use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, Lines, Read};
 
 use regex::Regex;
 use std::ops::Not;
@@ -14,15 +14,19 @@ pub struct Graph {
 impl Graph {
 
     pub fn from_file(fname: &str) -> Graph {
-        let comment = Regex::new(r"^c\s.*$").unwrap();
-        let pb_decl = Regex::new(r"^p\s+edge\s+(?P<vars>\d+)\s+(?P<edges>\d+)$").unwrap();
+        let f = File::open(fname).unwrap();
+        let f = BufReader::new(f);
+
+        Self::from_lines(f.lines())
+    }
+
+    pub fn from_lines<B: BufRead>(lines: Lines<B>) -> Graph {
+        let comment   = Regex::new(r"^c\s.*$").unwrap();
+        let pb_decl   = Regex::new(r"^p\s+edge\s+(?P<vars>\d+)\s+(?P<edges>\d+)$").unwrap();
         let edge_decl = Regex::new(r"^e\s+(?P<src>\d+)\s+(?P<dst>\d+)").unwrap();
 
         let mut g = Graph{nb_vars: 0, adj_matrix: vec![], weights: vec![]};
-
-        let f = File::open(fname).unwrap();
-        let f = BufReader::new(f);
-        for line in f.lines() {
+        for line in lines {
             let line = line.unwrap();
             let line = line.trim();
 
@@ -68,4 +72,20 @@ impl Graph {
         }
     }
 
+}
+
+impl From<File> for Graph {
+    fn from(file: File) -> Graph {
+        BufReader::new(file).into()
+    }
+}
+impl <S: Read> From<BufReader<S>> for Graph {
+    fn from(buf: BufReader<S>) -> Graph {
+        buf.lines().into()
+    }
+}
+impl <B: BufRead> From<Lines<B>> for Graph {
+    fn from(lines: Lines<B>) -> Self {
+        Self::from_lines(lines)
+    }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use regex::Regex;
 use std::fs::File;
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, Lines, Read};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, Ord, PartialOrd, PartialEq)]
 pub struct BinaryClause {
@@ -34,16 +34,20 @@ impl Weighed2Sat {
         }
     }
     pub fn from_file(fname: &str) -> Weighed2Sat {
-        let comment = Regex::new(r"^c\s.*$").unwrap();
-        let pb_decl = Regex::new(r"^p\s+wcnf\s+(?P<vars>\d+)\s+(?P<clauses>\d+)$").unwrap();
-        let bin_decl = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)\s+(?P<y>-?\d+)\s+0$").unwrap();
+        let f = File::open(fname).unwrap();
+        let f = BufReader::new(f);
+
+        Self::from_lines(f.lines())
+    }
+
+    pub fn from_lines<B: BufRead>(lines: Lines<B>) -> Weighed2Sat {
+        let comment   = Regex::new(r"^c\s.*$").unwrap();
+        let pb_decl   = Regex::new(r"^p\s+wcnf\s+(?P<vars>\d+)\s+(?P<clauses>\d+)$").unwrap();
+        let bin_decl  = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)\s+(?P<y>-?\d+)\s+0$").unwrap();
         let unit_decl = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)-?\s+0$").unwrap();
 
         let mut instance : Weighed2Sat = Default::default();
-
-        let f = File::open(fname).unwrap();
-        let f = BufReader::new(f);
-        for line in f.lines() {
+        for line in lines {
             let line = line.unwrap();
             let line = line.trim();
 
@@ -79,6 +83,22 @@ impl Weighed2Sat {
         }
 
         instance
+    }
+}
+
+impl From<File> for Weighed2Sat {
+    fn from(file: File) -> Weighed2Sat {
+        BufReader::new(file).into()
+    }
+}
+impl <S: Read> From<BufReader<S>> for Weighed2Sat {
+    fn from(buf: BufReader<S>) -> Weighed2Sat {
+        buf.lines().into()
+    }
+}
+impl <B: BufRead> From<Lines<B>> for Weighed2Sat {
+    fn from(lines: Lines<B>) -> Weighed2Sat {
+        Weighed2Sat::from_lines(lines)
     }
 }
 
