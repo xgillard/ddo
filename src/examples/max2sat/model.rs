@@ -1,7 +1,9 @@
-use crate::examples::max2sat::instance::Weighed2Sat;
-use crate::core::abstraction::dp::{Problem, Variable, VarSet, Decision};
+use std::cmp::{max, min};
 use std::ops::{Index, IndexMut};
-use std::cmp::{min, max};
+
+use crate::core::abstraction::dp::Problem;
+use crate::core::common::{Decision, Variable, VarSet};
+use crate::examples::max2sat::instance::Weighed2Sat;
 
 const T  : i32      = 1;
 const F  : i32      =-1;

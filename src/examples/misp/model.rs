@@ -1,22 +1,26 @@
-use crate::examples::misp::instance::Graph;
-use crate::core::abstraction::dp::{Variable, Problem, Decision, VarSet};
-use bitset_fixed::BitSet;
-use std::ops::Not;
 use std::fs::File;
-use std::io::{Read, BufReader, BufRead, Lines};
+use std::io::{BufRead, BufReader, Lines, Read};
+use std::ops::Not;
+
+use bitset_fixed::BitSet;
+
+use crate::core::abstraction::dp::Problem;
+use crate::core::common::{Decision, Variable, VarSet};
+use crate::examples::misp::instance::Graph;
 
 pub struct Misp {
-    pub graph : Graph,
-    yes_no    : Vec<i32>,
-    no        : Vec<i32>
+    pub graph : Graph
 }
 
 impl Misp {
     pub fn new(mut graph : Graph) -> Misp {
         graph.complement();
-        Misp {graph, yes_no: vec![1, 0], no: vec![0]}
+        Misp {graph}
     }
 }
+
+const YES_NO : [i32; 2] = [1, 0];
+const NO    : [i32; 1] = [0];
 
 impl Problem<BitSet> for Misp {
     fn nb_vars(&self) -> usize {
@@ -32,7 +36,7 @@ impl Problem<BitSet> for Misp {
     }
 
     fn domain_of(&self, state: &BitSet, var: Variable) -> &[i32] {
-        if state[var.0] { &self.yes_no } else { &self.no }
+        if state[var.0] { &YES_NO } else { &NO }
     }
 
     fn transition(&self, state: &BitSet, _vars: &VarSet, d: Decision) -> BitSet {

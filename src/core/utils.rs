@@ -1,13 +1,16 @@
-use bitset_fixed::BitSet;
 use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
-use std::slice::Iter;
-use std::iter::Cloned;
-use crate::core::abstraction::heuristics::{NodeOrdering, LoadVars};
 use std::hash::Hash;
+use std::iter::Cloned;
+use std::slice::Iter;
+
+use bitset_fixed::BitSet;
 use compare::Compare;
+
+use crate::core::abstraction::dp::Problem;
+use crate::core::abstraction::heuristics::LoadVars;
 use crate::core::abstraction::mdd::Node;
-use crate::core::abstraction::dp::{Problem, VarSet};
+use crate::core::common::VarSet;
 
 pub struct BitSetIter<'a> {
     iter  : Cloned<Iter<'a, u64>>,
@@ -86,10 +89,6 @@ impl PartialOrd for LexBitSet<'_> {
 #[derive(Clone)]
 pub struct Func<F>(pub F);
 
-impl <T, F> NodeOrdering<T> for Func<F>
-    where T: Clone + Hash + Eq,
-          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
-}
 impl <T, F> Compare<Node<T>> for Func<F>
     where T: Clone + Hash + Eq,
           F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
@@ -104,5 +103,17 @@ impl <T, P, F> LoadVars<T, P> for Func<F>
 
     fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
         (self.0)(pb, node)
+    }
+}
+
+#[derive(Clone)]
+pub struct RefFunc<F>(pub F);
+impl <T, P, F> LoadVars<T, &P> for RefFunc<F>
+    where T: Hash + Clone + Eq,
+          P: Problem<T>,
+          F: Fn(&P, &Node<T>) -> VarSet {
+
+    fn variables(&self, pb: &&P, node: &Node<T>) -> VarSet {
+        (self.0)(*pb, node)
     }
 }

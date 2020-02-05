@@ -1,21 +1,23 @@
-use std::rc::Rc;
-use crate::core::abstraction::dp::{Problem, Decision, VarSet};
-use crate::core::abstraction::heuristics::{LoadVars, NodeOrdering};
-use crate::core::abstraction::mdd::{Node, MDDGenerator};
-use crate::core::abstraction::solver::Solver;
-use crate::core::implementation::heuristics::FromLongestPath;
 use std::hash::Hash;
-use std::marker::PhantomData;
+
 use binary_heap_plus::BinaryHeap;
+use compare::Compare;
+
+use crate::core::abstraction::dp::Problem;
+use crate::core::abstraction::heuristics::LoadVars;
+use crate::core::abstraction::mdd::{MDDGenerator, Node};
+use crate::core::abstraction::solver::Solver;
+use crate::core::common::{Decision, VarSet};
+use crate::core::implementation::heuristics::FromLongestPath;
 
 pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           DDG  : MDDGenerator<T>,
-          BO   : NodeOrdering<T>,
+          BO   : Compare<Node<T>>,
           VARS : LoadVars<T, PB> {
 
-    pb           : Rc<PB>,
+    pb           : PB,
     ddg          : DDG,
 
     fringe       : BinaryHeap<Node<T>, BO>,
@@ -26,19 +28,18 @@ pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
     pub best_lb  : i32,
     pub best_node: Option<Node<T>>,
     pub best_sol : Option<Vec<Decision>>,
-    pub verbosity: u8,
-    phantom      : PhantomData<T>
+    pub verbosity: u8
 }
 
 impl <T, PB, DDG, BO, VARS> BBSolver<T, PB, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           DDG  : MDDGenerator<T>,
-          BO   : NodeOrdering<T>,
+          BO   : Compare<Node<T>>,
           VARS : LoadVars<T, PB> {
-    pub fn new(pb: Rc<PB>,
+    pub fn new(pb : PB,
                ddg: DDG,
-               bo: BO,
+               bo : BO,
                load_vars: VARS) -> BBSolver<T, PB, DDG, BO, VARS> {
         BBSolver {
             pb,
@@ -50,8 +51,7 @@ impl <T, PB, DDG, BO, VARS> BBSolver<T, PB, DDG, BO, VARS>
             best_lb: std::i32::MIN,
             best_node: None,
             best_sol: None,
-            verbosity: 0,
-            phantom: PhantomData
+            verbosity: 0
         }
     }
 }
@@ -60,7 +60,7 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           DDG  : MDDGenerator<T>,
-          BO   : NodeOrdering<T>,
+          BO   : Compare<Node<T>>,
           VARS : LoadVars<T, PB> {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
@@ -114,7 +114,7 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
                 println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
             }
 
-            let vars = self.load_vars.variables(self.pb.as_ref(), &node);
+            let vars = self.load_vars.variables(&self.pb, &node);
 
             // 1. RESTRICTION
             self.ddg.restricted(vars.clone(),&node, self.best_lb);

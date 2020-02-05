@@ -1,20 +1,21 @@
-use crate::examples::misp::model::Misp;
-use std::rc::Rc;
-use crate::core::abstraction::dp::{Relaxation, Decision, Problem};
 use bitset_fixed::BitSet;
-use crate::core::abstraction::mdd::MDD;
 
-pub struct MispRelax {
-    pb: Rc<Misp>
+use crate::core::abstraction::dp::{Problem, Relaxation};
+use crate::core::abstraction::mdd::MDD;
+use crate::core::common::Decision;
+use crate::examples::misp::model::Misp;
+
+pub struct MispRelax<'a> {
+    pb: &'a Misp
 }
 
-impl MispRelax {
-    pub fn new(pb : Rc<Misp>) -> MispRelax {
+impl <'a> MispRelax<'a> {
+    pub fn new(pb : &'a Misp) -> MispRelax<'a> {
         MispRelax{pb}
     }
 }
 
-impl Relaxation<BitSet> for MispRelax {
+impl <'a> Relaxation<BitSet> for MispRelax<'a> {
     fn merge_states(&self, _dd: &dyn MDD<BitSet>, states: &[&BitSet]) -> BitSet {
         let mut bs = BitSet::new(self.pb.nb_vars());
         for s in states {

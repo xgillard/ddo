@@ -1,25 +1,20 @@
 extern crate rust_mdd_solver;
 extern crate structopt;
 
-use structopt::StructOpt;
-
-use std::rc::Rc;
+use std::fs::File;
+use std::time::SystemTime;
 
 use bitset_fixed::BitSet;
+use structopt::StructOpt;
 
-use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
-
-use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
+use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, MinLP, MaxUB};
-
-use rust_mdd_solver::examples::misp::relax::MispRelax;
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned};
+use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
+use rust_mdd_solver::core::utils::RefFunc;
 use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
-
-use std::time::SystemTime;
-use rust_mdd_solver::core::utils::Func;
-use std::fs::File;
+use rust_mdd_solver::examples::misp::relax::MispRelax;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -47,13 +42,13 @@ enum RustMddSolver {
 fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<BitSet> {
 
-    let misp = Rc::new(File::open(fname).expect("File not found").into());
-    let relax = MispRelax::new(Rc::clone(&misp));
-    let vs = NaturalOrder;
+    let misp  = File::open(fname).expect("File not found").into();
+    let relax = MispRelax::new(&misp);
+    let vs    = NaturalOrder;
 
-    let ddg = PooledMDDGenerator::new(Rc::clone(&misp), relax, vs, width, MinLP);//FnNodeOrder::new(misp_min_lp));
+    let ddg = PooledMDDGenerator::new(&misp, relax, vs, width, MinLP);
 
-    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, MaxUB, Func(vars_from_misp_state));//FnNodeOrder::new(misp_ub_order),FnLoadVars::new(vars_from_misp_state));
+    let mut solver = BBSolver::new(&misp, ddg, MaxUB, RefFunc(vars_from_misp_state));
     solver.verbosity = verbose;
     
     let start = SystemTime::now();

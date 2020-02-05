@@ -1,12 +1,13 @@
 //! This module defines the traits for the constituents of an MDD: the `MDD`
 //! itself and the `Nodes` that compose it.
-use crate::core::abstraction::dp::{Decision, Variable, VarSet};
-use std::hash::Hash;
-use std::rc::Rc;
 use std::cmp::{max, Ordering};
 use std::cmp::Ordering::Equal;
+use std::hash::Hash;
+use std::rc::Rc;
+
 use metrohash::MetroHashMap;
 
+use crate::core::common::{Decision, Variable, VarSet};
 
 /// This enumeration characterizes the kind of MDD being generated. It can
 /// either be

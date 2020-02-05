@@ -1,5 +1,5 @@
 //! This module defines the `Solver` trait.
-use crate::core::abstraction::dp::Decision;
+use crate::core::common::Decision;
 
 /// The solver trait lets you maximize an objective function.
 pub trait Solver {

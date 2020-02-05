@@ -2,12 +2,15 @@ use std::cmp::{max, min};
 use std::hash::Hash;
 use std::rc::Rc;
 
-use crate::core::abstraction::dp::{Decision, Problem, Relaxation, Variable, VarSet};
-use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, NodeOrdering};
+use compare::Compare;
+use metrohash::MetroHashMap;
+
+use crate::core::abstraction::dp::{Problem, Relaxation};
+use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
+use crate::core::common::{Decision, Variable, VarSet};
 
 use super::super::abstraction::mdd::*;
-use metrohash::MetroHashMap;
 
 // --- POOLED MDD --------------------------------------------------------------
 pub struct PooledMDD<T> where T: Hash + Eq + Clone {
@@ -70,7 +73,7 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
 }
 
 /// Private functions
-impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
+impl <T> PooledMDD<T> where T: Hash + Eq + Clone {
     fn new() -> PooledMDD<T> {
         PooledMDD {
             mddtype          : Exact,
@@ -104,9 +107,9 @@ pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T>,
           WDTH : WidthHeuristic<T>,
-          NS   : NodeOrdering<T> {
+          NS   : Compare<Node<T>> {
 
-    pb               : Rc<PB>,
+    pb               : PB,
     relax            : RLX,
     vs               : VS,
     width            : WDTH,
@@ -120,7 +123,7 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RL
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T>,
           WDTH : WidthHeuristic<T>,
-          NS   : NodeOrdering<T> {
+          NS   : Compare<Node<T>> {
     fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
         self.develop(Exact, vars, root, best_lb);
     }
@@ -144,9 +147,9 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T>,
           WDTH : WidthHeuristic<T>,
-          NS   : NodeOrdering<T> {
+          NS   : Compare<Node<T>> {
 
-    pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
+    pub fn new(pb: PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
         PooledMDDGenerator{ pb, relax, vs, width, ns, dd: PooledMDD::new() }
     }
     fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {

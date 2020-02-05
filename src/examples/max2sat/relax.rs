@@ -1,8 +1,10 @@
-use crate::examples::max2sat::model::{Max2Sat, State};
-use std::rc::Rc;
-use crate::core::abstraction::dp::{Variable, Relaxation, Decision, Problem};
 use std::cmp::min;
+use std::rc::Rc;
+
+use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::mdd::MDD;
+use crate::core::common::{Decision, Variable};
+use crate::examples::max2sat::model::{Max2Sat, State};
 
 const POSITIVE : u8 = 0x1;
 const NEGATIVE : u8 = 0x2;

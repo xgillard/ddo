@@ -1,8 +1,10 @@
-use crate::core::abstraction::dp::VarSet;
-use bitset_fixed::BitSet;
-use crate::core::abstraction::mdd::Node;
 use std::cmp::Ordering;
-use std::cmp::Ordering::{Greater, Less, Equal};
+use std::cmp::Ordering::{Equal, Greater, Less};
+
+use bitset_fixed::BitSet;
+
+use crate::core::abstraction::mdd::Node;
+use crate::core::common::VarSet;
 use crate::core::utils::LexBitSet;
 use crate::examples::misp::model::Misp;
 

@@ -5,30 +5,9 @@
 //! The most important abstractions that should be provided by a client are
 //! `Problem` and `Relaxation`.
 use std::i32;
-use bitset_fixed::BitSet;
-use crate::core::utils::BitSetIter;
-use std::ops::Not;
+
 use crate::core::abstraction::mdd::MDD;
-
-/// This type denotes a variable from the optimization problem at hand.
-/// In this case, each variable is assumed to be identified with an integer
-/// ranging from 0 until `problem.nb_vars()`
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub struct Variable(pub usize);
-
-/// This type denotes a set of variable. It encodes them compactly as a fixed
-/// size bitset. A `VarSet` can be efficiently iterated upon.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct VarSet(pub BitSet);
-
-/// This denotes a decision that was made during the search. It affects a given
-/// `value` to the specified `variable`. Any given `Decision` should be
-/// understood as ```[[ variable = value ]]````
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Decision {
-    pub variable : Variable,
-    pub value    : i32
-}
+use crate::core::common::{Decision, Variable, VarSet};
 
 /// This is the main abstraction that should be provided by any user of our
 /// library. Indeed, it defines the problem to be solved in the form of a dynamic
@@ -93,48 +72,39 @@ pub trait Relaxation<T> {
     }
 }
 
-/// This type denotes the iterator used to iterate over the `Variable`s to a
-/// given `VarSet`. It should never be manually instantiated, but always via
-/// the `iter()` method from the varset.
-pub struct VarSetIter<'a>(pub BitSetIter<'a>);
-
-/// This is the implementation of the core features of a `VarSet`.
-impl VarSet {
-    /// Returns a `VarSet` where all the possible `n` variables are presetn.
-    pub fn all(n: usize) -> VarSet {
-        VarSet(BitSet::new(n).not())
+/// Any reference to a problem should be considered as a valid problem type.
+impl <T, P: Problem<T>> Problem<T> for &P {
+    fn nb_vars(&self) -> usize {
+        (*self).nb_vars()
     }
-    /// Adds the given variable `v` to the set if it is not already present.
-    pub fn add(&mut self, v: Variable) {
-        self.0.set(v.0, true)
+    fn initial_state(&self) -> T {
+        (*self).initial_state()
     }
-    /// Removes the variable `v` from the set if it was present.
-    pub fn remove(&mut self, v: Variable) {
-        self.0.set(v.0, false)
+    fn initial_value(&self) -> i32 {
+        (*self).initial_value()
     }
-    /// Returns true iff the set contains the variable `v`.
-    pub fn contains(&self, v: Variable) -> bool {
-        self.0[v.0]
+    fn domain_of(&self, state: &T, var: Variable) -> &[i32] {
+        (*self).domain_of(state, var)
     }
-    /// Returns the count of variables that are present in the set.
-    pub fn len(&self) -> usize {
-        self.0.count_ones() as usize
+    fn transition(&self, state: &T, vars: &VarSet, d: Decision) -> T {
+        (*self).transition(state, vars, d)
     }
-    /// Returns true iff no variables are preset in the set.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
+    fn transition_cost(&self, state: &T, vars: &VarSet, d: Decision) -> i32 {
+        (*self).transition_cost(state, vars, d)
     }
-    /// Returns an iterator in this set of variables.
-    pub fn iter(&self) -> VarSetIter {
-        VarSetIter(BitSetIter::new(&self.0))
+    fn impacted_by(&self, state: &T, var: Variable) -> bool {
+        (*self).impacted_by(state, var)
     }
 }
-/// Actually implement the iterator protocol.
-impl Iterator for VarSetIter<'_> {
-    type Item = Variable;
-    /// Returns the next variable from the set, or `None` if all variables have
-    /// already been iterated upon.
-    fn next(&mut self) -> Option<Variable> {
-        self.0.next().map(Variable)
+/// Any reference to a relaxation should be considered as as valid relaxation type.
+impl <T, R: Relaxation<T>> Relaxation<T> for &R {
+    fn merge_states(&self, dd: &dyn MDD<T>, states: &[&T]) -> T {
+        (*self).merge_states(dd, states)
+    }
+    fn relax_cost(&self, dd: &dyn MDD<T>, cost: i32, from: &T, to: &T, d: Decision) -> i32 {
+        (*self).relax_cost(dd, cost, from, to, d)
+    }
+    fn rough_ub(&self, lp: i32, s: &T) -> i32 {
+        (*self).rough_ub(lp, s)
     }
 }

@@ -1,18 +1,19 @@
 #![cfg(test)]
 extern crate rust_mdd_solver;
 
-use std::path::PathBuf;
 use std::fs::File;
-use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::examples::misp::model::Misp;
-use std::rc::Rc;
-use rust_mdd_solver::examples::misp::relax::MispRelax;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, MinLP};
-use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
-use rust_mdd_solver::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
-use rust_mdd_solver::core::utils::Func;
-use rust_mdd_solver::core::abstraction::solver::Solver;
+use std::path::PathBuf;
 
+use rust_mdd_solver::core::abstraction::solver::Solver;
+use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MinLP, NaturalOrder};
+use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
+use rust_mdd_solver::core::utils::{RefFunc, Func};
+use rust_mdd_solver::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
+use rust_mdd_solver::examples::misp::model::Misp;
+use rust_mdd_solver::examples::misp::relax::MispRelax;
+
+/// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Misp {
     let location = PathBuf::new()
         .join(env!("CARGO_MANIFEST_DIR"))
@@ -22,15 +23,18 @@ fn instance(id: &str) -> Misp {
     File::open(location.to_owned()).expect("File not found").into()
 }
 
+/// This is the function we will use to actually solve an instance to completion
+/// and check that the optimal value it identifies corresponds to the expected
+/// value.
 fn solve(id: &str) -> i32 {
-    let misp       = Rc::new(instance(id));
-    let relax      = MispRelax::new(Rc::clone(&misp));
+    let misp       = instance(id);
+    let relax      = MispRelax::new(&misp);
     let width      = FixedWidth(100);
     let vs         = NaturalOrder;
     let ns         = MinLP;
 
-    let ddg        = PooledMDDGenerator::new(Rc::clone(&misp), relax, vs, width, ns);
-    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, Func(misp_ub_order), Func(vars_from_misp_state));
+    let ddg        = PooledMDDGenerator::new(&misp, relax, vs, width, ns);
+    let mut solver = BBSolver::new(&misp, ddg, Func(misp_ub_order), RefFunc(vars_from_misp_state));
     let (val,_sln) = solver.maximize();
 
     val
@@ -49,7 +53,7 @@ fn brock200_2() {
 fn brock200_3() {
     assert_eq!(solve("brock200_3.clq"), 15);
 }
-#[test]
+#[ignore] #[test]
 fn brock200_4() {
     assert_eq!(solve("brock200_4.clq"), 17);
 }
@@ -89,7 +93,7 @@ fn hamming6_4() {
 fn hamming8_2() {
     assert_eq!(solve("hamming8-2.clq"), 128);
 }
-#[test]
+#[ignore] #[test]
 fn hamming8_4() {
     assert_eq!(solve("hamming8-4.clq"), 16);
 }
@@ -128,7 +132,6 @@ fn mann_a27() {
 fn mann_a45() {
     assert_eq!(solve("MANN_a45.clq"), 315);
 }
-
 
 #[test]
 fn p_hat300_1() {
