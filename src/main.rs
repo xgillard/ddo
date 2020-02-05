@@ -45,7 +45,7 @@ enum RustMddSolver {
     }
 }
 
-fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
+fn maybe_print_misp_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
     if verbose >= 2 {
         println!("### Solution: ################################################");
         if let Some(sln) = sln {
@@ -62,7 +62,22 @@ fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
         println!("No solution !");
     }
 }
+fn maybe_print_max2sat_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
+    if verbose >= 2 {
+        println!("### Solution: ################################################");
+        if let Some(sln) = sln {
+            let mut sln = sln.clone();
+            sln.sort_by_key(|d| d.variable.0);
+            let solution_txt = sln.iter()
+                .fold(String::new(), |a, i| format!("{} {}", a, (i.variable.0 + 1) as i32 * i.value));
 
+            println!("{}", solution_txt);
+        }
+    }
+    if verbose >= 1 && sln.is_none() {
+        println!("No solution !");
+    }
+}
 /// Solves the given misp instance with fixed width mdds
 ///
 /// # Arguments
@@ -90,16 +105,16 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     if verbose >= 1 {
         println!("Optimum computed in {:?}", (end.duration_since(start).unwrap()));
     }
-    maybe_print_solution(verbose, sln);
+    maybe_print_misp_solution(verbose, sln);
 
     opt
 }
 
-/// Solves the given misp instance with fixed width mdds
+/// Solves the given max2sat instance with fixed width mdds
 ///
 /// # Arguments
 ///
-/// fname is the path name of some dimacs .clq file holding graph
+/// fname is the path name of some dimacs .wcnf file holding
 ///           description of the instance to solve
 /// width is the maximum allowed width of a layer.
 ///
@@ -124,7 +139,7 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     if verbose >= 1 {
         println!("Optimum computed in {:?}", (end.duration_since(start).unwrap()));
     }
-    maybe_print_solution(verbose, sln);
+    maybe_print_max2sat_solution(verbose, sln);
 
     opt
 }
