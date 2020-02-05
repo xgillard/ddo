@@ -2,7 +2,6 @@ use crate::core::abstraction::heuristics::{WidthHeuristic, VariableHeuristic, Lo
 use crate::core::abstraction::mdd::{MDD, Node};
 use std::hash::Hash;
 use crate::core::abstraction::dp::{VarSet, Variable, Problem};
-use std::marker::PhantomData;
 use std::cmp::Ordering;
 use compare::Compare;
 
@@ -26,11 +25,6 @@ impl <T> WidthHeuristic<T> for NbUnassigned
 //~~~~~ Variable Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #[derive(Default)]
 pub struct NaturalOrder;
-impl NaturalOrder {
-    pub fn new() -> NaturalOrder {
-        NaturalOrder{}
-    }
-}
 impl <T> VariableHeuristic<T> for NaturalOrder
     where T : Clone + Hash + Eq {
 
@@ -40,32 +34,6 @@ impl <T> VariableHeuristic<T> for NaturalOrder
 }
 
 //~~~~~ Node Ordering Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#[derive(Clone)]
-pub struct FnNodeOrder<T, F>
-    where T: Clone + Hash + Eq,
-          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
-    func : F,
-    phantom : PhantomData<T>
-}
-impl <T, F> FnNodeOrder<T, F>
-    where T: Clone + Hash + Eq,
-          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
-    pub fn new(func: F) -> FnNodeOrder<T, F> {
-        FnNodeOrder { func, phantom: PhantomData }
-    }
-}
-impl <T, F> NodeOrdering<T> for FnNodeOrder<T, F>
-    where T: Clone + Hash + Eq,
-          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
-}
-impl <T, F> Compare<Node<T>> for FnNodeOrder<T, F>
-    where T: Clone + Hash + Eq,
-          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
-    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
-        (self.func)(a, b)
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct MinLP;
 impl <T> NodeOrdering<T>  for MinLP where T: Clone + Hash + Eq {}
@@ -97,32 +65,5 @@ impl <T, P> LoadVars<T, P> for FromLongestPath
             vars.remove(d.variable);
         }
         vars
-    }
-}
-
-pub struct FnLoadVars<T, P, F>
-    where T: Hash + Clone + Eq,
-          P: Problem<T>,
-          F: Fn(&P, &Node<T>) -> VarSet {
-    func: F,
-    phantom_t: PhantomData<T>,
-    phantom_p: PhantomData<P>
-}
-impl <T, P, F> FnLoadVars<T, P, F>
-    where T: Hash + Clone + Eq,
-          P: Problem<T>,
-          F: Fn(&P, &Node<T>) -> VarSet {
-
-    pub fn new(func: F) -> FnLoadVars<T, P, F> {
-        FnLoadVars{func, phantom_t: PhantomData, phantom_p: PhantomData }
-    }
-}
-impl <T, P, F> LoadVars<T, P> for FnLoadVars<T, P, F>
-    where T: Hash + Clone + Eq,
-          P: Problem<T>,
-          F: Fn(&P, &Node<T>) -> VarSet {
-
-    fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
-        (self.func)(pb, node)
     }
 }

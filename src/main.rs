@@ -12,13 +12,14 @@ use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnLoadVars, MinLP, MaxUB};
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, MinLP, MaxUB};
 
-use rust_mdd_solver::examples::misp::model::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
 
 use std::time::SystemTime;
+use rust_mdd_solver::core::utils::Func;
+use std::fs::File;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -46,13 +47,13 @@ enum RustMddSolver {
 fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<BitSet> {
 
-    let misp = Rc::new(Misp::from_file(fname));
+    let misp = Rc::new(File::open(fname).expect("File not found").into());
     let relax = MispRelax::new(Rc::clone(&misp));
-    let vs = NaturalOrder::new();
+    let vs = NaturalOrder;
 
     let ddg = PooledMDDGenerator::new(Rc::clone(&misp), relax, vs, width, MinLP);//FnNodeOrder::new(misp_min_lp));
 
-    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, MaxUB, FnLoadVars::new(vars_from_misp_state));//FnNodeOrder::new(misp_ub_order),FnLoadVars::new(vars_from_misp_state));
+    let mut solver = BBSolver::new(Rc::clone(&misp), ddg, MaxUB, Func(vars_from_misp_state));//FnNodeOrder::new(misp_ub_order),FnLoadVars::new(vars_from_misp_state));
     solver.verbosity = verbose;
     
     let start = SystemTime::now();

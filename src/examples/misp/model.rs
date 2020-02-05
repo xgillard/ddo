@@ -2,6 +2,8 @@ use crate::examples::misp::instance::Graph;
 use crate::core::abstraction::dp::{Variable, Problem, Decision, VarSet};
 use bitset_fixed::BitSet;
 use std::ops::Not;
+use std::fs::File;
+use std::io::{Read, BufReader, BufRead, Lines};
 
 pub struct Misp {
     pub graph : Graph,
@@ -10,10 +12,9 @@ pub struct Misp {
 }
 
 impl Misp {
-    pub fn from_file(fname : &str) -> Misp {
-        let mut g = Graph::from_file(fname);
-        g.complement();
-        Misp {graph: g, yes_no: vec![1, 0], no: vec![0]}
+    pub fn new(mut graph : Graph) -> Misp {
+        graph.complement();
+        Misp {graph, yes_no: vec![1, 0], no: vec![0]}
     }
 }
 
@@ -56,5 +57,20 @@ impl Problem<BitSet> for Misp {
 
     fn impacted_by(&self, state: &BitSet, variable: Variable) -> bool {
         state[variable.0]
+    }
+}
+impl From<File> for Misp {
+    fn from(file: File) -> Self {
+        BufReader::new(file).into()
+    }
+}
+impl <S: Read> From<BufReader<S>> for Misp {
+    fn from(buf: BufReader<S>) -> Self {
+        buf.lines().into()
+    }
+}
+impl <B: BufRead> From<Lines<B>> for Misp {
+    fn from(lines: Lines<B>) -> Self {
+        Self::new(lines.into())
     }
 }

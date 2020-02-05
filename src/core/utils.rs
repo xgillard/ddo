@@ -3,6 +3,11 @@ use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
 use std::slice::Iter;
 use std::iter::Cloned;
+use crate::core::abstraction::heuristics::{NodeOrdering, LoadVars};
+use std::hash::Hash;
+use compare::Compare;
+use crate::core::abstraction::mdd::Node;
+use crate::core::abstraction::dp::{Problem, VarSet};
 
 pub struct BitSetIter<'a> {
     iter  : Cloned<Iter<'a, u64>>,
@@ -73,5 +78,31 @@ impl PartialOrd for LexBitSet<'_> {
             }
         }
         Some(Equal)
+    }
+}
+
+/// A zero-cost abstraction adapter for function pointers
+/// (typically useful for heuristics).
+#[derive(Clone)]
+pub struct Func<F>(pub F);
+
+impl <T, F> NodeOrdering<T> for Func<F>
+    where T: Clone + Hash + Eq,
+          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
+}
+impl <T, F> Compare<Node<T>> for Func<F>
+    where T: Clone + Hash + Eq,
+          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
+    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
+        (self.0)(a, b)
+    }
+}
+impl <T, P, F> LoadVars<T, P> for Func<F>
+    where T: Hash + Clone + Eq,
+          P: Problem<T>,
+          F: Fn(&P, &Node<T>) -> VarSet {
+
+    fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
+        (self.0)(pb, node)
     }
 }
