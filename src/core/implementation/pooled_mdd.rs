@@ -32,19 +32,15 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
-
     fn current_layer(&self) -> &[Node<T>] {
         &self.current
     }
-
     fn exact_cutset(&self) -> &[Node<T>] {
         &self.cutset
     }
-
     fn next_layer(&self) -> &HashMap<T, Node<T>> {
         &self.pool
     }
-
     fn last_assigned(&self) -> Variable {
         self.last_assigned
     }
@@ -153,6 +149,69 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     pub fn new(pb: Rc<PB>, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
         PooledMDDGenerator{ pb, relax, vs, width, ns, dd: PooledMDD::new() }
     }
+    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
+        self.init(kind, vars, root);
+
+        let bounds = Bounds {lb: best_lb, ub: root.ub};
+        let mut i  = 0;
+        let nbvars = self.nb_vars();
+
+        while i < nbvars && !self.exhausted() {
+            let var = self.select_var();
+            if var.is_none() {
+                break;
+            }
+
+            let var = var.unwrap();
+            self.pick_nodes_from_pool(var);
+            self.maybe_squash(i);
+            self.remove_var(var);
+            self.unroll_layer(var, bounds);
+            self.set_last_assigned(var);
+            i += 1;
+        }
+
+        self.finalize()
+    }
+    fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
+        for node in self.dd.current.iter() {
+            let domain = self.pb.domain_of(&node.state, var);
+            for value in domain {
+                let decision  = Decision{variable: var, value: *value};
+                let branching = self.branch(node, decision);
+
+                if let Some(old) = self.dd.pool.get_mut(&branching.state) {
+                    if old.is_exact && !branching.is_exact {
+                        //trace!("main loop:: old was exact but new was not");
+                        self.dd.cutset.push(old.clone());
+                    }
+                    if !old.is_exact && branching.is_exact {
+                        //trace!("main loop:: new was exact but old was not");
+                        self.dd.cutset.push(branching.clone());
+                    }
+                    old.merge(branching)
+                } else {
+                    if self.is_relevant(&branching, bounds) {
+                        self.dd.pool.insert(branching.state.clone(), branching);
+                    }
+                }
+            }
+        }
+    }
+    fn pick_nodes_from_pool(&mut self, var: Variable) {
+        self.dd.current.clear();
+
+        // Add all selected nodes to the next layer
+        for n in self.dd.pool.values() {
+            if self.pb.impacted_by(&n.state, var) {
+                self.dd.current.push(n.clone());
+            }
+        }
+        // Remove all nodes that belong to the current layer from the pool
+        for n in self.dd.current.iter() {
+            self.dd.pool.remove(&n.state);
+        }
+    }
 
     fn nb_vars(&self) -> usize {
         self.dd.unassigned_vars.len()
@@ -165,6 +224,9 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     }
     fn remove_var(&mut self, var: Variable) {
         self.dd.unassigned_vars.remove(var)
+    }
+    fn set_last_assigned(&mut self, var: Variable) {
+        self.dd.last_assigned = var
     }
     fn transition_state(&self, node: &Node<T>, d: Decision) -> T {
         self.pb.transition(&node.state, &self.dd.unassigned_vars, d)
@@ -190,65 +252,6 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
 
         self.dd.pool.insert(root.state.clone(), root.clone());
     }
-
-    fn pick_nodes_from_pool(&mut self, var: Variable) {
-        self.dd.current.clear();
-
-        // Add all selected nodes to the next layer
-        for n in self.dd.pool.values() {
-            if self.pb.impacted_by(&n.state, var) {
-                self.dd.current.push(n.clone());
-            }
-        }
-        // Remove all nodes that belong to the current layer from the pool
-        for n in self.dd.current.iter() {
-            self.dd.pool.remove(&n.state);
-        }
-    }
-
-    fn develop_layer(&mut self, var: Variable, bounds: Bounds) {
-        for node in self.dd.current.iter() {
-            let domain = self.pb.domain_of(&node.state, var);
-            for value in domain {
-                let decision  = Decision{variable: var, value: *value};
-                let branching = self.branch(node, decision);
-
-                match self.dd.pool.get_mut(&branching.state) {
-                    Some(old) => {
-                        if old.is_exact && !branching.is_exact {
-                            //trace!("main loop:: old was exact but new was not");
-                            self.dd.cutset.push(old.clone());
-                        }
-                        if !old.is_exact && branching.is_exact {
-                            //trace!("main loop:: new was exact but old was not");
-                            self.dd.cutset.push(branching.clone());
-                        }
-                        old.merge(branching)
-                    },
-                    None => {
-                        if self.is_relevant(&branching, bounds) {
-                            self.dd.pool.insert(branching.state.clone(), branching);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn set_last_assigned(&mut self, var: Variable) {
-        self.dd.last_assigned = var
-    }
-
-    fn find_best_node(&mut self) {
-        let mut best_value = std::i32::MIN;
-        for node in self.dd.pool.values() {
-            if node.lp_len > best_value {
-                best_value = node.lp_len;
-                self.dd.best_node = Some(node.clone());
-            }
-        }
-    }
-
     fn finalize(&mut self) {
         self.find_best_node();
 
@@ -265,47 +268,66 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             self.dd.cutset.clear();
         }
     }
-
-    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
-        self.init(kind, vars, root);
-
-        let bounds = Bounds {lb: best_lb, ub: root.ub};
-        let mut i  = 0;
-        let nbvars = self.nb_vars();
-
-        while i < nbvars && !self.exhausted() {
-            let var = self.select_var();
-            if var.is_none() {
-                break;
+    fn find_best_node(&mut self) {
+        let mut best_value = std::i32::MIN;
+        for node in self.dd.pool.values() {
+            if node.lp_len > best_value {
+                best_value = node.lp_len;
+                self.dd.best_node = Some(node.clone());
             }
-
-            let var = var.unwrap();
-            self.pick_nodes_from_pool(var);
-            self.maybe_squash(i);
-            self.remove_var(var);
-            self.develop_layer(var, bounds);
-            self.set_last_assigned(var);
-            i += 1;
         }
-
-        self.finalize()
     }
 
     fn maybe_squash(&mut self, i : usize) {
         match self.dd.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
-            MDDType::Relaxed    => self.maybe_relax(i),
             MDDType::Restricted => self.maybe_restrict(i),
+            MDDType::Relaxed    => self.maybe_relax(i),
         }
     }
+    fn maybe_restrict(&mut self, i: usize) {
+        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
+        if i > 1 {
+            let w = max(2, self.width.max_width(&self.dd));
+            let ns = &self.ns;
+            while self.dd.current.len() > w {
+                // we do squash the current layer so the mdd is now inexact
+                self.dd.is_exact = false;
+                self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+                self.dd.current.truncate(w);
+            }
+        }
+    }
+    fn maybe_relax(&mut self, i: usize) {
+        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
+        if i > 1 {
+            let w = max(2, self.width.max_width(&self.dd));
+            while self.dd.current.len() > w {
+                // we do squash the current layer so the mdd is now inexact
+                self.dd.is_exact = false;
 
-    fn mk_merged_node(&mut self, w: usize) -> Node<T> {
-        // 0. Sort the current layer so that the worst nodes are at the end.
+                // actually squash the layer
+                let merged = self.merge_overdue_nodes(w);
+
+                if let Some(old) = Self::find_same_state(&mut self.dd.current, &merged.state) {
+                    if old.is_exact {
+                        //trace!("squash:: there existed an equivalent");
+                        self.dd.cutset.push(old.clone());
+                    }
+                    old.merge(merged);
+                } else {
+                    self.dd.current.push(merged);
+                }
+            }
+        }
+    }
+    fn merge_overdue_nodes(&mut self, w: usize) -> Node<T> {
+        // 1. Sort the current layer so that the worst nodes are at the end.
         let ns = &self.ns;
         self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
         let (_keep, squash) = self.dd.current.split_at(w-1);
 
-        // 1. merge state of the worst node into that of central
+        // 2. merge state of the worst node into that of central
         let mut central = squash[0].clone();
         let mut states = vec![];
         for n in squash.iter() {
@@ -314,7 +336,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         central.is_exact = false;
         central.state    = self.relax.merge_states(&self.dd, states.as_slice());
 
-        // 2. relax edges from the parents of all merged nodes (central + squashed)
+        // 3. relax edges from the parents of all merged nodes (central + squashed)
         let mut arc = central.lp_arc.as_mut().unwrap();
         for n in squash.iter() {
             let narc = n.lp_arc.clone().unwrap();
@@ -335,9 +357,10 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             }
         }
 
+        // 4. drop overdue nodes
+        self.dd.current.truncate(w - 1);
         central
     }
-
     fn find_same_state<'a>(current: &'a mut[Node<T>], state: &T) -> Option<&'a mut Node<T>> {
         for n in current.iter_mut() {
             if n.state.eq(state) {
@@ -345,45 +368,5 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             }
         }
         None
-    }
-
-    fn maybe_relax(&mut self, i: usize) {
-        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
-        if i > 1 {
-            let w = max(2, self.width.max_width(&self.dd));
-            while self.dd.current.len() > w {
-                // we do squash the current layer so the mdd is now inexact
-                self.dd.is_exact = false;
-
-                // actually squash the layer
-                let central = self.mk_merged_node(w);
-
-                self.dd.current.truncate(w - 1);
-
-                if let Some(old) = Self::find_same_state(&mut self.dd.current, &central.state) {
-                    if old.is_exact {
-                        //trace!("squash:: there existed an equivalent");
-                        self.dd.cutset.push(old.clone());
-                    }
-                    old.merge(central);
-                } else {
-                    self.dd.current.push(central);
-                }
-            }
-        }
-    }
-
-    fn maybe_restrict(&mut self, i: usize) {
-        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
-        if i > 1 {
-            let w = max(2, self.width.max_width(&self.dd));
-            let ns = &self.ns;
-            while self.dd.current.len() > w {
-                // we do squash the current layer so the mdd is now inexact
-                self.dd.is_exact = false;
-                self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                self.dd.current.truncate(w);
-            }
-        }
     }
 }
