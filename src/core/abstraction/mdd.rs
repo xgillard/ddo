@@ -2,10 +2,8 @@
 //! itself and the `Nodes` that compose it.
 use std::cmp::{max, Ordering};
 use std::cmp::Ordering::Equal;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-
-use metrohash::MetroHashMap;
 
 use crate::core::common::{Decision, Variable, VarSet};
 
@@ -50,10 +48,6 @@ pub trait MDD<T>
     fn current_layer(&self) -> &[Node<T>];
     /// Returns a set of nodes constituting an exact cutset of this `MDD`.
     fn exact_cutset(&self) -> &[Node<T>];
-    /// Returns a the map State -> Node of nodes already recorded to participate
-    /// in the next layer. (All these nodes will have to be expanded to explore
-    /// the complete state space).
-    fn next_layer(&self) -> &MetroHashMap<T, Node<T>>;
 
     /// Returns the latest `Variable` that acquired a value during the
     /// development of this `MDD`.
@@ -82,8 +76,7 @@ pub trait MDD<T>
 
 // --- NODE --------------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq)]
-pub struct Arc<T>
-    where T : Clone + Hash + Eq {
+pub struct Arc<T> where T: Eq + Clone  {
     pub src     : Rc<Node<T>>,
     pub decision: Decision,
     pub weight  : i32
@@ -91,7 +84,7 @@ pub struct Arc<T>
 
 // --- NODE --------------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq)]
-pub struct Node<T> where T : Hash + Eq + Clone {
+pub struct Node<T> where T: Eq + Clone {
     pub state   : T,
     pub is_exact: bool,
     pub lp_len  : i32,
@@ -100,7 +93,7 @@ pub struct Node<T> where T : Hash + Eq + Clone {
     pub ub      : i32
 }
 
-impl <T> Node<T> where T : Hash + Eq + Clone {
+impl <T> Node<T> where T : Eq + Clone {
     pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
         Node{state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
     }
@@ -146,13 +139,19 @@ impl <T> Node<T> where T : Hash + Eq + Clone {
     }
 }
 
-impl <T> Ord for Node<T> where T : Hash + Eq + Clone + Ord {
+impl <T> Hash for Node<T> where T: Hash + Eq + Clone + Ord {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.state.hash(state);
+    }
+}
+
+impl <T> Ord for Node<T> where T: Eq + Clone + Ord {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl <T> PartialOrd for Node<T> where T : Hash + Eq + Clone + PartialOrd {
+impl <T> PartialOrd for Node<T> where T: Eq + Clone + PartialOrd {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let cmp_ub = self.ub.cmp(&other.ub);
         if cmp_ub != Equal {

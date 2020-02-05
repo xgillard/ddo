@@ -38,11 +38,8 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     fn current_layer(&self) -> &[Node<T>] {
         &self.current
     }
-    fn exact_cutset(&self) -> &[Node<T>] {
+    fn exact_cutset(&self)  -> &[Node<T>] {
         &self.cutset
-    }
-    fn next_layer(&self) -> &MetroHashMap<T, Node<T>> {
-        &self.pool
     }
     fn last_assigned(&self) -> Variable {
         self.last_assigned
