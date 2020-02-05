@@ -1,0 +1,12 @@
+c optimal      = 13,000000
+c True account = 11,000000
+c lower bnd    = 13,000000
+c
+c Calculé  : [ 1, 2, 3]  ~~~> 11
+c Vraie sol: [-1,-2, 3]  ~~~> 13
+c
+p wcnf 3 4
+2 -1 -1 0      c unit negative   | -1 -> 2
+4 -2 1 0       c normal          | -2 -> 4
+4 2 3 0        c normal          |  3 -> 4
+3 1 3 0        c idem            |  3 -> 3 ==> 13

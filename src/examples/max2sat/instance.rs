@@ -5,8 +5,8 @@ use std::io::{BufReader, BufRead, Lines, Read};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, Ord, PartialOrd, PartialEq)]
 pub struct BinaryClause {
-    a: i32,
-    b: i32
+    pub a: i32,
+    pub b: i32
 }
 
 impl BinaryClause {

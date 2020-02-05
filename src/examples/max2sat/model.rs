@@ -4,6 +4,8 @@ use std::ops::{Index, IndexMut};
 use crate::core::abstraction::dp::Problem;
 use crate::core::common::{Decision, Variable, VarSet};
 use crate::examples::max2sat::instance::Weighed2Sat;
+use std::fs::File;
+use std::io::{BufReader, Read, BufRead, Lines};
 
 const T  : i32      = 1;
 const F  : i32      =-1;
@@ -31,6 +33,7 @@ impl IndexMut<Variable> for State {
     }
 }
 
+#[derive(Debug)]
 pub struct Max2Sat {
     pub inst: Weighed2Sat
 }
@@ -110,6 +113,21 @@ impl Problem<State> for Max2Sat {
             return res + sum;
         }
         panic!("The decision value was neither T nor F");
+    }
+}
+impl From<File> for Max2Sat {
+    fn from(file: File) -> Self {
+        BufReader::new(file).into()
+    }
+}
+impl <S: Read> From<BufReader<S>> for Max2Sat {
+    fn from(buf: BufReader<S>) -> Self {
+        buf.lines().into()
+    }
+}
+impl <B: BufRead> From<Lines<B>> for Max2Sat {
+    fn from(lines: Lines<B>) -> Self {
+        Max2Sat { inst: lines.into() }
     }
 }
 

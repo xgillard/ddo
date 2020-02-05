@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::rc::Rc;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::mdd::MDD;
@@ -9,11 +8,12 @@ use crate::examples::max2sat::model::{Max2Sat, State};
 const POSITIVE : u8 = 0x1;
 const NEGATIVE : u8 = 0x2;
 
-pub struct Max2SatRelax {
-    problem : Rc<Max2Sat>
+#[derive(Debug)]
+pub struct Max2SatRelax<'a> {
+    problem : &'a Max2Sat
 }
 
-impl Relaxation<State> for Max2SatRelax {
+impl Relaxation<State> for Max2SatRelax<'_> {
     fn merge_states(&self, dd: &dyn MDD<State>, states: &[&State]) -> State {
         let mut next = State(vec![0; self.problem.nb_vars()]);
         next[dd.last_assigned()] = self.merge_substate(dd.last_assigned(), states);
@@ -32,7 +32,10 @@ impl Relaxation<State> for Max2SatRelax {
     }
 }
 
-impl Max2SatRelax {
+impl <'a> Max2SatRelax<'a> {
+    pub fn new(problem: &'a Max2Sat) -> Max2SatRelax<'a> {
+        Max2SatRelax{problem}
+    }
     /// The difference between the absolute benefit of branching on variable l
     /// in the state `u` and `m`.
     fn diff_of_absolute_benefit(&self, l: Variable, u: &State, m: &State) ->  i32 {
