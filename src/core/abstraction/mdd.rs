@@ -2,10 +2,10 @@
 //! itself and the `Nodes` that compose it.
 use crate::core::abstraction::dp::{Decision, Variable, VarSet};
 use std::hash::Hash;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::cmp::{max, Ordering};
 use std::cmp::Ordering::Equal;
+use fnv::FnvHashMap;
 
 
 /// This enumeration characterizes the kind of MDD being generated. It can
@@ -52,7 +52,7 @@ pub trait MDD<T>
     /// Returns a the map State -> Node of nodes already recorded to participate
     /// in the next layer. (All these nodes will have to be expanded to explore
     /// the complete state space).
-    fn next_layer(&self) -> &HashMap<T, Node<T>>;
+    fn next_layer(&self) -> &FnvHashMap<T, Node<T>>;
 
     /// Returns the latest `Variable` that acquired a value during the
     /// development of this `MDD`.

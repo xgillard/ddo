@@ -1,5 +1,4 @@
 use std::cmp::{max, min};
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -8,11 +7,12 @@ use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, No
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 
 use super::super::abstraction::mdd::*;
+use fnv::FnvHashMap;
 
 // --- POOLED MDD --------------------------------------------------------------
 pub struct PooledMDD<T> where T: Hash + Eq + Clone {
     mddtype          : MDDType,
-    pool             : HashMap<T, Node<T>>,
+    pool             : FnvHashMap<T, Node<T>>,
     current          : Vec<Node<T>>,
     cutset           : Vec<Node<T>>,
 
@@ -38,7 +38,7 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     fn exact_cutset(&self) -> &[Node<T>] {
         &self.cutset
     }
-    fn next_layer(&self) -> &HashMap<T, Node<T>> {
+    fn next_layer(&self) -> &FnvHashMap<T, Node<T>> {
         &self.pool
     }
     fn last_assigned(&self) -> Variable {
@@ -78,7 +78,7 @@ impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
             unassigned_vars  : VarSet::all(0),
             is_exact         : true,
             best_node        : None,
-            pool             : HashMap::new(),
+            pool             : FnvHashMap::default(),
             current          : vec![],
             cutset           : vec![]
         }
@@ -190,10 +190,8 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                         self.dd.cutset.push(branching.clone());
                     }
                     old.merge(branching)
-                } else {
-                    if self.is_relevant(&branching, bounds) {
-                        self.dd.pool.insert(branching.state.clone(), branching);
-                    }
+                } else if self.is_relevant(&branching, bounds) {
+                    self.dd.pool.insert(branching.state.clone(), branching);
                 }
             }
         }

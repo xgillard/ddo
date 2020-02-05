@@ -12,11 +12,11 @@ use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnNodeOrder, FnLoadVars, MinLP, MaxUB};
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, NaturalOrder, NbUnassigned, FnLoadVars, MinLP, MaxUB};
 
 use rust_mdd_solver::examples::misp::model::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
-use rust_mdd_solver::examples::misp::heuristics::{misp_min_lp, misp_ub_order, vars_from_misp_state};
+use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
 
 use std::time::SystemTime;
 
