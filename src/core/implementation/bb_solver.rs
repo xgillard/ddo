@@ -100,7 +100,7 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
             }
 
             // We just proved optimality, Yay !
-            if self.best_lb == self.best_ub {
+            if self.best_lb >= self.best_ub {
                 break;
             }
 

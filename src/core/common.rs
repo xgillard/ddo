@@ -3,8 +3,9 @@
 //! types your client library is likely to work with.
 
 use bitset_fixed::BitSet;
-use crate::core::utils::BitSetIter;
+use crate::core::utils::{BitSetIter, LexBitSet};
 use std::ops::Not;
+use std::cmp::Ordering;
 
 /// This type denotes a variable from the optimization problem at hand.
 /// In this case, each variable is assumed to be identified with an integer
@@ -55,6 +56,16 @@ impl VarSet {
     /// Returns an iterator in this set of variables.
     pub fn iter(&self) -> VarSetIter {
         VarSetIter(BitSetIter::new(&self.0))
+    }
+}
+impl Ord for VarSet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        LexBitSet(&self.0).cmp(&LexBitSet(&other.0))
+    }
+}
+impl PartialOrd for VarSet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

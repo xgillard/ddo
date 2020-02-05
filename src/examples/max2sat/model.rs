@@ -35,7 +35,23 @@ impl IndexMut<Variable> for State {
 
 #[derive(Debug)]
 pub struct Max2Sat {
-    pub inst: Weighed2Sat
+    pub inst: Weighed2Sat,
+    pub sum_of_clause_weights: Vec<i32>
+}
+
+const fn idx(x: i32) -> usize {
+    (x.abs() - 1) as usize
+}
+impl Max2Sat {
+    pub fn new(inst: Weighed2Sat) -> Max2Sat {
+        let nb_vars = inst.nb_vars;
+        let mut ret = Max2Sat{inst, sum_of_clause_weights: vec![0; nb_vars]};
+        for (clause, weight) in ret.inst.weights.iter() {
+            ret.sum_of_clause_weights[idx(clause.a)] += *weight;
+            ret.sum_of_clause_weights[idx(clause.b)] += *weight;
+        }
+        ret
+    }
 }
 
 impl Problem<State> for Max2Sat {
@@ -127,13 +143,15 @@ impl <S: Read> From<BufReader<S>> for Max2Sat {
 }
 impl <B: BufRead> From<Lines<B>> for Max2Sat {
     fn from(lines: Lines<B>) -> Self {
-        Max2Sat { inst: lines.into() }
+        Max2Sat::new(lines.into())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use crate::core::abstraction::mdd::Node;
 
     #[test]
     fn test_index_state() {
@@ -157,5 +175,51 @@ mod tests {
         assert_eq!(state[Variable(1)], 64);
         assert_eq!(state[Variable(2)], 16);
         assert_eq!(state[Variable(3)],  9);
+    }
+
+    #[test]
+    fn test_initial_state_with_unit() {
+        let id         = "debug2.wcnf";
+        let problem    = instance(id);
+        assert!(!problem.inst.weights.is_empty());
+
+        assert_eq!(State(vec![0, 0, 0]), problem.initial_state());
+    }
+
+    #[test]
+    fn test_initial_value() {
+        let id         = "debug2.wcnf";
+        let problem    = instance(id);
+        assert!(!problem.inst.weights.is_empty());
+
+        assert_eq!(0, problem.initial_value());
+    }
+
+    #[test]
+    fn test_next_state() {
+        let id         = "debug2.wcnf";
+        let problem    = instance(id);
+
+        let mut vars   = VarSet::all(problem.nb_vars());
+        let root       = Node::new(problem.initial_state(), problem.initial_value(), None, true);
+        assert_eq!(State(vec![0, 0, 0]), root.state);
+
+        vars.remove(Variable(0));
+        let dec_f      = Decision{variable: Variable(0), value: F};
+        let nod_f      = problem.transition(&root.state, &vars, dec_f);
+        assert_eq!(State(vec![0, -4, 3]), nod_f);
+
+        let dec_t      = Decision{variable: Variable(0), value: 1};
+        let nod_t     = problem.transition(&root.state, &vars, dec_t);
+        assert_eq!(State(vec![0,  0, 0]), nod_t);
+    }
+
+    fn instance(id: &str) -> Max2Sat {
+        let location = PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/resources/max2sat/")
+            .join(id);
+
+        File::open(location).expect("File not found").into()
     }
 }

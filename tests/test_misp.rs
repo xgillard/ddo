@@ -20,7 +20,7 @@ fn instance(id: &str) -> Misp {
         .join("tests/resources/misp/")
         .join(id);
 
-    File::open(location.to_owned()).expect("File not found").into()
+    File::open(location).expect("File not found").into()
 }
 
 /// This is the function we will use to actually solve an instance to completion

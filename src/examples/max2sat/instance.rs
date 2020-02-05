@@ -28,9 +28,10 @@ pub struct Weighed2Sat {
 }
 impl Weighed2Sat {
     pub fn weight(&self, x: i32, y: i32) -> i32 {
-        match self.weights.get(&BinaryClause::new(x, y)) {
-            Some(v) => *v,
-            None           => 0
+        if let Some(v) = self.weights.get(&BinaryClause::new(x, y)) {
+            *v
+        } else {
+            0
         }
     }
     pub fn from_file(fname: &str) -> Weighed2Sat {
@@ -42,9 +43,9 @@ impl Weighed2Sat {
 
     pub fn from_lines<B: BufRead>(lines: Lines<B>) -> Weighed2Sat {
         let comment   = Regex::new(r"^c\s.*$").unwrap();
-        let pb_decl   = Regex::new(r"^p\s+wcnf\s+(?P<vars>\d+)\s+(?P<clauses>\d+)$").unwrap();
-        let bin_decl  = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)\s+(?P<y>-?\d+)\s+0$").unwrap();
-        let unit_decl = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)-?\s+0$").unwrap();
+        let pb_decl   = Regex::new(r"^p\s+wcnf\s+(?P<vars>\d+)\s+(?P<clauses>\d+)").unwrap();
+        let bin_decl  = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)\s+(?P<y>-?\d+)\s+0").unwrap();
+        let unit_decl = Regex::new(r"^(?P<w>-?\d+)\s+(?P<x>-?\d+)-?\s+0").unwrap();
 
         let mut instance : Weighed2Sat = Default::default();
         for line in lines {
@@ -113,5 +114,18 @@ mod tests {
 
         assert_eq!(inst.nb_vars, 5);
         assert_eq!(inst.weights.len(), 10);
+    }
+    #[test]
+    fn test_load_from_file_using_trait() {
+        let fname= "/Users/user/Documents/REPO/flatmddsolver/src/test/resources/instances/max2sat/debug2.wcnf";
+        let inst : Weighed2Sat = File::open(fname).expect("x").into();
+
+        assert_eq!(inst.nb_vars, 3);
+        assert_eq!(inst.weights.len(), 4);
+    }
+    #[test]
+    fn test_is_unit() {
+        let cla = BinaryClause::new(-1, -1);
+        assert!(cla.is_unit())
     }
 }
