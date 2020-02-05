@@ -7,12 +7,12 @@ use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic, No
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 
 use super::super::abstraction::mdd::*;
-use fnv::FnvHashMap;
+use metrohash::MetroHashMap;
 
 // --- POOLED MDD --------------------------------------------------------------
 pub struct PooledMDD<T> where T: Hash + Eq + Clone {
     mddtype          : MDDType,
-    pool             : FnvHashMap<T, Node<T>>,
+    pool             : MetroHashMap<T, Node<T>>,
     current          : Vec<Node<T>>,
     cutset           : Vec<Node<T>>,
 
@@ -38,7 +38,7 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     fn exact_cutset(&self) -> &[Node<T>] {
         &self.cutset
     }
-    fn next_layer(&self) -> &FnvHashMap<T, Node<T>> {
+    fn next_layer(&self) -> &MetroHashMap<T, Node<T>> {
         &self.pool
     }
     fn last_assigned(&self) -> Variable {
@@ -78,7 +78,7 @@ impl <T> PooledMDD<T> where T    : Hash + Eq + Clone {
             unassigned_vars  : VarSet::all(0),
             is_exact         : true,
             best_node        : None,
-            pool             : FnvHashMap::default(),
+            pool             : Default::default(),
             current          : vec![],
             cutset           : vec![]
         }
