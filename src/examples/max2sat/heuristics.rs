@@ -4,20 +4,12 @@ use crate::core::common::{Variable, VarSet};
 use crate::core::abstraction::mdd::{MDD, Node};
 use std::cmp::Ordering;
 use compare::Compare;
-use std::cmp::Ordering::Equal;
-
 
 pub fn max2sat_ub_order(a : &Node<State>, b: &Node<State>) -> Ordering {
-    let by_ub = a.get_ub().cmp(&b.get_ub());
-    if by_ub == Equal {
-        let by_sz = a.get_vars().len().cmp(&b.get_vars().len()).reverse();
-        if by_sz == Equal {
-            let by_lp_len = a.get_lp_len().cmp(&b.get_lp_len());
-            if by_lp_len == Equal {
-                a.get_state().cmp(&b.get_state())
-            } else { by_lp_len }
-        } else { by_sz }
-    } else { by_ub }
+    a.get_lp_len().cmp(&b.get_lp_len())
+        .then_with(|| a.get_vars().len().cmp(&b.get_vars().len()).reverse())
+        .then_with(|| a.get_ub().cmp(&b.get_ub()))
+        .then_with(|| a.cmp(&b))
 }
 
 pub struct Max2SatOrder<'a> {

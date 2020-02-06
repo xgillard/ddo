@@ -12,7 +12,6 @@ use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank, max2
 use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::core::utils::Func;
-use compare::Compare;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {
