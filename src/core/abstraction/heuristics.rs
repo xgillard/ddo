@@ -1,7 +1,5 @@
 //! This module defines a layer of abstraction for the heuristics one will
 //! use to customize the development of MDDs.
-use std::hash::Hash;
-
 use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::mdd::{MDD, Node};
 use crate::core::common::{Variable, VarSet};
@@ -25,7 +23,7 @@ pub trait VariableHeuristic<T> {
 /// This trait defines a strategy/heuristic to retrieve the smallest set of free
 /// variables from a given `node`, for some given `problem`.
 pub trait LoadVars<T, P>
-    where T: Hash + Clone + Eq,
+    where T: Clone + Eq,
           P: Problem<T> {
     /// Returns the minimal set of free variables for the given `problem` when
     /// starting an exploration in the given `node`.

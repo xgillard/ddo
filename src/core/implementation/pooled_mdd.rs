@@ -234,7 +234,9 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         let cost  = self.transition_cost (node, d);
         let arc   = Arc {src: Rc::new(node.clone()), decision: d, weight: cost};
 
-        Node::new(state, node.lp_len + cost, Some(arc), node.is_exact)
+        let mut vars = node.vars.clone();
+        vars.remove(d.variable);
+        Node::new(vars, state, node.lp_len + cost, Some(arc), node.is_exact)
     }
     fn is_relevant(&self, n: &Node<T>, bounds: Bounds) -> bool {
         min(self.relax.rough_ub(n.lp_len, &n.state), bounds.ub) > bounds.lb

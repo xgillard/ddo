@@ -44,6 +44,12 @@ impl <T> Compare<Node<T>> for MinLP where T: Clone + Hash + Eq {
         a.get_lp_len().cmp(&b.get_lp_len())
     }
 }
+pub struct MaxLP;
+impl <T> Compare<Node<T>> for MaxLP where T: Clone + Hash + Eq {
+    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
+        a.get_lp_len().cmp(&b.get_lp_len()).reverse()
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct MaxUB;
@@ -53,10 +59,27 @@ impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct DFS;
+impl <T> Compare<Node<T>> for DFS where T: Clone + Hash + Eq {
+    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
+        let a = a.vars.0.count_zeros();
+        let b = b.vars.0.count_zeros();
+        a.cmp(&b)
+    }
+}
+
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+pub struct FromNode;
+impl <T, P> LoadVars<T, P> for FromNode where T: Clone + Eq, P: Problem<T> {
+    fn variables(&self, _pb: &P, node: &Node<T>) -> VarSet {
+        node.vars.clone()
+    }
+}
+
 pub struct FromLongestPath;
 impl <T, P> LoadVars<T, P> for FromLongestPath
-    where T: Hash + Clone + Eq,
+    where T: Clone + Eq,
           P: Problem<T> {
 
     fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {

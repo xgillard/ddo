@@ -83,22 +83,25 @@ pub struct Arc<T> where T: Eq + Clone  {
 // --- NODE --------------------------------------------------------------------
 #[derive(Clone, Eq, PartialEq)]
 pub struct Node<T> where T: Eq + Clone {
-    pub state   : T,
-    pub is_exact: bool,
-    pub lp_len  : i32,
-    pub lp_arc  : Option<Arc<T>>,
+    /// The variables that don't have a value yet
+    pub vars     : VarSet,
+    pub state    : T,
+    pub is_exact : bool,
+    pub lp_len   : i32,
+    pub lp_arc   : Option<Arc<T>>,
 
-    pub ub      : i32
+    pub ub       : i32
 }
 
 impl <T> Node<T> where T : Eq + Clone {
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
-        Node{state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
+    pub fn new(vars: VarSet, state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
+        Node{vars, state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
     }
 
     pub fn is_exact(&self) -> bool {
         self.is_exact
     }
+    pub fn get_vars(&self) -> &VarSet { &self.vars }
     pub fn get_state(&self)-> &T {
         &self.state
     }
@@ -117,6 +120,7 @@ impl <T> Node<T> where T : Eq + Clone {
     /// Hence, *this has nothing to do with the user-provided `merge_*` operators !*
     pub fn merge(&mut self, other: Self) {
         if  self.lp_len < other.lp_len {
+            self.vars   = other.vars;
             self.lp_len = other.lp_len;
             self.lp_arc = other.lp_arc;
         }

@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::{max, min, Ordering};
 use std::ops::{Index, IndexMut};
 
 use crate::core::abstraction::dp::Problem;
@@ -17,7 +17,7 @@ const fn f (x: Variable) -> i32 {-v(x) }
 fn pos(x: i32) -> i32 { max(0, x) }
 
 
-#[derive(Debug, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct State(pub Vec<i32>);
 
 impl Index<Variable> for State {
@@ -30,6 +30,21 @@ impl Index<Variable> for State {
 impl IndexMut<Variable> for State {
     fn index_mut(&mut self, index: Variable) -> &mut i32 {
         self.0.get_mut(index.0).unwrap()
+    }
+}
+impl State {
+    fn rank(&self) -> i32 {
+        self.0.iter().map(|x| x.abs()).sum()
+    }
+}
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.rank().cmp(&other.rank())
+    }
+}
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -201,7 +216,7 @@ mod tests {
         let problem    = instance(id);
 
         let mut vars   = VarSet::all(problem.nb_vars());
-        let root       = Node::new(problem.initial_state(), problem.initial_value(), None, true);
+        let root       = Node::new(vars.clone(), problem.initial_state(), problem.initial_value(), None, true);
         assert_eq!(State(vec![0, 0, 0]), root.state);
 
         vars.remove(Variable(0));

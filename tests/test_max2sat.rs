@@ -7,10 +7,12 @@ use std::path::PathBuf;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::flat_mdd::FlatMDDGenerator;
-use rust_mdd_solver::core::implementation::heuristics::{FromLongestPath, MaxUB, MinLP, FixedWidth, NbUnassigned};
-use rust_mdd_solver::examples::max2sat::heuristics::Max2SatOrder;
+use rust_mdd_solver::core::implementation::heuristics::{NbUnassigned, FromNode};
+use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank, max2sat_ub_order};
 use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
+use rust_mdd_solver::core::utils::Func;
+use compare::Compare;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {
@@ -28,14 +30,15 @@ fn instance(id: &str) -> Max2Sat {
 fn solve(id: &str) -> i32 {
     let problem      = instance(id);
     let relax        = Max2SatRelax::new(&problem);
-    let width        = NbUnassigned;//FixedWidth(100);
+    let width        = NbUnassigned;
     let vs           = Max2SatOrder::new(&problem);
-    let ns           = MinLP;
-    let bo           = MaxUB;
+    let ns           = MinRank;
+    let bo           = Func(max2sat_ub_order);
+    let vars         = FromNode;
 
     let ddg          = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
-    let mut solver   = BBSolver::new(&problem, ddg, bo, FromLongestPath);
-    solver.verbosity = 3;
+    let mut solver   = BBSolver::new(&problem, ddg, bo, vars);
+    //solver.verbosity = 3;
     let (val,_sln)   = solver.maximize();
     val
 }
