@@ -85,9 +85,9 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
             }
             return (self.best_lb, &self.best_sol);
         } else {
-            for node in self.ddg.mdd().exact_cutset() {
-                self.fringe.push(node.clone());
-            }
+            let fringe = &mut self.fringe;
+            let ddg    = &mut self.ddg;
+            ddg.for_each_cutset_node(|node| fringe.push(node.clone()));
         }
         
         while !self.fringe.is_empty() {
@@ -134,19 +134,16 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
                     self.best_node = self.ddg.mdd().best_node().clone();
                 }
             } else {
-                for branch in self.ddg.mdd().exact_cutset() {
-                    let branch_ub = self.best_ub.min(branch.get_ub());
-
-                    if branch.get_ub() > self.best_lb {
-                        self.fringe.push(Node {
-                            state   : branch.state.clone(),
-                            is_exact: true,
-                            lp_len  : branch.lp_len,
-                            lp_arc  : branch.lp_arc.clone(),
-                            ub      : branch_ub
-                        });
+                let best_ub= self.best_ub;
+                let best_lb= self.best_lb;
+                let fringe = &mut self.fringe;
+                let ddg    = &mut self.ddg;
+                ddg.for_each_cutset_node(|branch| {
+                    branch.ub = best_ub.min(branch.get_ub());
+                    if branch.ub > best_lb {
+                        fringe.push(branch.clone());
                     }
-                }
+                });
             }
         }
 

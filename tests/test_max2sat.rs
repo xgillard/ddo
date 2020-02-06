@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::flat_mdd::FlatMDDGenerator;
-use rust_mdd_solver::core::implementation::heuristics::{FromLongestPath, MaxUB, MinLP, NbUnassigned, FixedWidth};
+use rust_mdd_solver::core::implementation::heuristics::{FromLongestPath, MaxUB, MinLP, FixedWidth, NbUnassigned};
 use rust_mdd_solver::examples::max2sat::heuristics::Max2SatOrder;
 use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
@@ -28,7 +28,7 @@ fn instance(id: &str) -> Max2Sat {
 fn solve(id: &str) -> i32 {
     let problem      = instance(id);
     let relax        = Max2SatRelax::new(&problem);
-    let width        = FixedWidth(100);
+    let width        = NbUnassigned;//FixedWidth(100);
     let vs           = Max2SatOrder::new(&problem);
     let ns           = MinLP;
     let bo           = MaxUB;

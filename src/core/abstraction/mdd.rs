@@ -32,6 +32,9 @@ pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
     fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
     /// Returns a reference to the expanded MDD.
     fn mdd(&self) -> &dyn MDD<T>;
+
+    /// Returns a set of nodes constituting an exact cutset of this `MDD`.
+    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&mut Node<T>);
 }
 
 /// This trait describes an MDD
@@ -41,13 +44,8 @@ pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
 /// by the `Problem` definition.
 pub trait MDD<T>
     where T : Clone + Hash + Eq {
-
     /// Tells whether this MDD is exact, relaxed, or restricted.
     fn mdd_type(&self) -> MDDType;
-    /// Returns the nodes from the current layer.
-    fn current_layer(&self) -> &[Node<T>];
-    /// Returns a set of nodes constituting an exact cutset of this `MDD`.
-    fn exact_cutset(&self) -> &[Node<T>];
 
     /// Returns the latest `Variable` that acquired a value during the
     /// development of this `MDD`.

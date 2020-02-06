@@ -35,12 +35,6 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
-    fn current_layer(&self) -> &[Node<T>] {
-        &self.current
-    }
-    fn exact_cutset(&self)  -> &[Node<T>] {
-        &self.cutset
-    }
     fn last_assigned(&self) -> Variable {
         self.last_assigned
     }
@@ -132,6 +126,9 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RL
     }
     fn mdd(&self) -> &dyn MDD<T> {
         &self.dd
+    }
+    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&mut Node<T>) {
+        self.dd.cutset.iter_mut().for_each(f)
     }
 }
 

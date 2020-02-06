@@ -1,21 +1,22 @@
+use std::cmp::{max, min};
 use std::hash::Hash;
+use std::rc::Rc;
 
 use compare::Compare;
+use metrohash::MetroHashMap;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
-use crate::core::abstraction::mdd::{MDD, MDDGenerator, MDDType, Node, Arc};
+use crate::core::abstraction::mdd::{Arc, MDD, MDDGenerator, MDDType, Node};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::common::{Decision, Variable, VarSet};
-use std::rc::Rc;
-use std::cmp::{min, max};
 
 const DUMMY : Variable = Variable(usize::max_value());
 
 // --- MDD Data Structure -----------------------------------------------------
 pub struct FlatMDD<T> where T: Eq + Clone {
     mddtype          : MDDType,
-    layers           : [Vec<Node<T>>; 3],
+    layers           : [MetroHashMap<T, Node<T>>; 3],
     current          : usize,
     next             : usize,
     lel              : usize,
@@ -47,12 +48,6 @@ macro_rules! layer {
 impl <T> MDD<T> for FlatMDD<T> where T: Hash + Clone + Eq {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
-    }
-    fn current_layer(&self) -> &[Node<T>] {
-        layer![self, current]
-    }
-    fn exact_cutset(&self) -> &[Node<T>] {
-        layer![self, lel]
     }
     fn last_assigned(&self) -> Variable {
         self.last_assigned
@@ -161,6 +156,9 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for FlatMDDGenerator<T, PB, RLX,
     fn mdd(&self) -> &dyn MDD<T> {
         &self.dd
     }
+    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&mut Node<T>) {
+        layer![self.dd, mut lel].values_mut().for_each(f)
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -205,16 +203,16 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         let curr = layer![self.dd,  current];
         let next = layer![self.dd, mut next];
 
-        for node in curr.iter() {
+        for node in curr.values() {
             let domain = self.pb.domain_of(&node.state, var);
             for value in domain {
                 let decision  = Decision{variable: var, value: *value};
                 let branching = self.branch(node, decision);
 
-                if let Some(old) = Self::find_same_state(next, &branching.state) {
-                    old.merge(branching)
+                if let Some(old) = next.get_mut(&branching.state) {
+                    old.merge(branching);
                 } else if self.is_relevant(&branching, bounds) {
-                    next.push(branching)
+                    next.insert(branching.state.clone(), branching);
                 }
             }
         }
@@ -261,7 +259,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         self.dd.mddtype         = kind;
         self.dd.unassigned_vars = vars;
 
-        layer![self.dd, mut current].push(root.clone());
+        layer![self.dd, mut current].insert(root.state.clone(), root.clone());
     }
     fn finalize(&mut self) {
         self.find_best_node();
@@ -270,7 +268,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         if let Some(best) = &self.dd.best_node {
             let lp_length = best.lp_len;
 
-            for n in layer![self.dd, mut lel].iter_mut() {
+            for n in layer![self.dd, mut lel].values_mut() {
                 n.ub = lp_length.min(self.relax.rough_ub(n.lp_len, &n.state));
             }
         } else {
@@ -281,7 +279,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     }
     fn find_best_node(&mut self) {
         let mut best_value = i32::min_value();
-        for node in layer![self.dd, current].iter() {
+        for node in layer![self.dd, current].values() {
             if node.lp_len > best_value {
                 best_value         = node.lp_len;
                 self.dd.best_node  = Some(node.clone());
@@ -301,12 +299,18 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             let w    = max(2, self.width.max_width(&self.dd));
             let ns   = &self.ns;
             let next = layer![self.dd, mut next];
-            while next.len() > w {
+
+            let mut nodes = vec![];
+            next.drain().for_each(|(_k,v)| nodes.push(v));
+
+            while nodes.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.dd.is_exact = false;
-                next.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                next.truncate(w);
+                nodes.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+                nodes.truncate(w);
             }
+
+            nodes.drain(..).for_each(|n| {next.insert(n.state.clone(), n);});
         }
     }
     fn maybe_relax(&mut self, i: usize) {
@@ -314,26 +318,30 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         if i >= 1 {
             let w    = max(2, self.width.max_width(&self.dd));
             let next = layer![self.dd, mut next];
-            while next.len() > w {
+
+            let mut nodes = vec![];
+            next.drain().for_each(|(_k,v)| nodes.push(v));
+            while nodes.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.dd.is_exact = false;
 
                 // actually squash the layer
-                let merged = self.merge_overdue_nodes(w);
-                if let Some(old) = Self::find_same_state(next, &merged.state) {
+                let merged = self.merge_overdue_nodes(&mut nodes, w);
+                if let Some(old) = Self::find_same_state(&mut nodes, &merged.state) {
                     old.merge(merged);
                 } else {
-                    next.push(merged);
+                    nodes.push(merged);
                 }
             }
+            nodes.drain(..).for_each(|n| {next.insert(n.state.clone(), n);});
         }
     }
-    fn merge_overdue_nodes(&mut self, w: usize) -> Node<T> {
+    fn merge_overdue_nodes(&mut self, nodes: &mut Vec<Node<T>>, w: usize) -> Node<T> {
         // 1. Sort the current layer so that the worst nodes are at the end.
         let ns   = &self.ns;
 
-        layer![self.dd, mut next].sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-        let (_keep, squash) = layer![self.dd, next].split_at(w-1);
+        nodes.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+        let (_keep, squash) = nodes.split_at(w-1);
 
         // 2. merge state of the worst node into that of central
         let mut central = squash[0].clone();
@@ -360,7 +368,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         }
 
         // 4. drop overdue nodes
-        layer![self.dd, mut next].truncate(w - 1);
+        nodes.truncate(w - 1);
         central
     }
     fn find_same_state<'a>(zone: &'a mut[Node<T>], state: &T) -> Option<&'a mut Node<T>> {
