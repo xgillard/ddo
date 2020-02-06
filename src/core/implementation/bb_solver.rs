@@ -65,7 +65,6 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
         let root = Node::new(
-            VarSet::all(self.pb.nb_vars()),
             self.pb.initial_state(),
             self.pb.initial_value(),
             None,

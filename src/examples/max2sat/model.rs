@@ -216,7 +216,7 @@ mod tests {
         let problem    = instance(id);
 
         let mut vars   = VarSet::all(problem.nb_vars());
-        let root       = Node::new(vars.clone(), problem.initial_state(), problem.initial_value(), None, true);
+        let root       = Node::new(problem.initial_state(), problem.initial_value(), None, true);
         assert_eq!(State(vec![0, 0, 0]), root.state);
 
         vars.remove(Variable(0));

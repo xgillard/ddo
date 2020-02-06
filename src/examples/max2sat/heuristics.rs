@@ -7,7 +7,6 @@ use compare::Compare;
 
 pub fn max2sat_ub_order(a : &Node<State>, b: &Node<State>) -> Ordering {
     a.get_lp_len().cmp(&b.get_lp_len())
-        .then_with(|| a.get_vars().len().cmp(&b.get_vars().len()).reverse())
         .then_with(|| a.get_ub().cmp(&b.get_ub()))
         .then_with(|| a.cmp(&b))
 }
