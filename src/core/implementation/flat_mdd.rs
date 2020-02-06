@@ -4,9 +4,11 @@ use compare::Compare;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
-use crate::core::abstraction::mdd::{MDD, MDDGenerator, MDDType, Node};
+use crate::core::abstraction::mdd::{MDD, MDDGenerator, MDDType, Node, Arc};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::common::{Decision, Variable, VarSet};
+use std::rc::Rc;
+use std::cmp::{min, max};
 
 const DUMMY : Variable = Variable(usize::max_value());
 
@@ -30,15 +32,27 @@ impl <T> Default for FlatMDD<T> where T: Hash + Clone + Eq {
     }
 }
 
+/// Be careful: this macro lets you borrow any single layer from a flat mdd.
+/// While this is generally safe, it is way too easy to use this macro to break
+/// aliasing rules.
+macro_rules! layer {
+    ($dd:expr, $id:ident) => {
+        unsafe { &*$dd.layers.as_ptr().add($dd.$id) }
+    };
+    ($dd:expr, mut $id:ident) => {
+        unsafe { &mut *$dd.layers.as_mut_ptr().add($dd.$id) }
+    };
+}
+
 impl <T> MDD<T> for FlatMDD<T> where T: Hash + Clone + Eq {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
     fn current_layer(&self) -> &[Node<T>] {
-        &self.layers[self.current]
+        layer![self, current]
     }
     fn exact_cutset(&self) -> &[Node<T>] {
-        &self.layers[self.lel]
+        layer![self, lel]
     }
     fn last_assigned(&self) -> Variable {
         self.last_assigned
@@ -73,15 +87,15 @@ impl <T> FlatMDD<T> where T: Hash + Eq + Clone {
     fn new() -> FlatMDD<T> {
         FlatMDD {
             mddtype          : Exact,
-            layers           : [Default::default(), Default::default(), Default::default()],
             current          : 0,
             next             : 1,
             lel              : 2,
 
             last_assigned    : DUMMY,
-            unassigned_vars  : VarSet::all(0),
             is_exact         : true,
-            best_node        : None
+            best_node        : None,
+            unassigned_vars  : VarSet::all(0),
+            layers           : [Default::default(), Default::default(), Default::default()]
         }
     }
 
@@ -159,6 +173,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           VS   : VariableHeuristic<T>,
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
+
     pub fn new(pb: PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
         FlatMDDGenerator { pb, relax, vs, width, ns, dd: Default::default() }
     }
@@ -169,11 +184,9 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         let mut i  = 0;
         let nbvars = self.nb_vars();
 
-        while i < nbvars && !self.dd.layers[self.dd.next].is_empty() {
+        while i < nbvars && !layer![self.dd, current].is_empty() {
             let var = self.select_var();
-            if var.is_none() {
-                break;
-            }
+            if var.is_none() { break; }
 
             let was_exact = self.dd.is_exact;
             let var = var.unwrap();
@@ -189,15 +202,30 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         self.finalize()
     }
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
-        // TODO
-        unimplemented!()
+        let curr = layer![self.dd,  current];
+        let next = layer![self.dd, mut next];
+
+        for node in curr.iter() {
+            let domain = self.pb.domain_of(&node.state, var);
+            for value in domain {
+                let decision  = Decision{variable: var, value: *value};
+                let branching = self.branch(node, decision);
+
+                if let Some(old) = Self::find_same_state(next, &branching.state) {
+                    old.merge(branching)
+                } else if self.is_relevant(&branching, bounds) {
+                    next.push(branching)
+                }
+            }
+        }
     }
+
     fn move_to_next(&mut self, was_exact: bool) {
         if self.dd.is_exact != was_exact {
             self.dd.swap_current_lel();
         }
         self.dd.swap_current_next();
-        self.dd.layers[self.dd.next].clear();
+        layer![self.dd, mut next].clear();
     }
     fn nb_vars(&self) -> usize {
         self.dd.unassigned_vars.len()
@@ -211,13 +239,29 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     fn set_last_assigned(&mut self, var: Variable) {
         self.dd.last_assigned = var
     }
+    fn transition_state(&self, node: &Node<T>, d: Decision) -> T {
+        self.pb.transition(&node.state, &self.dd.unassigned_vars, d)
+    }
+    fn transition_cost(&self, node: &Node<T>, d: Decision) -> i32 {
+        self.pb.transition_cost(&node.state, &self.dd.unassigned_vars, d)
+    }
+    fn branch(&self, node: &Node<T>, d: Decision) -> Node<T> {
+        let state = self.transition_state(node, d);
+        let cost  = self.transition_cost (node, d);
+        let arc   = Arc {src: Rc::new(node.clone()), decision: d, weight: cost};
+
+        Node::new(state, node.lp_len + cost, Some(arc), node.is_exact)
+    }
+    fn is_relevant(&self, n: &Node<T>, bounds: Bounds) -> bool {
+        min(self.relax.rough_ub(n.lp_len, &n.state), bounds.ub) > bounds.lb
+    }
 
     fn init(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>) {
         self.dd.clear();
         self.dd.mddtype         = kind;
         self.dd.unassigned_vars = vars;
 
-        self.dd.layers[self.dd.next].push(root.clone());
+        layer![self.dd, mut current].push(root.clone());
     }
     fn finalize(&mut self) {
         self.find_best_node();
@@ -226,26 +270,105 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         if let Some(best) = &self.dd.best_node {
             let lp_length = best.lp_len;
 
-            for n in self.dd.layers[self.dd.lel].iter_mut() {
+            for n in layer![self.dd, mut lel].iter_mut() {
                 n.ub = lp_length.min(self.relax.rough_ub(n.lp_len, &n.state));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
             // Hence, there is no relevant cutset to return
-            self.dd.layers[self.dd.lel].clear();
+            layer![self.dd, mut lel].clear();
         }
     }
     fn find_best_node(&mut self) {
         let mut best_value = i32::min_value();
-        for node in self.dd.layers[self.dd.next].iter() {
+        for node in layer![self.dd, current].iter() {
             if node.lp_len > best_value {
-                best_value = node.lp_len;
-                self.dd.best_node = Some(node.clone());
+                best_value         = node.lp_len;
+                self.dd.best_node  = Some(node.clone());
             }
         }
     }
-    fn maybe_squash(&mut self, depth: usize) {
-        // TODO
-        unimplemented!()
+    fn maybe_squash(&mut self, i : usize) {
+        match self.dd.mddtype {
+            MDDType::Exact      => /* nothing to do ! */(),
+            MDDType::Restricted => self.maybe_restrict(i),
+            MDDType::Relaxed    => self.maybe_relax(i),
+        }
+    }
+    fn maybe_restrict(&mut self, i: usize) {
+        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
+        if i >= 1 {
+            let w    = max(2, self.width.max_width(&self.dd));
+            let ns   = &self.ns;
+            let next = layer![self.dd, mut next];
+            while next.len() > w {
+                // we do squash the current layer so the mdd is now inexact
+                self.dd.is_exact = false;
+                next.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+                next.truncate(w);
+            }
+        }
+    }
+    fn maybe_relax(&mut self, i: usize) {
+        /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
+        if i >= 1 {
+            let w    = max(2, self.width.max_width(&self.dd));
+            let next = layer![self.dd, mut next];
+            while next.len() > w {
+                // we do squash the current layer so the mdd is now inexact
+                self.dd.is_exact = false;
+
+                // actually squash the layer
+                let merged = self.merge_overdue_nodes(w);
+                if let Some(old) = Self::find_same_state(next, &merged.state) {
+                    old.merge(merged);
+                } else {
+                    next.push(merged);
+                }
+            }
+        }
+    }
+    fn merge_overdue_nodes(&mut self, w: usize) -> Node<T> {
+        // 1. Sort the current layer so that the worst nodes are at the end.
+        let ns   = &self.ns;
+
+        layer![self.dd, mut next].sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+        let (_keep, squash) = layer![self.dd, next].split_at(w-1);
+
+        // 2. merge state of the worst node into that of central
+        let mut central = squash[0].clone();
+        let mut states = vec![];
+        for n in squash.iter() {
+            states.push(&n.state);
+        }
+        central.is_exact = false;
+        central.state    = self.relax.merge_states(&self.dd, states.as_slice());
+
+        // 3. relax edges from the parents of all merged nodes (central + squashed)
+        let mut arc = central.lp_arc.as_mut().unwrap();
+        for n in squash.iter() {
+            let narc = n.lp_arc.clone().unwrap();
+            let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central.state, narc.decision);
+
+            if n.lp_len - narc.weight + cost > central.lp_len {
+                central.lp_len -= arc.weight;
+                arc.src         = Rc::clone(&narc.src);
+                arc.decision    = narc.decision;
+                arc.weight      = cost;
+                central.lp_len += arc.weight;
+            }
+        }
+
+        // 4. drop overdue nodes
+        layer![self.dd, mut next].truncate(w - 1);
+        central
+    }
+    fn find_same_state<'a>(zone: &'a mut[Node<T>], state: &T) -> Option<&'a mut Node<T>> {
+        for n in zone.iter_mut() {
+            if n.state.eq(state) {
+                return Some(n);
+            }
+        }
+        None
     }
 }
