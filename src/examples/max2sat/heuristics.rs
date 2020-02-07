@@ -5,12 +5,6 @@ use crate::core::abstraction::mdd::{MDD, Node};
 use std::cmp::Ordering;
 use compare::Compare;
 
-pub fn max2sat_ub_order(a : &Node<State>, b: &Node<State>) -> Ordering {
-    a.get_lp_len().cmp(&b.get_lp_len())
-        .then_with(|| a.get_ub().cmp(&b.get_ub()))
-        .then_with(|| a.cmp(&b))
-}
-
 pub struct Max2SatOrder<'a> {
     problem: &'a Max2Sat
 }
@@ -41,7 +35,20 @@ impl VariableHeuristic<State> for Max2SatOrder<'_> {
 pub struct MinRank;
 impl Compare<Node<State>> for MinRank {
     fn compare(&self, x: &Node<State>, y: &Node<State>) -> Ordering {
-        x.cmp(y)
+        let xrank = x.get_lp_len() + x.get_state().rank();
+        let yrank = y.get_lp_len() + y.get_state().rank();
+        xrank.cmp(&yrank)
+        //    .then_with(||x.state.rank().cmp(&y.state.rank()))
+        //    .then_with(||{
+        //    let xdata = &x.state.0;
+        //    let ydata = &y.state.0;
+        //    for i in 0..xdata.len() {
+        //        if xdata[i] != ydata[i] {
+        //            return xdata[i].cmp(&ydata[i]);
+        //        }
+        //    }
+        //    Equal
+        //})
     }
 }
 

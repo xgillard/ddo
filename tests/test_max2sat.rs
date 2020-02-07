@@ -7,15 +7,12 @@ use std::path::PathBuf;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::flat_mdd::FlatMDDGenerator;
-use rust_mdd_solver::core::implementation::heuristics::{NbUnassigned, FromLongestPath, MinLP, FixedWidth};
+use rust_mdd_solver::core::implementation::heuristics::{FromLongestPath, FixedWidth, MaxUB, NbUnassigned};
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
-use rust_mdd_solver::examples::max2sat::model::{Max2Sat, State};
+use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
-use rust_mdd_solver::core::utils::Func;
-use rust_mdd_solver::core::abstraction::mdd::{MDDGenerator, Node};
+use rust_mdd_solver::core::abstraction::mdd::MDDGenerator;
 use rust_mdd_solver::core::abstraction::dp::ProblemOps;
-use std::cmp::Ordering;
-use std::cmp::Ordering::{Equal, Less, Greater};
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 
 /// This method simply loads a resource into a problem instance to solve
@@ -37,7 +34,7 @@ fn solve(id: &str) -> i32 {
     let width        = NbUnassigned;
     let vs           = Max2SatOrder::new(&problem);
     let ns           = MinRank;
-    let bo           = MinLP;//MaxUB;//Func(max2sat_ub_order);
+    let bo           = MaxUB;
     let vars         = FromLongestPath;
 
     let ddg          = PooledMDDGenerator::new(&problem, relax, vs, width, ns);
@@ -73,32 +70,14 @@ fn negative_wt() {
     assert_eq!(solve("negative_wt.wcnf"), 4258);
 }
 
-
-fn xxx(x: &Node<State>, y: &Node<State>) -> Ordering {
-    x.cmp(y).then_with(|| {
-        let xstate = &x.state;
-        let ystate = &y.state;
-        for i in 0..xstate.0.len() {
-            let xbi = xstate.0[i];
-            let ybi = ystate.0[i];
-            let disc= xbi - ybi;
-            if disc != 0 {
-                return if disc < 0 {Less} else {Greater};
-            }
-        }
-        Equal
-    })
-}
 #[test]
 fn debug_ordering() {
     let id           = "frb10-6-1.wcnf";
     let problem      = instance(id);
     let relax        = Max2SatRelax::new(&problem);
-    let width        = FixedWidth(100);//NbUnassigned;
+    let width        = FixedWidth(5);
     let vs           = Max2SatOrder::new(&problem);
-    let ns           = Func(xxx);//MinRank;
-    //let bo           = Func(max2sat_ub_order);
-    //let vars         = FromLongestPath;
+    let ns           = MinRank;
 
     let vars         = problem.all_vars();
     let root         = problem.root_node();
@@ -106,6 +85,7 @@ fn debug_ordering() {
     let mut ddg      = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
 
     ddg.relaxed(vars, &root, 0);
+    println!("UB {}", ddg.mdd().best_value())
 }
 
 #[test]
