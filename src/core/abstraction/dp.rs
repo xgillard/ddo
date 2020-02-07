@@ -6,7 +6,7 @@
 //! `Problem` and `Relaxation`.
 use std::i32;
 
-use crate::core::abstraction::mdd::MDD;
+use crate::core::abstraction::mdd::{MDD, Node};
 use crate::core::common::{Decision, Variable, VarSet};
 
 /// This is the main abstraction that should be provided by any user of our
@@ -106,5 +106,20 @@ impl <T, R: Relaxation<T>> Relaxation<T> for &R {
     }
     fn rough_ub(&self, lp: i32, s: &T) -> i32 {
         (*self).rough_ub(lp, s)
+    }
+}
+
+/// Operations implicitly derived for each problem
+pub trait ProblemOps<T> where T: Eq + Clone {
+    fn root_node(&self) -> Node<T>;
+    fn all_vars(&self)  -> VarSet;
+}
+/// All problems implement these operations for free
+impl <T: Eq + Clone, P: Problem<T>> ProblemOps<T> for P {
+    fn root_node(&self) -> Node<T> {
+        Node::new(self.initial_state(), self.initial_value(), None, true)
+    }
+    fn all_vars(&self) -> VarSet {
+        VarSet::all(self.nb_vars())
     }
 }

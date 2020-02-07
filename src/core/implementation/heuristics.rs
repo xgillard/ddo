@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use compare::Compare;
 
-use crate::core::abstraction::dp::Problem;
+use crate::core::abstraction::dp::{Problem, ProblemOps};
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use crate::core::abstraction::mdd::{MDD, Node};
 use crate::core::common::{Variable, VarSet};
@@ -67,7 +67,7 @@ impl <T, P> LoadVars<T, P> for FromLongestPath
           P: Problem<T> {
 
     fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
-        let mut vars = VarSet::all(pb.nb_vars());
+        let mut vars = pb.all_vars();
         for d in node.longest_path() {
             vars.remove(d.variable);
         }

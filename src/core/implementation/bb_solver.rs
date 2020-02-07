@@ -3,11 +3,11 @@ use std::hash::Hash;
 use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
-use crate::core::abstraction::dp::Problem;
+use crate::core::abstraction::dp::{Problem, ProblemOps};
 use crate::core::abstraction::heuristics::LoadVars;
 use crate::core::abstraction::mdd::{MDDGenerator, Node};
 use crate::core::abstraction::solver::Solver;
-use crate::core::common::{Decision, VarSet};
+use crate::core::common::Decision;
 use crate::core::implementation::heuristics::FromLongestPath;
 
 pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
@@ -64,16 +64,11 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
           VARS : LoadVars<T, PB> {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
-        let root = Node::new(
-            self.pb.initial_state(),
-            self.pb.initial_value(),
-            None,
-            true
-        );
+        let root = self.pb.root_node();
 
         // 0. Initial relaxation:
         self.explored = 1;
-        self.ddg.relaxed(VarSet::all(self.pb.nb_vars()), &root, self.best_lb);
+        self.ddg.relaxed(self.pb.all_vars(), &root, self.best_lb);
         if self.ddg.mdd().is_exact() {
             if self.ddg.mdd().best_value() > self.best_lb {
                 self.best_lb   = self.ddg.mdd().best_value();

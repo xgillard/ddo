@@ -166,7 +166,7 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use crate::core::abstraction::mdd::Node;
+    use crate::core::abstraction::dp::ProblemOps;
 
     #[test]
     fn test_index_state() {
@@ -215,8 +215,8 @@ mod tests {
         let id         = "debug2.wcnf";
         let problem    = instance(id);
 
-        let mut vars   = VarSet::all(problem.nb_vars());
-        let root       = Node::new(problem.initial_state(), problem.initial_value(), None, true);
+        let mut vars   = problem.all_vars();
+        let root       = problem.root_node();
         assert_eq!(State(vec![0, 0, 0]), root.state);
 
         vars.remove(Variable(0));
@@ -227,6 +227,17 @@ mod tests {
         let dec_t      = Decision{variable: Variable(0), value: 1};
         let nod_t     = problem.transition(&root.state, &vars, dec_t);
         assert_eq!(State(vec![0,  0, 0]), nod_t);
+    }
+
+    #[test]
+    fn test_rank() {
+        let state = State(vec![-183, -122, -61, -183, -183, -183, -122, -122, -183, -122, -61, -122,
+                               0, -122, -122, -122, -122, -122, -183, -122, -61, 0, -122, -61, 0, 0,
+                               0, 0, 0, -244, -61, -183, 0, -122, -244, -183, -61, -61, -122, -122,
+                               -122, -183, -122, 0, -183, -61, -183, -122, -122, -183, -183, -61,
+                               -61, -122, 0, 0, 0, 0, 0, 0]);
+
+        assert_eq!(5917, state.rank());
     }
 
     fn instance(id: &str) -> Max2Sat {

@@ -13,10 +13,10 @@ use rust_mdd_solver::examples::max2sat::model::{Max2Sat, State};
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::core::utils::Func;
 use rust_mdd_solver::core::abstraction::mdd::{MDDGenerator, Node};
-use rust_mdd_solver::core::abstraction::dp::Problem;
-use rust_mdd_solver::core::common::VarSet;
+use rust_mdd_solver::core::abstraction::dp::ProblemOps;
 use std::cmp::Ordering;
 use std::cmp::Ordering::{Equal, Less, Greater};
+use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {
@@ -40,7 +40,7 @@ fn solve(id: &str) -> i32 {
     let bo           = MinLP;//MaxUB;//Func(max2sat_ub_order);
     let vars         = FromLongestPath;
 
-    let ddg          = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
+    let ddg          = PooledMDDGenerator::new(&problem, relax, vs, width, ns);
     let mut solver   = BBSolver::new(&problem, ddg, bo, vars);
     solver.verbosity = 3;
     let (val,_sln)   = solver.maximize();
@@ -100,8 +100,8 @@ fn debug_ordering() {
     //let bo           = Func(max2sat_ub_order);
     //let vars         = FromLongestPath;
 
-    let vars         = VarSet::all(problem.nb_vars());
-    let root         = Node::new(problem.initial_state(), problem.initial_value(), None, true);
+    let vars         = problem.all_vars();
+    let root         = problem.root_node();
 
     let mut ddg      = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
 

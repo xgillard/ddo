@@ -48,11 +48,10 @@ impl Compare<Node<State>> for MinRank {
 #[cfg(test)]
 mod test {
     use crate::examples::max2sat::heuristics::Max2SatOrder;
-    use crate::core::common::VarSet;
     use crate::examples::max2sat::model::Max2Sat;
     use std::path::PathBuf;
     use std::fs::File;
-    use crate::core::abstraction::dp::Problem;
+    use crate::core::abstraction::dp::{Problem, ProblemOps};
     use crate::core::implementation::flat_mdd::FlatMDD;
     use crate::core::abstraction::heuristics::VariableHeuristic;
 
@@ -61,7 +60,7 @@ mod test {
         let problem = instance("frb10-6-1.wcnf");
         let order   = Max2SatOrder::new(&problem);
         let mock    = FlatMDD::default();
-        let mut vars= VarSet::all(problem.nb_vars());
+        let mut vars= problem.all_vars();
 
         let mut actual= vec![];
         for _ in 0..problem.nb_vars() {
