@@ -65,25 +65,7 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
         let root = self.pb.root_node();
-
-        // 0. Initial relaxation:
-        self.explored = 1;
-        self.ddg.relaxed(self.pb.all_vars(), &root, self.best_lb);
-        if self.ddg.mdd().is_exact() {
-            if self.ddg.mdd().best_value() > self.best_lb {
-                self.best_lb   = self.ddg.mdd().best_value();
-                self.best_node = self.ddg.mdd().best_node().clone();
-                self.best_sol  = Some(self.best_node.as_ref().unwrap().longest_path());
-            }
-            if self.verbosity >= 1 {
-                println!("Immediate {} ", self.best_lb);
-            }
-            return (self.best_lb, &self.best_sol);
-        } else {
-            let fringe = &mut self.fringe;
-            let ddg    = &mut self.ddg;
-            ddg.for_each_cutset_node(|node| fringe.push(node.clone()));
-        }
+        self.fringe.push(root);
         
         while !self.fringe.is_empty() {
             let node = self.fringe.pop().unwrap();
