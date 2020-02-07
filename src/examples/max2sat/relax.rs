@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use crate::core::abstraction::dp::{Problem, Relaxation};
+use crate::core::abstraction::dp::{Problem, SimpleRelaxation};
 use crate::core::abstraction::mdd::MDD;
 use crate::core::common::{Decision, Variable};
 use crate::examples::max2sat::model::{Max2Sat, State};
@@ -13,7 +13,7 @@ pub struct Max2SatRelax<'a> {
     problem : &'a Max2Sat
 }
 
-impl Relaxation<State> for Max2SatRelax<'_> {
+impl SimpleRelaxation<State> for Max2SatRelax<'_> {
     fn merge_states(&self, dd: &dyn MDD<State>, states: &[&State]) -> State {
         let mut next = State(vec![0; self.problem.nb_vars()]);
         next[dd.last_assigned()] = self.merge_substate(dd.last_assigned(), states);

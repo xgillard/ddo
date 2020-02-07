@@ -253,7 +253,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         Node::new(state, node.lp_len + cost, Some(arc), node.is_exact)
     }
     fn is_relevant(&self, n: &Node<T>, bounds: Bounds) -> bool {
-        min(self.relax.rough_ub(n.lp_len, &n.state), bounds.ub) > bounds.lb
+        min(self.relax.estimate_ub(n), bounds.ub) > bounds.lb
     }
 
     fn init(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>) {
@@ -271,7 +271,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             let lp_length = best.lp_len;
 
             for n in layer![self.dd, mut lel].values_mut() {
-                n.ub = lp_length.min(self.relax.rough_ub(n.lp_len, &n.state));
+                n.ub = lp_length.min(self.relax.estimate_ub(n));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
@@ -333,7 +333,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                 self.dd.is_exact = false;
 
                 // actually squash the layer
-                let merged = self.merge_overdue_nodes(squash);
+                let merged = self.relax.merge_nodes(&self.dd, squash);
 
                 for s in squash_states {
                     next.remove(&s);
@@ -346,31 +346,5 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
                 }
             }
         }
-    }
-    fn merge_overdue_nodes(&mut self, squash: &[&Node<T>]) -> Node<T> {
-        // 1. merge state of the worst node into that of central
-        let mut central = squash[0].clone();
-        let mut states = vec![];
-        for n in squash.iter() {
-            states.push(&n.state);
-        }
-        central.is_exact = false;
-        central.state    = self.relax.merge_states(&self.dd, states.as_slice());
-
-        // 3. relax edges from the parents of all merged nodes (central + squashed)
-        let mut arc = central.lp_arc.as_mut().unwrap();
-        for n in squash.iter() {
-            let narc = n.lp_arc.clone().unwrap();
-            let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central.state, narc.decision);
-
-            if n.lp_len - narc.weight + cost > central.lp_len {
-                central.lp_len -= arc.weight;
-                arc.src         = Rc::clone(&narc.src);
-                arc.decision    = narc.decision;
-                arc.weight      = cost;
-                central.lp_len += arc.weight;
-            }
-        }
-        central
     }
 }

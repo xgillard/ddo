@@ -6,8 +6,9 @@
 //! `Problem` and `Relaxation`.
 use std::i32;
 
-use crate::core::abstraction::mdd::{MDD, Node};
+use crate::core::abstraction::mdd::{MDD, Node, Arc};
 use crate::core::common::{Decision, Variable, VarSet};
+use std::rc::Rc;
 
 /// This is the main abstraction that should be provided by any user of our
 /// library. Indeed, it defines the problem to be solved in the form of a dynamic
@@ -50,7 +51,23 @@ pub trait Problem<T> {
 /// the given problem.
 ///
 /// Again, the type parameter `<T>` denotes the type of the states.
-pub trait Relaxation<T> {
+pub trait Relaxation<T> where T: Eq + Clone {
+    fn merge_nodes(&self, dd: &dyn MDD<T>, nodes: &[&Node<T>]) -> Node<T>;
+    fn estimate_ub(&self, _node: &Node<T>) -> i32 {
+        i32::max_value()
+    }
+}
+
+/// This is a simplified version of the basic relaxation abstraction.
+/// It is simpler in the sense that you don't need to deal with the node itself,
+/// only with the states you decided to create.
+///
+/// *Note:*
+/// All objects implementing `SimpleAbstraction` automatically implement the
+/// `Relaxation` trait.
+///
+/// Again, the type parameter `<T>` denotes the type of the states.
+pub trait SimpleRelaxation<T> {
     /// Merges the given `states` into a relaxed one which is an over
     /// approximation of the given `states`.
     /// The return value is the over approximation state.
@@ -96,16 +113,34 @@ impl <T, P: Problem<T>> Problem<T> for &P {
         (*self).impacted_by(state, var)
     }
 }
-/// Any reference to a relaxation should be considered as as valid relaxation type.
-impl <T, R: Relaxation<T>> Relaxation<T> for &R {
-    fn merge_states(&self, dd: &dyn MDD<T>, states: &[&T]) -> T {
-        (*self).merge_states(dd, states)
+
+impl <T: Eq + Clone, X: SimpleRelaxation<T>> Relaxation<T> for X {
+    fn merge_nodes(&self, dd: &dyn MDD<T>, nodes: &[&Node<T>]) -> Node<T> {
+        let mut maxlen = i32::min_value();
+        let mut arc    = None;
+        let mut states = vec![];
+        states.reserve_exact(nodes.len());
+        nodes.iter().for_each(|n| states.push(&n.state));
+        let merged     = self.merge_states(dd, &states);
+
+        for n in nodes.iter() {
+            let narc = n.lp_arc.clone().unwrap();
+            let cost = self.relax_cost(dd, narc.weight, &narc.src.state, &merged, narc.decision);
+
+            if n.lp_len - narc.weight + cost > maxlen {
+                maxlen      = n.lp_len - narc.weight + cost;
+                arc         = Some(Arc{
+                    src     : Rc::clone(&narc.src),
+                    decision: narc.decision,
+                    weight  : cost
+                });
+            }
+        }
+        Node::new(merged, maxlen, arc, false)
     }
-    fn relax_cost(&self, dd: &dyn MDD<T>, cost: i32, from: &T, to: &T, d: Decision) -> i32 {
-        (*self).relax_cost(dd, cost, from, to, d)
-    }
-    fn rough_ub(&self, lp: i32, s: &T) -> i32 {
-        (*self).rough_ub(lp, s)
+
+    fn estimate_ub(&self, n: &Node<T>) -> i32 {
+        self.rough_ub(n.lp_len, &n.state)
     }
 }
 

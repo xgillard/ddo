@@ -239,7 +239,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         Node::new(state, node.lp_len + cost, Some(arc), node.is_exact)
     }
     fn is_relevant(&self, n: &Node<T>, bounds: Bounds) -> bool {
-        min(self.relax.rough_ub(n.lp_len, &n.state), bounds.ub) > bounds.lb
+        min(self.relax.estimate_ub(n), bounds.ub) > bounds.lb
     }
 
     fn init(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>) {
@@ -257,7 +257,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             let lp_length = best.lp_len;
 
             for n in self.dd.cutset.iter_mut() {
-                n.ub = lp_length.min(self.relax.rough_ub(n.lp_len, &n.state));
+                n.ub = lp_length.min(self.relax.estimate_ub(n));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
@@ -322,39 +322,23 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
         let (_keep, squash) = self.dd.current.split_at(w-1);
 
-        // 2. merge state of the worst node into that of central
-        let mut central = squash[0].clone();
-        let mut states = vec![];
-        for n in squash.iter() {
-            states.push(&n.state);
-        }
-        central.is_exact = false;
-        central.state    = self.relax.merge_states(&self.dd, states.as_slice());
+        let mut references = vec![];
+        references.reserve_exact(squash.len());
+        squash.iter().for_each(|x| references.push(x));
 
-        // 3. relax edges from the parents of all merged nodes (central + squashed)
-        let mut arc = central.lp_arc.as_mut().unwrap();
-        for n in squash.iter() {
-            let narc = n.lp_arc.clone().unwrap();
-            let cost = self.relax.relax_cost(&self.dd, narc.weight, &narc.src.state, &central.state, narc.decision);
+        // 2. merge the nodes
+        let merged = self.relax.merge_nodes(&self.dd, references.as_slice());
 
-            if n.lp_len - narc.weight + cost > central.lp_len {
-                central.lp_len -= arc.weight;
-                arc.src         = Rc::clone(&narc.src);
-                arc.decision    = narc.decision;
-                arc.weight      = cost;
-                central.lp_len += arc.weight;
-            }
-
-            // n was an exact node, it must to to the cutset
+        // 3. make sure to keep the cutset complete
+        for n in squash {
             if n.is_exact {
-                //trace!("squash:: squashed node was exact");
                 self.dd.cutset.push(n.clone())
             }
         }
 
         // 4. drop overdue nodes
         self.dd.current.truncate(w - 1);
-        central
+        merged
     }
     fn find_same_state<'a>(current: &'a mut[Node<T>], state: &T) -> Option<&'a mut Node<T>> {
         for n in current.iter_mut() {

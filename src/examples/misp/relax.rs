@@ -1,6 +1,6 @@
 use bitset_fixed::BitSet;
 
-use crate::core::abstraction::dp::{Problem, Relaxation};
+use crate::core::abstraction::dp::{Problem, SimpleRelaxation};
 use crate::core::abstraction::mdd::MDD;
 use crate::core::common::Decision;
 use crate::examples::misp::model::Misp;
@@ -15,7 +15,7 @@ impl <'a> MispRelax<'a> {
     }
 }
 
-impl <'a> Relaxation<BitSet> for MispRelax<'a> {
+impl <'a> SimpleRelaxation<BitSet> for MispRelax<'a> {
     fn merge_states(&self, _dd: &dyn MDD<BitSet>, states: &[&BitSet]) -> BitSet {
         let mut bs = BitSet::new(self.pb.nb_vars());
         for s in states {
