@@ -88,7 +88,7 @@ fn debug_ordering() {
     println!("UB {}", ddg.mdd().best_value())
 }
 
-#[test]
+#[ignore] #[test]
 fn frb10_6_1() {
     assert_eq!(solve("frb10-6-1.wcnf"), 37037);
 }
