@@ -81,7 +81,7 @@ pub struct Arc<T> where T: Eq + Clone  {
 }
 
 // --- NODE --------------------------------------------------------------------
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq)]
 pub struct Node<T> where T: Eq + Clone {
     pub state    : T,
     pub is_exact : bool,
@@ -137,12 +137,16 @@ impl <T> Node<T> where T : Eq + Clone {
     }
 }
 
-impl <T> Hash for Node<T> where T: Hash + Eq + Clone + Ord {
+impl <T> Hash for Node<T> where T: Hash + Eq + Clone {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.state.hash(state);
     }
 }
-
+impl <T> PartialEq for Node<T> where T: Eq + Clone {
+    fn eq(&self, other: &Self) -> bool {
+        self.state.eq(&other.state)
+    }
+}
 impl <T> Ord for Node<T> where T: Eq + Clone + Ord {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
