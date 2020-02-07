@@ -33,7 +33,7 @@ impl IndexMut<Variable> for State {
     }
 }
 impl State {
-    fn rank(&self) -> i32 {
+    pub fn rank(&self) -> i32 {
         self.0.iter().map(|x| x.abs()).sum()
     }
 }

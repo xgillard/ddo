@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::min;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -116,13 +116,15 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RL
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
     fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Exact, vars, root, best_lb);
+        self.develop(Exact, vars, root, best_lb, usize::max_value());
     }
     fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Restricted, vars, root, best_lb);
+        let w = self.width.max_width(&vars);
+        self.develop(Restricted, vars, root, best_lb, w);
     }
     fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Relaxed, vars, root, best_lb);
+        let w = self.width.max_width(&vars);
+        self.develop(Relaxed, vars, root, best_lb, w);
     }
     fn mdd(&self) -> &dyn MDD<T> {
         &self.dd
@@ -146,7 +148,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     pub fn new(pb: PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
         PooledMDDGenerator{ pb, relax, vs, width, ns, dd: PooledMDD::new() }
     }
-    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32) {
+    fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32, w: usize) {
         self.init(kind, vars, root);
 
         let bounds = Bounds {lb: best_lb, ub: root.ub};
@@ -161,7 +163,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
 
             let var = var.unwrap();
             self.pick_nodes_from_pool(var);
-            self.maybe_squash(i);
+            self.maybe_squash(i, w);
             self.remove_var(var);
             self.unroll_layer(var, bounds);
             self.set_last_assigned(var);
@@ -273,17 +275,16 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         }
     }
 
-    fn maybe_squash(&mut self, i : usize) {
+    fn maybe_squash(&mut self, i : usize, w: usize) {
         match self.dd.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
-            MDDType::Restricted => self.maybe_restrict(i),
-            MDDType::Relaxed    => self.maybe_relax(i),
+            MDDType::Restricted => self.maybe_restrict(i, w),
+            MDDType::Relaxed    => self.maybe_relax(i, w),
         }
     }
-    fn maybe_restrict(&mut self, i: usize) {
+    fn maybe_restrict(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
-            let w = max(2, self.width.max_width(&self.dd));
             let ns = &self.ns;
             while self.dd.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
@@ -293,10 +294,9 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
             }
         }
     }
-    fn maybe_relax(&mut self, i: usize) {
+    fn maybe_relax(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
-            let w = max(2, self.width.max_width(&self.dd));
             while self.dd.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
                 self.dd.is_exact = false;

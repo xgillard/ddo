@@ -12,7 +12,7 @@ use crate::core::common::{Variable, VarSet};
 pub struct FixedWidth(pub usize);
 impl <T> WidthHeuristic<T> for FixedWidth
     where T : Clone + Hash + Eq {
-    fn max_width(&self, _dd: &dyn MDD<T>) -> usize {
+    fn max_width(&self, _free: &VarSet) -> usize {
         self.0
     }
 }
@@ -20,8 +20,8 @@ impl <T> WidthHeuristic<T> for FixedWidth
 pub struct NbUnassigned;
 impl <T> WidthHeuristic<T> for NbUnassigned
     where T : Clone + Hash + Eq  {
-    fn max_width(&self, dd: &dyn MDD<T>) -> usize {
-        dd.unassigned_vars().len()
+    fn max_width(&self, free: &VarSet) -> usize {
+        free.len()
     }
 }
 

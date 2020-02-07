@@ -7,8 +7,8 @@ use crate::core::common::{Variable, VarSet};
 /// This trait defines an heuristic to determine the maximum allowed width of a
 /// layer in a relaxed or restricted MDD.
 pub trait WidthHeuristic<T> {
-    /// Returns the maximum width allowed for the next layer of the given `dd`.
-    fn max_width(&self, dd: &dyn MDD<T>) -> usize;
+    /// Returns the maximum width allowed for a layer.
+    fn max_width(&self, free_vars: &VarSet) -> usize;
 }
 
 /// This trait defines an heuristic to determine the best variable to branch on
