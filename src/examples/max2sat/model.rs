@@ -6,6 +6,7 @@ use crate::core::common::{Decision, Variable, VarSet};
 use crate::examples::max2sat::instance::Weighed2Sat;
 use std::fs::File;
 use std::io::{BufReader, Read, BufRead, Lines};
+use std::hash::{Hash, Hasher};
 
 const T  : i32      = 1;
 const F  : i32      =-1;
@@ -17,24 +18,38 @@ const fn f (x: Variable) -> i32 {-v(x) }
 fn pos(x: i32) -> i32 { max(0, x) }
 
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct State(pub Vec<i32>);
+#[derive(Debug, Clone, Eq)]
+pub struct State {
+    pub substates: Vec<i32>,
+    pub variables: VarSet
+}
+
+impl Hash for State {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.substates.hash(hasher)
+    }
+}
+impl PartialEq for State {
+    fn eq(&self, other: &Self) -> bool {
+        self.substates.eq(&other.substates)
+    }
+}
 
 impl Index<Variable> for State {
     type Output = i32;
 
     fn index(&self, index: Variable) -> &i32 {
-        self.0.get(index.0).unwrap()
+        self.substates.get(index.0).unwrap()
     }
 }
 impl IndexMut<Variable> for State {
     fn index_mut(&mut self, index: Variable) -> &mut i32 {
-        self.0.get_mut(index.0).unwrap()
+        self.substates.get_mut(index.0).unwrap()
     }
 }
 impl State {
     pub fn rank(&self) -> i32 {
-        self.0.iter().map(|x| x.abs()).sum()
+        self.substates.iter().map(|x| x.abs()).sum()
     }
 }
 impl Ord for State {
@@ -76,7 +91,7 @@ impl Problem<State> for Max2Sat {
     }
 
     fn initial_state(&self) -> State {
-        State(vec![0; self.nb_vars()])
+        State{substates: vec![0; self.nb_vars()], variables: self.all_vars()}
     }
 
     fn initial_value(&self) -> i32 {
@@ -93,7 +108,7 @@ impl Problem<State> for Max2Sat {
     fn transition(&self, state: &State, vars: &VarSet, d: Decision) -> State {
         let k = d.variable;
         let mut ret  = state.clone();
-
+        ret.variables.remove(k);
         ret[k] = 0;
         if d.value == F {
             for l in vars.iter() {
@@ -169,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_index_state() {
-        let state = State(vec![1, 2, 3, 4]);
+        let state = State{substates: vec![1, 2, 3, 4], variables: VarSet::all(4)};
 
         assert_eq!(state[Variable(0)], 1);
         assert_eq!(state[Variable(1)], 2);
@@ -178,7 +193,7 @@ mod tests {
     }
     #[test]
     fn test_index_mut_state() {
-        let mut state = State(vec![1, 2, 3, 4]);
+        let mut state = State{substates: vec![1, 2, 3, 4], variables: VarSet::all(4)};
 
         state[Variable(0)] = 42;
         state[Variable(1)] = 64;
@@ -197,7 +212,8 @@ mod tests {
         let problem    = instance(id);
         assert!(!problem.inst.weights.is_empty());
 
-        assert_eq!(State(vec![0, 0, 0]), problem.initial_state());
+        let expected = State{substates: vec![0, 0, 0], variables: VarSet::all(3)};
+        assert_eq!(expected, problem.initial_state());
     }
 
     #[test]
@@ -216,25 +232,32 @@ mod tests {
 
         let mut vars   = problem.all_vars();
         let root       = problem.root_node();
-        assert_eq!(State(vec![0, 0, 0]), root.state);
+        let expected = State{substates: vec![0, 0, 0], variables: VarSet::all(3)};
+        assert_eq!(expected, root.state);
 
         vars.remove(Variable(0));
         let dec_f      = Decision{variable: Variable(0), value: F};
         let nod_f      = problem.transition(&root.state, &vars, dec_f);
-        assert_eq!(State(vec![0, -4, 3]), nod_f);
+
+        let expected = State{substates: vec![0,-4, 3], variables: VarSet::all(3)};
+        assert_eq!(expected, nod_f);
 
         let dec_t      = Decision{variable: Variable(0), value: 1};
         let nod_t     = problem.transition(&root.state, &vars, dec_t);
-        assert_eq!(State(vec![0,  0, 0]), nod_t);
+        let expected = State{substates: vec![0, 0, 0], variables: VarSet::all(3)};
+        assert_eq!(expected, nod_t);
     }
 
     #[test]
     fn test_rank() {
-        let state = State(vec![-183, -122, -61, -183, -183, -183, -122, -122, -183, -122, -61, -122,
-                               0, -122, -122, -122, -122, -122, -183, -122, -61, 0, -122, -61, 0, 0,
-                               0, 0, 0, -244, -61, -183, 0, -122, -244, -183, -61, -61, -122, -122,
-                               -122, -183, -122, 0, -183, -61, -183, -122, -122, -183, -183, -61,
-                               -61, -122, 0, 0, 0, 0, 0, 0]);
+        let benef =
+        vec![-183, -122, -61, -183, -183, -183, -122, -122, -183, -122, -61, -122,
+             0, -122, -122, -122, -122, -122, -183, -122, -61, 0, -122, -61, 0, 0,
+             0, 0, 0, -244, -61, -183, 0, -122, -244, -183, -61, -61, -122, -122,
+             -122, -183, -122, 0, -183, -61, -183, -122, -122, -183, -183, -61,
+             -61, -122, 0, 0, 0, 0, 0, 0];
+        let vars = VarSet::all(benef.len());
+        let state = State{substates: benef, variables: vars};
 
         assert_eq!(5917, state.rank());
     }

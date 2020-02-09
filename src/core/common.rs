@@ -33,6 +33,10 @@ impl VarSet {
     pub fn all(n: usize) -> VarSet {
         VarSet(BitSet::new(n).not())
     }
+    /// Creates an empty var set
+    pub fn empty() -> VarSet {
+        VarSet(BitSet::new(0))
+    }
     /// Adds the given variable `v` to the set if it is not already present.
     pub fn add(&mut self, v: Variable) {
         self.0.set(v.0, true)

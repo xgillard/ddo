@@ -10,15 +10,16 @@ use structopt::StructOpt;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned, FromLongestPath};
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned};
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::common::Decision;
-use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
-use rust_mdd_solver::examples::max2sat::heuristics::Max2SatOrder;
+use rust_mdd_solver::examples::max2sat::relax::{Max2SatRelax, from_state_vars};
+use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::State;
 use rust_mdd_solver::core::utils::Func;
+use rust_mdd_solver::core::implementation::flat_mdd::FlatMDDGenerator;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -122,14 +123,15 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<State> {
 
     let problem = File::open(fname).expect("File not found").into();
-    let relax   = Max2SatRelax::new(&problem);
-    let vs      = Max2SatOrder::new(&problem);
-    let bo      = MaxUB;
-    let load_v  = FromLongestPath::new(&problem);
+    let relax        = Max2SatRelax::new(&problem);
+    let vs           = Max2SatOrder::new(&problem);
+    let ns           = MinRank;
+    let bo           = MaxUB;
+    let vars         = Func(from_state_vars);
 
-    let ddg = PooledMDDGenerator::new(&problem, relax, vs, width, MinLP);
+    let ddg          = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
+    let mut solver   = BBSolver::new(ddg, bo, vars);
 
-    let mut solver = BBSolver::new(ddg, bo, load_v);
     solver.verbosity = verbose;
 
     let start = SystemTime::now();
