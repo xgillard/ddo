@@ -22,13 +22,13 @@ impl <'a> Max2SatRelax<'a> {
 }
 
 impl Relaxation<State> for Max2SatRelax<'_> {
-    fn estimate_ub(&self, node: &Node<State>) -> i32 {
-        let sum = node.state.variables.iter()
-            .map(|v| self.problem.sum_of_clause_weights[v.0])
-            .sum::<i32>();
-
-        node.lp_len + sum
-    }
+    //fn estimate_ub(&self, node: &Node<State>) -> i32 {
+    //    let sum = node.state.variables.iter()
+    //        .map(|v| self.problem.sum_of_clause_weights[v.0])
+    //        .sum::<i32>();
+//
+    //    node.lp_len + sum
+    //}
     fn merge_nodes(&self, _dd: &dyn MDD<State>, nodes: &[&Node<State>]) -> Node<State> {
         let mut benefits      = vec![0; self.problem.nb_vars()];
         let mut relaxed_costs = nodes.iter().cloned().map(|n| n.lp_len).collect::<Vec<i32>>();
