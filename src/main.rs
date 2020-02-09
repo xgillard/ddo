@@ -12,13 +12,13 @@ use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned, FromLongestPath};
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
-use rust_mdd_solver::core::utils::RefFunc;
 use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::common::Decision;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::examples::max2sat::heuristics::Max2SatOrder;
 use rust_mdd_solver::examples::max2sat::model::State;
+use rust_mdd_solver::core::utils::Func;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -95,7 +95,7 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
 
     let ddg = PooledMDDGenerator::new(&misp, relax, vs, width, MinLP);
 
-    let mut solver = BBSolver::new(&misp, ddg, MaxUB, RefFunc(vars_from_misp_state));
+    let mut solver = BBSolver::new(ddg, MaxUB, Func(vars_from_misp_state));
     solver.verbosity = verbose;
     
     let start = SystemTime::now();
@@ -125,11 +125,11 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let relax   = Max2SatRelax::new(&problem);
     let vs      = Max2SatOrder::new(&problem);
     let bo      = MaxUB;
-    let load_v  = FromLongestPath;
+    let load_v  = FromLongestPath::new(&problem);
 
     let ddg = PooledMDDGenerator::new(&problem, relax, vs, width, MinLP);
 
-    let mut solver = BBSolver::new(&problem, ddg, bo, load_v);
+    let mut solver = BBSolver::new(ddg, bo, load_v);
     solver.verbosity = verbose;
 
     let start = SystemTime::now();

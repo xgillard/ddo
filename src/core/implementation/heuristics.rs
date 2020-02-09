@@ -3,10 +3,11 @@ use std::hash::Hash;
 
 use compare::Compare;
 
-use crate::core::abstraction::dp::{Problem, ProblemOps};
+use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use crate::core::abstraction::mdd::{MDD, Node};
 use crate::core::common::{Variable, VarSet};
+use std::marker::PhantomData;
 
 //~~~~~ Max Width Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 pub struct FixedWidth(pub usize);
@@ -61,13 +62,25 @@ impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
 
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-pub struct FromLongestPath;
-impl <T, P> LoadVars<T, P> for FromLongestPath
+pub struct FromLongestPath<'a, T, P>
+    where T: Clone + Eq,
+          P: Problem<T> {
+    pb: &'a P,
+    phantom: PhantomData<T>
+}
+impl <'a, T, P> FromLongestPath<'a, T, P>
+    where T: Clone + Eq,
+          P: Problem<T> {
+    pub fn new(pb: &'a P) -> FromLongestPath<'a, T, P>{
+        FromLongestPath {pb, phantom: PhantomData}
+    }
+}
+impl <'a, T, P> LoadVars<T> for FromLongestPath<'a, T, P>
     where T: Clone + Eq,
           P: Problem<T> {
 
-    fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
-        let mut vars = pb.all_vars();
+    fn variables(&self, node: &Node<T>) -> VarSet {
+        let mut vars = self.pb.all_vars();
         for d in node.longest_path() {
             vars.remove(d.variable);
         }

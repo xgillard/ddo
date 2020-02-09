@@ -7,7 +7,6 @@ use std::slice::Iter;
 use bitset_fixed::BitSet;
 use compare::Compare;
 
-use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::heuristics::LoadVars;
 use crate::core::abstraction::mdd::Node;
 use crate::core::common::VarSet;
@@ -96,24 +95,11 @@ impl <T, F> Compare<Node<T>> for Func<F>
         (self.0)(a, b)
     }
 }
-impl <T, P, F> LoadVars<T, P> for Func<F>
+impl <T, F> LoadVars<T> for Func<F>
     where T: Hash + Clone + Eq,
-          P: Problem<T>,
-          F: Fn(&P, &Node<T>) -> VarSet {
+          F: Fn(&Node<T>) -> VarSet {
 
-    fn variables(&self, pb: &P, node: &Node<T>) -> VarSet {
-        (self.0)(pb, node)
-    }
-}
-
-#[derive(Clone)]
-pub struct RefFunc<F>(pub F);
-impl <T, P, F> LoadVars<T, &P> for RefFunc<F>
-    where T: Hash + Clone + Eq,
-          P: Problem<T>,
-          F: Fn(&P, &Node<T>) -> VarSet {
-
-    fn variables(&self, pb: &&P, node: &Node<T>) -> VarSet {
-        (self.0)(*pb, node)
+    fn variables(&self, node: &Node<T>) -> VarSet {
+        (self.0)(node)
     }
 }

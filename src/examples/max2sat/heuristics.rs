@@ -58,7 +58,7 @@ mod test {
     use crate::examples::max2sat::model::Max2Sat;
     use std::path::PathBuf;
     use std::fs::File;
-    use crate::core::abstraction::dp::{Problem, ProblemOps};
+    use crate::core::abstraction::dp::Problem;
     use crate::core::implementation::flat_mdd::FlatMDD;
     use crate::core::abstraction::heuristics::VariableHeuristic;
 

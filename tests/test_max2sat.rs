@@ -12,8 +12,8 @@ use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::core::abstraction::mdd::MDDGenerator;
-use rust_mdd_solver::core::abstraction::dp::ProblemOps;
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
+use rust_mdd_solver::core::abstraction::dp::Problem;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {
@@ -35,10 +35,10 @@ fn solve(id: &str) -> i32 {
     let vs           = Max2SatOrder::new(&problem);
     let ns           = MinRank;
     let bo           = MaxUB;
-    let vars         = FromLongestPath;
+    let vars         = FromLongestPath::new(&problem);
 
     let ddg          = PooledMDDGenerator::new(&problem, relax, vs, width, ns);
-    let mut solver   = BBSolver::new(&problem, ddg, bo, vars);
+    let mut solver   = BBSolver::new(ddg, bo, vars);
     solver.verbosity = 3;
     let (val,_sln)   = solver.maximize();
     val

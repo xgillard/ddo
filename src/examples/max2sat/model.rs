@@ -166,7 +166,6 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use crate::core::abstraction::dp::ProblemOps;
 
     #[test]
     fn test_index_state() {

@@ -22,6 +22,8 @@ pub enum MDDType {
 /// This structure is in charge of unrolling an MDD according to the requested
 /// level of exactitude
 pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
+    /// Generates the root node of the problem
+    fn root(&self) -> Node<T>;
     /// Expands this MDD into  an exact MDD
     fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
     /// Expands this MDD into a restricted (lower bound approximation)

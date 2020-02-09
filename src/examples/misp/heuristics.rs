@@ -5,9 +5,8 @@ use bitset_fixed::BitSet;
 use crate::core::abstraction::mdd::Node;
 use crate::core::common::VarSet;
 use crate::core::utils::LexBitSet;
-use crate::examples::misp::model::Misp;
 
-pub fn vars_from_misp_state(_pb: &Misp, n: &Node<BitSet>) -> VarSet {
+pub fn vars_from_misp_state(n: &Node<BitSet>) -> VarSet {
     VarSet(n.get_state().clone())
 }
 

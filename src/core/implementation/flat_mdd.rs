@@ -121,7 +121,7 @@ impl <T> FlatMDD<T> where T: Hash + Eq + Clone {
 }
 
 // --- MDD Generator -----------------------------------------------------------
-pub struct FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+pub struct FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -129,7 +129,7 @@ pub struct FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
 
-    pb               : PB,
+    pb               : &'a PB,
     relax            : RLX,
     vs               : VS,
     width            : WDTH,
@@ -137,13 +137,16 @@ pub struct FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     dd               : FlatMDD<T>
 }
 
-impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+impl <'a, T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T>,
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
+    fn root(&self) -> Node<T> {
+        self.pb.root_node()
+    }
     fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
         self.develop(Exact, vars, root, best_lb, usize::max_value());
     }
@@ -166,7 +169,7 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for FlatMDDGenerator<T, PB, RLX,
 #[derive(Debug, Copy, Clone)]
 struct Bounds {lb: i32, ub: i32}
 
-impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -174,7 +177,7 @@ impl <T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
 
-    pub fn new(pb: PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
+    pub fn new(pb: &'a PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
         FlatMDDGenerator { pb, relax, vs, width, ns, dd: Default::default() }
     }
     fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb: i32, w: usize) {

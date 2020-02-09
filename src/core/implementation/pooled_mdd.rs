@@ -92,7 +92,7 @@ impl <T> PooledMDD<T> where T: Hash + Eq + Clone {
 }
 
 // --- GENERATOR ---------------------------------------------------------------
-pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+pub struct PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -100,7 +100,7 @@ pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
 
-    pb               : PB,
+    pb               : &'a PB,
     relax            : RLX,
     vs               : VS,
     width            : WDTH,
@@ -108,13 +108,16 @@ pub struct PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
     dd               : PooledMDD<T>
 }
 
-impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+impl <'a, T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
           VS   : VariableHeuristic<T>,
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
+    fn root(&self) -> Node<T> {
+        self.pb.root_node()
+    }
     fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
         self.develop(Exact, vars, root, best_lb, usize::max_value());
     }
@@ -137,7 +140,7 @@ impl <T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<T, PB, RL
 #[derive(Debug, Copy, Clone)]
 struct Bounds {lb: i32, ub: i32}
 
-impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
+impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
     where T    : Hash + Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -145,7 +148,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
           WDTH : WidthHeuristic<T>,
           NS   : Compare<Node<T>> {
 
-    pub fn new(pb: PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
+    pub fn new(pb: &'a PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS> {
         PooledMDDGenerator{ pb, relax, vs, width, ns, dd: PooledMDD::new() }
     }
     fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32, w: usize) {
@@ -340,7 +343,7 @@ impl <T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<T, PB, RLX, VS, WDTH, NS>
         self.dd.current.truncate(w - 1);
         merged
     }
-    fn find_same_state<'a>(current: &'a mut[Node<T>], state: &T) -> Option<&'a mut Node<T>> {
+    fn find_same_state<'b>(current: &'b mut[Node<T>], state: &T) -> Option<&'b mut Node<T>> {
         for n in current.iter_mut() {
             if n.state.eq(state) {
                 return Some(n);

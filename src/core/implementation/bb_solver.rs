@@ -3,21 +3,17 @@ use std::hash::Hash;
 use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
-use crate::core::abstraction::dp::{Problem, ProblemOps};
 use crate::core::abstraction::heuristics::LoadVars;
 use crate::core::abstraction::mdd::{MDDGenerator, Node};
 use crate::core::abstraction::solver::Solver;
 use crate::core::common::Decision;
-use crate::core::implementation::heuristics::FromLongestPath;
 
-pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
+pub struct BBSolver<T, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
           DDG  : MDDGenerator<T>,
           BO   : Compare<Node<T>>,
-          VARS : LoadVars<T, PB> {
+          VARS : LoadVars<T> {
 
-    pb           : PB,
     ddg          : DDG,
 
     fringe       : BinaryHeap<Node<T>, BO>,
@@ -31,18 +27,15 @@ pub struct BBSolver<T, PB, DDG, BO, VARS = FromLongestPath>
     pub verbosity: u8
 }
 
-impl <T, PB, DDG, BO, VARS> BBSolver<T, PB, DDG, BO, VARS>
+impl <T, DDG, BO, VARS> BBSolver<T, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
           DDG  : MDDGenerator<T>,
           BO   : Compare<Node<T>>,
-          VARS : LoadVars<T, PB> {
-    pub fn new(pb : PB,
-               ddg: DDG,
+          VARS : LoadVars<T> {
+    pub fn new(ddg: DDG,
                bo : BO,
-               load_vars: VARS) -> BBSolver<T, PB, DDG, BO, VARS> {
+               load_vars: VARS) -> BBSolver<T, DDG, BO, VARS> {
         BBSolver {
-            pb,
             ddg,
             fringe: BinaryHeap::from_vec_cmp(vec![], bo),
             load_vars,
@@ -56,15 +49,14 @@ impl <T, PB, DDG, BO, VARS> BBSolver<T, PB, DDG, BO, VARS>
     }
 }
 
-impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
+impl <T, DDG, BO, VARS> Solver for BBSolver<T, DDG, BO, VARS>
     where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
           DDG  : MDDGenerator<T>,
           BO   : Compare<Node<T>>,
-          VARS : LoadVars<T, PB> {
+          VARS : LoadVars<T> {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
-        let root = self.pb.root_node();
+        let root = self.ddg.root();
         self.fringe.push(root);
         
         while !self.fringe.is_empty() {
@@ -91,7 +83,7 @@ impl <T, PB, DDG, BO, VARS> Solver for BBSolver<T, PB, DDG, BO, VARS>
                 println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
             }
 
-            let vars = self.load_vars.variables(&self.pb, &node);
+            let vars = self.load_vars.variables(&node);
 
             // 1. RESTRICTION
             self.ddg.restricted(vars.clone(),&node, self.best_lb);

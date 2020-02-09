@@ -16,7 +16,7 @@ use std::rc::Rc;
 /// dynamic program.
 ///
 /// The type parameter `<T>` denotes the type of the states of the dynamic program.
-pub trait Problem<T> {
+pub trait Problem<T> where T: Eq + Clone {
     /// Returns the number of decision variables that play a role in the problem.
     fn nb_vars(&self) -> usize;
     /// Returns the initial state of the problem (when no decision is taken).
@@ -43,6 +43,13 @@ pub trait Problem<T> {
     #[allow(unused_variables)]
     fn impacted_by(&self, state: &T, variable: Variable) -> bool {
         true
+    }
+
+    fn root_node(&self) -> Node<T> {
+        Node::new(self.initial_state(), self.initial_value(), None, true)
+    }
+    fn all_vars(&self) -> VarSet {
+        VarSet::all(self.nb_vars())
     }
 }
 
@@ -89,31 +96,6 @@ pub trait SimpleRelaxation<T> {
     }
 }
 
-/// Any reference to a problem should be considered as a valid problem type.
-impl <T, P: Problem<T>> Problem<T> for &P {
-    fn nb_vars(&self) -> usize {
-        (*self).nb_vars()
-    }
-    fn initial_state(&self) -> T {
-        (*self).initial_state()
-    }
-    fn initial_value(&self) -> i32 {
-        (*self).initial_value()
-    }
-    fn domain_of(&self, state: &T, var: Variable) -> &[i32] {
-        (*self).domain_of(state, var)
-    }
-    fn transition(&self, state: &T, vars: &VarSet, d: Decision) -> T {
-        (*self).transition(state, vars, d)
-    }
-    fn transition_cost(&self, state: &T, vars: &VarSet, d: Decision) -> i32 {
-        (*self).transition_cost(state, vars, d)
-    }
-    fn impacted_by(&self, state: &T, var: Variable) -> bool {
-        (*self).impacted_by(state, var)
-    }
-}
-
 impl <T: Eq + Clone, X: SimpleRelaxation<T>> Relaxation<T> for X {
     fn merge_nodes(&self, dd: &dyn MDD<T>, nodes: &[&Node<T>]) -> Node<T> {
         let mut maxlen = i32::min_value();
@@ -141,20 +123,5 @@ impl <T: Eq + Clone, X: SimpleRelaxation<T>> Relaxation<T> for X {
 
     fn estimate_ub(&self, n: &Node<T>) -> i32 {
         self.rough_ub(n.lp_len, &n.state)
-    }
-}
-
-/// Operations implicitly derived for each problem
-pub trait ProblemOps<T> where T: Eq + Clone {
-    fn root_node(&self) -> Node<T>;
-    fn all_vars(&self)  -> VarSet;
-}
-/// All problems implement these operations for free
-impl <T: Eq + Clone, P: Problem<T>> ProblemOps<T> for P {
-    fn root_node(&self) -> Node<T> {
-        Node::new(self.initial_state(), self.initial_value(), None, true)
-    }
-    fn all_vars(&self) -> VarSet {
-        VarSet::all(self.nb_vars())
     }
 }
