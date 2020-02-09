@@ -1,90 +1,67 @@
 use std::cmp::min;
 
-use crate::core::abstraction::dp::{Problem, SimpleRelaxation};
-use crate::core::abstraction::mdd::MDD;
-use crate::core::common::{Decision, Variable};
+use crate::core::abstraction::dp::{Problem, Relaxation};
+use crate::core::abstraction::mdd::{MDD, Node, Arc};
 use crate::examples::max2sat::model::{Max2Sat, State};
-
-const POSITIVE : u8 = 0x1;
-const NEGATIVE : u8 = 0x2;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Max2SatRelax<'a> {
     problem : &'a Max2Sat
 }
 
-impl SimpleRelaxation<State> for Max2SatRelax<'_> {
-    fn merge_states(&self, dd: &dyn MDD<State>, states: &[&State]) -> State {
-        let mut next = State(vec![0; self.problem.nb_vars()]);
-        next[dd.last_assigned()] = self.merge_substate(dd.last_assigned(), states);
-        for v in dd.unassigned_vars().iter() {
-            next[v] = self.merge_substate(v, states);
-        }
-        next
-    }
-
-    fn relax_cost(&self, dd: &dyn MDD<State>, original_cost: i32, from: &State, to: &State, _d: Decision) -> i32 {
-        let mut sum = self.diff_of_absolute_benefit(dd.last_assigned(), from, to);
-        for v in dd.unassigned_vars().iter() {
-            sum += self.diff_of_absolute_benefit(v, from, to);
-        }
-        original_cost + sum
+impl <'a> Max2SatRelax<'a> {
+    pub fn new(problem: &'a Max2Sat) -> Max2SatRelax<'a> {
+        Max2SatRelax { problem }
     }
 }
 
-impl <'a> Max2SatRelax<'a> {
-    pub fn new(problem: &'a Max2Sat) -> Max2SatRelax<'a> {
-        Max2SatRelax{problem}
-    }
-    /// The difference between the absolute benefit of branching on variable l
-    /// in the state `u` and `m`.
-    fn diff_of_absolute_benefit(&self, l: Variable, u: &State, m: &State) ->  i32 {
-        i32::abs(u[l]) - i32::abs(m[l])
-    }
+impl Relaxation<State> for Max2SatRelax<'_> {
+    fn merge_nodes(&self, _dd: &dyn MDD<State>, nodes: &[&Node<State>]) -> Node<State> {
+        let mut benefits      = vec![0; self.problem.nb_vars()];
+        let mut relaxed_costs = nodes.iter().cloned().map(|n| n.lp_len).collect::<Vec<i32>>();
 
-    /// Merge the substates of the given components for all of the specified states.
-    fn merge_substate(&self, component: Variable, states: &[&State]) -> i32 {
-        match self.substate_signs(component, states) {
-            POSITIVE => self.minimum_substate(component, states),
-            NEGATIVE => self.minimum_abs_value_of_substate(component, states),
-            _        => 0
-        }
-    }
+        // Compute the merged state and relax the best edges costs
+        let vars = self.problem.all_vars();
+        for v in vars.iter() {
+            let mut sign      = 0;
+            let mut min_benef = i32::max_value();
+            let mut same      = true;
 
-    /// Returns the smallest value of a substate
-    fn minimum_substate(&self, component: Variable, states: &[&State]) -> i32 {
-        let mut minimum = i32::max_value();
-        for s in states {
-            minimum = min(minimum, s[component]);
-        }
-        minimum
-    }
+            for node in nodes.iter().cloned() {
+                let substate = node.state[v];
+                min_benef = min(min_benef, substate.abs());
 
-    /// Returns the smallest absolute value of a substate
-    fn minimum_abs_value_of_substate(&self, component: Variable, states: &[&State]) -> i32 {
-        let mut minimum = i32::max_value();
-        for s in states {
-            minimum = min(minimum, i32::abs(s[component]))
-        }
-        minimum
-    }
-
-     /// Returns a mask with the observed signs ofall the `component`th
-     /// substates of the given `states`.
-    fn substate_signs(&self, component: Variable, states: &[&State]) -> u8 {
-        let mut signs = 0x0_u8;
-        for s in states.iter() {
-            let substate = s[component];
-            if substate > 0 {
-                signs |= POSITIVE;
+                if sign == 0 && substate != 0 {
+                    sign = substate.abs() / substate;
+                } else if sign * substate < 0 {
+                    same = false;
+                    break;
+                }
             }
-            if substate < 0 {
-                signs |= NEGATIVE;
+
+            if same {
+                benefits[v.0] = sign * min_benef;
             }
-            if signs > 2 {
-                return signs;
+
+            for j in 0..nodes.len() {
+                relaxed_costs[j] += nodes[j].state[v].abs() - benefits[v.0].abs();
             }
         }
-        signs
+
+        // Find the best incoming edge
+        let mut lp_len    = i32::min_value();
+        let mut input_arc = None;
+
+        for (j, node) in nodes.iter().cloned().enumerate() {
+            if relaxed_costs[j] > lp_len {
+                lp_len    = relaxed_costs[j];
+
+                let nd_arc= node.lp_arc.as_ref().unwrap();
+                input_arc = Some(Arc {src: Rc::clone(&nd_arc.src), decision: nd_arc.decision, weight: lp_len - nd_arc.src.lp_len});
+            }
+        }
+
+        Node::new(State(benefits), lp_len, input_arc, false)
     }
 }
