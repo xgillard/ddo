@@ -1,6 +1,6 @@
 //! This module defines the traits for the constituents of an MDD: the `MDD`
 //! itself and the `Nodes` that compose it.
-use std::cmp::{max, Ordering};
+use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
@@ -36,7 +36,9 @@ pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
     fn mdd(&self) -> &dyn MDD<T>;
 
     /// Returns a set of nodes constituting an exact cutset of this `MDD`.
-    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&mut Node<T>);
+    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo<T>);
+    /// Consumes the cutset of this mdd.
+    fn consume_cutset<F>(&mut self, f: F) where F: FnMut(T, NodeInfo<T>);
 }
 
 /// This trait describes an MDD
@@ -68,50 +70,31 @@ pub trait MDD<T>
     /// node of this `MDD`.
     fn best_value(&self) -> i32;
     /// Returns the terminal node having the longest associated path in this `MDD`.
-    fn best_node(&self) -> &Option<Node<T>>;
+    fn best_node(&self) -> &Option<NodeInfo<T>>;
     /// Returns the list of decisions along the longest path between the
     /// root node and the best terminal node of this `MDD`.
     fn longest_path(&self) -> Vec<Decision>;
 }
 
 // --- NODE --------------------------------------------------------------------
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Arc<T> where T: Eq + Clone  {
     pub src     : Rc<Node<T>>,
-    pub decision: Decision,
-    pub weight  : i32
+    pub decision: Decision
 }
 
 // --- NODE --------------------------------------------------------------------
-#[derive(Clone, Eq)]
-pub struct Node<T> where T: Eq + Clone {
-    pub state    : T,
+#[derive(Debug, Clone, Eq)]
+pub struct NodeInfo<T> where T: Eq + Clone {
     pub is_exact : bool,
     pub lp_len   : i32,
     pub lp_arc   : Option<Arc<T>>,
-
     pub ub       : i32
 }
 
-impl <T> Node<T> where T : Eq + Clone {
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
-        Node{state, is_exact, lp_len, lp_arc, ub: std::i32::MAX}
-    }
-
-    pub fn is_exact(&self) -> bool {
-        self.is_exact
-    }
-    pub fn get_state(&self)-> &T {
-        &self.state
-    }
-    pub fn get_lp_len(&self) -> i32 {
-        self.lp_len
-    }
-    pub fn get_ub(&self) -> i32 {
-        self.ub
-    }
-    pub fn set_ub(&mut self, ub: i32) {
-        self.ub = max(self.ub, ub);
+impl <T> NodeInfo<T> where T: Eq + Clone {
+    pub fn new (lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> NodeInfo<T> {
+        NodeInfo { is_exact, lp_len, lp_arc, ub: i32::max_value() }
     }
 
     /// Merge other into this node. That is to say, it combines the information
@@ -132,10 +115,43 @@ impl <T> Node<T> where T : Eq + Clone {
         while arc.is_some() {
             let a = arc.as_ref().unwrap();
             ret.push(a.decision);
-            arc = &a.src.lp_arc;
+            arc = &a.src.info.lp_arc;
         }
 
         ret
+    }
+}
+impl <T> PartialEq for NodeInfo<T> where T: Eq + Clone {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_exact == other.is_exact &&
+            self.lp_len == other.lp_len &&
+            self.ub     == other.ub     &&
+            self.lp_arc == other.lp_arc
+    }
+}
+impl <T> Ord for NodeInfo<T> where T: Eq + Clone {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ub.cmp(&other.ub)
+            .then_with(|| self.lp_len.cmp(&other.lp_len))
+            .then_with(|| self.is_exact.cmp(&other.is_exact))
+    }
+}
+impl <T> PartialOrd for NodeInfo<T> where T: Eq + Clone {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+
+#[derive(Debug, Clone, Eq)]
+pub struct Node<T> where T: Eq + Clone {
+    pub state    : T,
+    pub info     : NodeInfo<T>
+}
+
+impl <T> Node<T> where T : Eq + Clone {
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
+        Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
     }
 }
 
@@ -157,16 +173,11 @@ impl <T> Ord for Node<T> where T: Eq + Clone + Ord {
 
 impl <T> PartialOrd for Node<T> where T: Eq + Clone + PartialOrd {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let cmp_ub = self.ub.cmp(&other.ub);
-        if cmp_ub != Equal {
-            Some(cmp_ub)
+        let res = self.info.cmp(&other.info);
+        if res != Equal {
+            Some(res)
         } else {
-            let cmp_lp = self.lp_len.cmp(&other.lp_len);
-            if cmp_lp != Equal {
-                Some(cmp_lp)
-            } else {
-                self.state.partial_cmp(other.get_state())
-            }
+            self.state.partial_cmp(&other.state)
         }
     }
 }

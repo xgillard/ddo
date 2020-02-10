@@ -35,8 +35,8 @@ impl VariableHeuristic<State> for Max2SatOrder<'_> {
 pub struct MinRank;
 impl Compare<Node<State>> for MinRank {
     fn compare(&self, x: &Node<State>, y: &Node<State>) -> Ordering {
-        let xrank = x.get_lp_len() + x.get_state().rank();
-        let yrank = y.get_lp_len() + y.get_state().rank();
+        let xrank = x.info.lp_len + x.state.rank();
+        let yrank = y.info.lp_len + y.state.rank();
         xrank.cmp(&yrank)
         //    .then_with(||x.state.rank().cmp(&y.state.rank()))
         //    .then_with(||{

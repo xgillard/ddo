@@ -1,7 +1,7 @@
 use bitset_fixed::BitSet;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::core::abstraction::mdd::{MDD, Node};
+use crate::core::abstraction::mdd::{Node, NodeInfo};
 use crate::examples::misp::model::Misp;
 
 pub struct MispRelax<'a> {
@@ -14,24 +14,24 @@ impl <'a> MispRelax<'a> {
     }
 }
 impl <'a> Relaxation<BitSet> for MispRelax<'a> {
-    fn merge_nodes(&self, _dd: &dyn MDD<BitSet>, nodes: &[&Node<BitSet>]) -> Node<BitSet> {
-        let mut bs   = BitSet::new(self.pb.nb_vars());
-        let mut max_l= i32::min_value();
-        let mut arc  = None;
+    fn merge_nodes(&self, nodes: &[Node<BitSet>]) -> Node<BitSet> {
+        let mut state = BitSet::new(self.pb.nb_vars());
+        let mut best  = &nodes[0].info;
 
-        for n in nodes {
-            bs |= &n.state;
+        for node in nodes.iter() {
+            state |= &node.state;
 
-            if n.lp_len > max_l {
-                max_l = n.lp_len;
-                arc   = n.lp_arc.clone();
+            if node.info.lp_len > best.lp_len {
+                best = &node.info;
             }
         }
 
-        Node::new(bs, max_l, arc, false)
+        let mut info = best.clone();
+        info.is_exact = false;
+        Node {state, info}
     }
-    fn estimate_ub(&self, n: &Node<BitSet>) -> i32 {
-        n.lp_len + n.state.count_ones() as i32
+    fn estimate_ub(&self, state: &BitSet, info: &NodeInfo<BitSet>) -> i32 {
+        info.lp_len + state.count_ones() as i32
     }
 }
 /*

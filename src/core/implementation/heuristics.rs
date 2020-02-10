@@ -42,13 +42,13 @@ impl <T> VariableHeuristic<T> for NaturalOrder
 pub struct MinLP;
 impl <T> Compare<Node<T>> for MinLP where T: Clone + Hash + Eq {
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
-        a.get_lp_len().cmp(&b.get_lp_len())
+        a.info.lp_len.cmp(&b.info.lp_len)
     }
 }
 pub struct MaxLP;
 impl <T> Compare<Node<T>> for MaxLP where T: Clone + Hash + Eq {
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
-        a.get_lp_len().cmp(&b.get_lp_len()).reverse()
+        a.info.lp_len.cmp(&b.info.lp_len).reverse()
     }
 }
 
@@ -56,7 +56,7 @@ impl <T> Compare<Node<T>> for MaxLP where T: Clone + Hash + Eq {
 pub struct MaxUB;
 impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
-        a.ub.cmp(&b.ub).then_with(|| a.lp_len.cmp(&b.lp_len))
+        a.info.ub.cmp(&b.info.ub).then_with(|| a.info.lp_len.cmp(&b.info.lp_len))
     }
 }
 
@@ -81,7 +81,7 @@ impl <'a, T, P> LoadVars<T> for FromLongestPath<'a, T, P>
 
     fn variables(&self, node: &Node<T>) -> VarSet {
         let mut vars = self.pb.all_vars();
-        for d in node.longest_path() {
+        for d in node.info.longest_path() {
             vars.remove(d.variable);
         }
         vars

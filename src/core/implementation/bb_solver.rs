@@ -4,7 +4,7 @@ use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
 use crate::core::abstraction::heuristics::LoadVars;
-use crate::core::abstraction::mdd::{MDDGenerator, Node};
+use crate::core::abstraction::mdd::{MDDGenerator, Node, NodeInfo};
 use crate::core::abstraction::solver::Solver;
 use crate::core::common::Decision;
 
@@ -22,7 +22,7 @@ pub struct BBSolver<T, DDG, BO, VARS>
     pub explored : usize,
     pub best_ub  : i32,
     pub best_lb  : i32,
-    pub best_node: Option<Node<T>>,
+    pub best_node: Option<NodeInfo<T>>,
     pub best_sol : Option<Vec<Decision>>,
     pub verbosity: u8
 }
@@ -64,8 +64,8 @@ impl <T, DDG, BO, VARS> Solver for BBSolver<T, DDG, BO, VARS>
 
             // Nodes are sorted on UB as first criterion. It can be updated
             // whenever we encounter a tighter value
-            if node.get_ub() < self.best_ub {
-                self.best_ub = node.get_ub();
+            if node.info.ub < self.best_ub {
+                self.best_ub = node.info.ub;
             }
 
             // We just proved optimality, Yay !
@@ -74,13 +74,13 @@ impl <T, DDG, BO, VARS> Solver for BBSolver<T, DDG, BO, VARS>
             }
 
             // Skip if this node cannot improve the current best solution
-            if node.get_ub() < self.best_lb {
+            if node.info.ub < self.best_lb {
                 continue;
             }
 
             self.explored += 1;
             if self.verbosity >= 2 && self.explored % 100 == 0 {
-                println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.get_ub(), self.fringe.len());
+                println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.info.ub, self.fringe.len());
             }
 
             let vars = self.load_vars.variables(&node);
@@ -107,10 +107,10 @@ impl <T, DDG, BO, VARS> Solver for BBSolver<T, DDG, BO, VARS>
                 let best_lb= self.best_lb;
                 let fringe = &mut self.fringe;
                 let ddg    = &mut self.ddg;
-                ddg.for_each_cutset_node(|branch| {
-                    branch.ub = best_ub.min(branch.get_ub());
-                    if branch.ub > best_lb {
-                        fringe.push(branch.clone());
+                ddg.consume_cutset(|state, mut info| {
+                    info.ub = best_ub.min(info.ub);
+                    if info.ub > best_lb {
+                        fringe.push(Node{state, info});
                     }
                 });
             }

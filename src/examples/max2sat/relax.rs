@@ -1,9 +1,8 @@
 use std::cmp::min;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::core::abstraction::mdd::{MDD, Node, Arc};
+use crate::core::abstraction::mdd::{Node, NodeInfo};
 use crate::examples::max2sat::model::{Max2Sat, State};
-use std::rc::Rc;
 use crate::core::common::VarSet;
 
 pub fn from_state_vars(node: &Node<State>) -> VarSet {
@@ -29,20 +28,21 @@ impl Relaxation<State> for Max2SatRelax<'_> {
 //
     //    node.lp_len + sum
     //}
-    fn merge_nodes(&self, _dd: &dyn MDD<State>, nodes: &[&Node<State>]) -> Node<State> {
+    fn merge_nodes(&self, nodes: &[Node<State>]) -> Node<State> {
         let mut benefits      = vec![0; self.problem.nb_vars()];
-        let mut relaxed_costs = nodes.iter().cloned().map(|n| n.lp_len).collect::<Vec<i32>>();
+        let mut relaxed_costs = nodes.iter()
+                                     .map(|n| n.info.lp_len)
+                                     .collect::<Vec<i32>>();
 
         let vars = &nodes[0].state.variables;
 
         // Compute the merged state and relax the best edges costs
-        //let vars = self.problem.all_vars();
         for v in vars.iter() {
             let mut sign      = 0;
             let mut min_benef = i32::max_value();
             let mut same      = true;
 
-            for node in nodes.iter().cloned() {
+            for node in nodes.iter() {
                 let substate = node.state[v];
                 min_benef = min(min_benef, substate.abs());
 
@@ -63,21 +63,25 @@ impl Relaxation<State> for Max2SatRelax<'_> {
             }
         }
 
-        // Find the best incoming edge
-        let mut varset    = VarSet::empty();
-        let mut lp_len    = i32::min_value();
-        let mut input_arc = None;
+        // Find the best info
+        let mut best    = 0;
+        let mut longest = i32::min_value();
 
-        for (j, node) in nodes.iter().cloned().enumerate() {
-            if relaxed_costs[j] > lp_len {
-                varset    = node.state.variables.clone();
-                lp_len    = relaxed_costs[j];
-                let nd_arc= node.lp_arc.as_ref().unwrap();
-                input_arc = Some(Arc {src: Rc::clone(&nd_arc.src), decision: nd_arc.decision, weight: lp_len - nd_arc.src.lp_len});
+        for (j, relaxed) in relaxed_costs.iter().cloned().enumerate() {
+            if relaxed > longest {
+                best    = j;
+                longest = relaxed;
             }
         }
 
-        let merged_state = State {substates: benefits, variables: varset};
-        Node::new(merged_state, lp_len, input_arc, false)
+        let merged_state  = State {substates: benefits, variables: nodes[best].state.variables.clone()};
+        let merged_infos  = NodeInfo {
+            is_exact: false,
+            lp_len  : longest,
+            lp_arc  : nodes[best].info.lp_arc.clone(),
+            ub      : nodes[best].info.ub
+        };
+
+        Node{state: merged_state, info: merged_infos}
     }
 }
