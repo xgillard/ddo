@@ -10,12 +10,12 @@ use structopt::StructOpt;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned};
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned, FromLongestPath};
 use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::common::Decision;
-use rust_mdd_solver::examples::max2sat::relax::{Max2SatRelax, from_state_vars};
+use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::State;
 use rust_mdd_solver::core::utils::Func;
@@ -127,7 +127,7 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let vs           = Max2SatOrder::new(&problem);
     let ns           = MinRank;
     let bo           = MaxUB;
-    let vars         = Func(from_state_vars);
+    let vars         = FromLongestPath::new(&problem); //Func(from_state_vars);
 
     let ddg          = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
     let mut solver   = BBSolver::new(ddg, bo, vars);
