@@ -5,7 +5,7 @@ use std::cmp::Ordering::Equal;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use crate::core::common::{Decision, Variable, VarSet};
+use crate::core::common::{Decision, VarSet};
 
 /// This enumeration characterizes the kind of MDD being generated. It can
 /// either be
@@ -19,11 +19,18 @@ pub enum MDDType {
     Exact
 }
 
-/// This structure is in charge of unrolling an MDD according to the requested
-/// level of exactitude
-pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
+/// This trait describes an MDD
+///
+/// # Type param
+/// The type parameter `<T>` denotes the type of the state defined/manipulated
+/// by the `Problem` definition.
+pub trait MDD<T> where T : Clone + Eq {
+    /// Tells whether this MDD is exact, relaxed, or restricted.
+    fn mdd_type(&self) -> MDDType;
+
     /// Generates the root node of the problem
     fn root(&self) -> Node<T>;
+
     /// Expands this MDD into  an exact MDD
     fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
     /// Expands this MDD into a restricted (lower bound approximation)
@@ -32,35 +39,11 @@ pub trait MDDGenerator<T> where T : Clone + Hash + Eq {
     /// Expands this MDD into a relaxed (upper bound approximation)
     /// version of the exact MDD.
     fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
-    /// Returns a reference to the expanded MDD.
-    fn mdd(&self) -> &dyn MDD<T>;
 
     /// Returns a set of nodes constituting an exact cutset of this `MDD`.
     fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo<T>);
     /// Consumes the cutset of this mdd.
     fn consume_cutset<F>(&mut self, f: F) where F: FnMut(T, NodeInfo<T>);
-}
-
-/// This trait describes an MDD
-///
-/// # Type param
-/// The type parameter `<T>` denotes the type of the state defined/manipulated
-/// by the `Problem` definition.
-pub trait MDD<T>
-    where T : Clone + Hash + Eq {
-    /// Tells whether this MDD is exact, relaxed, or restricted.
-    fn mdd_type(&self) -> MDDType;
-
-    /// Returns the latest `Variable` that acquired a value during the
-    /// development of this `MDD`.
-    ///
-    /// # Note
-    /// This development might still be ongoing. That last variable will then
-    /// simply be variable associated to the decisions from the previous layer.
-    fn last_assigned(&self) -> Variable;
-    /// Returns the set of variables that have not been assigned any value
-    /// (so far!).
-    fn unassigned_vars(&self) -> &VarSet;
 
     /// Return true iff this `MDD` is exact. That is to say, it returns true if
     /// no nodes have been merged (because of relaxation) or suppressed (because

@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MinLP, NaturalOrder};
-use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::core::utils::Func;
 use rust_mdd_solver::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
 use rust_mdd_solver::examples::misp::model::Misp;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
+use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDD;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Misp {
@@ -33,7 +33,7 @@ fn solve(id: &str) -> i32 {
     let vs         = NaturalOrder;
     let ns         = MinLP;
 
-    let ddg        = PooledMDDGenerator::new(&misp, relax, vs, width, ns);
+    let ddg        = PooledMDD::new(&misp, relax, vs, width, ns);
     let mut solver = BBSolver::new(ddg, Func(misp_ub_order), Func(vars_from_misp_state));
     let (val,_sln) = solver.maximize();
 

@@ -11,7 +11,6 @@ use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned, FromLongestPath};
-use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDDGenerator;
 use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::common::Decision;
@@ -19,7 +18,8 @@ use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::State;
 use rust_mdd_solver::core::utils::Func;
-use rust_mdd_solver::core::implementation::flat_mdd::FlatMDDGenerator;
+use rust_mdd_solver::core::implementation::flat_mdd::FlatMDD;
+use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDD;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -94,9 +94,9 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let relax = MispRelax::new(&misp);
     let vs    = NaturalOrder;
 
-    let ddg = PooledMDDGenerator::new(&misp, relax, vs, width, MinLP);
+    let mdd   = PooledMDD::new(&misp, relax, vs, width, MinLP);
 
-    let mut solver = BBSolver::new(ddg, MaxUB, Func(vars_from_misp_state));
+    let mut solver = BBSolver::new(mdd, MaxUB, Func(vars_from_misp_state));
     solver.verbosity = verbose;
     
     let start = SystemTime::now();
@@ -129,8 +129,8 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let bo           = MaxUB;
     let vars         = FromLongestPath::new(&problem); //Func(from_state_vars);
 
-    let ddg          = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
-    let mut solver   = BBSolver::new(ddg, bo, vars);
+    let mdd          = FlatMDD::new(&problem, relax, vs, width, ns);
+    let mut solver   = BBSolver::new(mdd, bo, vars);
 
     solver.verbosity = verbose;
 

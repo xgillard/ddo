@@ -7,13 +7,26 @@ use metrohash::MetroHashMap;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
-use crate::core::abstraction::mdd::{Arc, MDD, MDDGenerator, MDDType, Node, NodeInfo};
+use crate::core::abstraction::mdd::{Arc, MDD, MDDType, Node, NodeInfo};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::common::{Decision, Variable, VarSet};
 
 const DUMMY : Variable = Variable(usize::max_value());
 // --- MDD Data Structure -----------------------------------------------------
-pub struct FlatMDD<T> where T: Eq + Clone {
+pub struct FlatMDD<'a, T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : Compare<Node<T>> {
+
+    pb               : &'a PB,
+    relax            : RLX,
+    vs               : VS,
+    width            : WDTH,
+    ns               : NS,
+
     mddtype          : MDDType,
     layers           : [MetroHashMap<T, NodeInfo<T>>; 3],
     current          : usize,
@@ -24,12 +37,6 @@ pub struct FlatMDD<T> where T: Eq + Clone {
     unassigned_vars  : VarSet,
     is_exact         : bool,
     best_node        : Option<NodeInfo<T>>
-}
-
-impl <T> Default for FlatMDD<T> where T: Hash + Clone + Eq {
-    fn default() -> FlatMDD<T> {
-        FlatMDD::new()
-    }
 }
 
 /// Be careful: this macro lets you borrow any single layer from a flat mdd.
@@ -44,16 +51,41 @@ macro_rules! layer {
     };
 }
 
-impl <T> MDD<T> for FlatMDD<T> where T: Hash + Clone + Eq {
+impl <'a, T, PB, RLX, VS, WDTH, NS> MDD<T> for FlatMDD<'a, T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : Compare<Node<T>> {
+
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
-    fn last_assigned(&self) -> Variable {
-        self.last_assigned
+
+    fn root(&self) -> Node<T> {
+        self.pb.root_node()
     }
-    fn unassigned_vars(&self) -> &VarSet {
-        &self.unassigned_vars
+
+    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Exact, vars, root, best_lb, usize::max_value());
     }
+    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        let w = self.width.max_width(&vars);
+        self.develop(Restricted, vars, root, best_lb, w);
+    }
+    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        let w = self.width.max_width(&vars);
+        self.develop(Relaxed, vars, root, best_lb, w);
+    }
+
+    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo<T>) {
+        layer![self, mut lel].iter_mut().for_each(|(k, v)| (f)(k, v))
+    }
+    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo<T>) {
+        layer![self, mut lel].drain().for_each(|(k, v)| (f)(k, v))
+    }
+
     fn is_exact(&self) -> bool {
         self.is_exact
     }
@@ -76,10 +108,23 @@ impl <T> MDD<T> for FlatMDD<T> where T: Hash + Clone + Eq {
     }
 }
 
+/// Utility structure to represent upper and lower bounds
+#[derive(Debug, Copy, Clone)]
+struct Bounds {lb: i32, ub: i32}
+
 /// Private functions
-impl <T> FlatMDD<T> where T: Hash + Eq + Clone {
-    fn new() -> FlatMDD<T> {
+impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDD<'a, T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : Compare<Node<T>> {
+
+    pub fn new(pb: &'a PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> FlatMDD<'a, T, PB, RLX, VS, WDTH, NS> {
         FlatMDD {
+            pb, relax, vs, width, ns,
+
             mddtype          : Exact,
             current          : 0,
             next             : 1,
@@ -117,71 +162,7 @@ impl <T> FlatMDD<T> where T: Hash + Eq + Clone {
         self.current = self.next;
         self.next    = tmp;
     }
-}
 
-// --- MDD Generator -----------------------------------------------------------
-pub struct FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
-
-    pb               : &'a PB,
-    relax            : RLX,
-    vs               : VS,
-    width            : WDTH,
-    ns               : NS,
-    dd               : FlatMDD<T>
-}
-
-impl <'a, T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
-    fn root(&self) -> Node<T> {
-        self.pb.root_node()
-    }
-    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Exact, vars, root, best_lb, usize::max_value());
-    }
-    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        let w = self.width.max_width(&vars);
-        self.develop(Restricted, vars, root, best_lb, w);
-    }
-    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        let w = self.width.max_width(&vars);
-        self.develop(Relaxed, vars, root, best_lb, w);
-    }
-    fn mdd(&self) -> &dyn MDD<T> {
-        &self.dd
-    }
-    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo<T>) {
-        layer![self.dd, mut lel].iter_mut().for_each(|(k, v)| (f)(k, v))
-    }
-    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo<T>) {
-        layer![self.dd, mut lel].drain().for_each(|(k, v)| (f)(k, v))
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-struct Bounds {lb: i32, ub: i32}
-
-impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
-
-    pub fn new(pb: &'a PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> FlatMDDGenerator<T, PB, RLX, VS, WDTH, NS> {
-        FlatMDDGenerator { pb, relax, vs, width, ns, dd: Default::default() }
-    }
     fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb: i32, w: usize) {
         self.init(kind, vars, root);
 
@@ -189,11 +170,11 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
         let mut i  = 0;
         let nbvars = self.nb_vars();
 
-        while i < nbvars && !layer![self.dd, current].is_empty() {
+        while i < nbvars && !layer![self, current].is_empty() {
             let var = self.select_var();
             if var.is_none() { break; }
 
-            let was_exact = self.dd.is_exact;
+            let was_exact = self.is_exact;
             let var = var.unwrap();
             self.remove_var(var);
             self.unroll_layer(var, bounds);
@@ -207,8 +188,8 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
         self.finalize()
     }
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
-        let curr = layer![self.dd,  current];
-        let next = layer![self.dd, mut next];
+        let curr = layer![self,  current];
+        let next = layer![self, mut next];
 
         for (state, info) in curr.iter() {
             let domain = self.pb.domain_of(state, var);
@@ -226,29 +207,29 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
     }
 
     fn move_to_next(&mut self, was_exact: bool) {
-        if self.dd.is_exact != was_exact {
-            self.dd.swap_current_lel();
+        if self.is_exact != was_exact {
+            self.swap_current_lel();
         }
-        self.dd.swap_current_next();
-        layer![self.dd, mut next].clear();
+        self.swap_current_next();
+        layer![self, mut next].clear();
     }
     fn nb_vars(&self) -> usize {
-        self.dd.unassigned_vars.len()
+        self.unassigned_vars.len()
     }
     fn select_var(&self) -> Option<Variable> {
-        self.vs.next_var(&self.dd.unassigned_vars)
+        self.vs.next_var(&self.unassigned_vars)
     }
     fn remove_var(&mut self, var: Variable) {
-        self.dd.unassigned_vars.remove(var)
+        self.unassigned_vars.remove(var)
     }
     fn set_last_assigned(&mut self, var: Variable) {
-        self.dd.last_assigned = var
+        self.last_assigned = var
     }
     fn transition_state(&self, node: &Node<T>, d: Decision) -> T {
-        self.pb.transition(&node.state, &self.dd.unassigned_vars, d)
+        self.pb.transition(&node.state, &self.unassigned_vars, d)
     }
     fn transition_cost(&self, node: &Node<T>, d: Decision) -> i32 {
-        self.pb.transition_cost(&node.state, &self.dd.unassigned_vars, d)
+        self.pb.transition_cost(&node.state, &self.unassigned_vars, d)
     }
     fn branch(&self, node: Node<T>, d: Decision) -> Node<T> {
         let state = self.transition_state(&node, d);
@@ -265,39 +246,39 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
     }
 
     fn init(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>) {
-        self.dd.clear();
-        self.dd.mddtype         = kind;
-        self.dd.unassigned_vars = vars;
+        self.clear();
+        self.mddtype         = kind;
+        self.unassigned_vars = vars;
 
-        layer![self.dd, mut current].insert(root.state.clone(), root.info.clone());
+        layer![self, mut current].insert(root.state.clone(), root.info.clone());
     }
     fn finalize(&mut self) {
         self.find_best_node();
 
         // We are done, we should assign a rough upper bound on all nodes from the exact cutset
-        if let Some(best) = &self.dd.best_node {
+        if let Some(best) = &self.best_node {
             let lp_length = best.lp_len;
 
-            for (state, info) in layer![self.dd, mut lel].iter_mut() {
+            for (state, info) in layer![self, mut lel].iter_mut() {
                 info.ub = lp_length.min(self.relax.estimate_ub(state, info));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
             // Hence, there is no relevant cutset to return
-            layer![self.dd, mut lel].clear();
+            layer![self, mut lel].clear();
         }
     }
     fn find_best_node(&mut self) {
         let mut best_value = i32::min_value();
-        for info in layer![self.dd, current].values() {
+        for info in layer![self, current].values() {
             if info.lp_len > best_value {
                 best_value         = info.lp_len;
-                self.dd.best_node  = Some(info.clone());
+                self.best_node  = Some(info.clone());
             }
         }
     }
     fn maybe_squash(&mut self, i : usize, w: usize) {
-        match self.dd.mddtype {
+        match self.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
             MDDType::Restricted => self.maybe_restrict(i, w),
             MDDType::Relaxed    => self.maybe_relax(i, w),
@@ -307,14 +288,14 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
             let ns   = &self.ns;
-            let next = layer![self.dd, mut next];
+            let next = layer![self, mut next];
 
             let mut nodes = vec![];
             next.drain().for_each(|(k,v)| nodes.push(Node{state: k, info: v}));
 
             while nodes.len() > w {
                 // we do squash the current layer so the mdd is now inexact
-                self.dd.is_exact = false;
+                self.is_exact = false;
                 nodes.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
                 nodes.truncate(w);
             }
@@ -326,7 +307,7 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
             let ns   = &self.ns;
-            let next = layer![self.dd, mut next];
+            let next = layer![self, mut next];
 
             if next.len() > w {
 
@@ -342,7 +323,7 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
                 let (keep, squash) = nodes.split_at(w-1);
 
                 // we do squash the current layer so the mdd is now inexact
-                self.dd.is_exact = false;
+                self.is_exact = false;
 
                 // actually squash the layer
                 let merged = self.relax.merge_nodes(squash);

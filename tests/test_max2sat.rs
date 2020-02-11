@@ -6,11 +6,11 @@ use std::path::PathBuf;
 
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::flat_mdd::FlatMDDGenerator;
 use rust_mdd_solver::core::implementation::heuristics::{MaxUB, FromLongestPath, FixedWidth};
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
+use rust_mdd_solver::core::implementation::flat_mdd::FlatMDD;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {
@@ -34,7 +34,7 @@ fn solve(id: &str) -> i32 {
     let bo           = MaxUB;
     let vars         = FromLongestPath::new(&problem);
 
-    let ddg          = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
+    let ddg          = FlatMDD::new(&problem, relax, vs, width, ns);
     let mut solver   = BBSolver::new(ddg, bo, vars);
     //solver.verbosity = 3;
     let (val,_sln)   = solver.maximize();
@@ -66,24 +66,6 @@ fn unit() {
 fn negative_wt() {
     assert_eq!(solve("negative_wt.wcnf"), 4258);
 }
-
-/*#[test]
-fn debug_ordering() {
-    let id           = "frb10-6-1.wcnf";
-    let problem      = instance(id);
-    let relax        = Max2SatRelax::new(&problem);
-    let width        = NbUnassigned;//FixedWidth(5);
-    let vs           = Max2SatOrder::new(&problem);
-    let ns           = MinRank;
-
-    let vars         = problem.all_vars();
-    let root         = problem.root_node();
-
-    let mut ddg      = FlatMDDGenerator::new(&problem, relax, vs, width, ns);
-
-    ddg.relaxed(vars, &root, 0);
-    println!("UB {}", ddg.mdd().best_value())
-}*/
 
 #[test]
 fn frb10_6_1() {

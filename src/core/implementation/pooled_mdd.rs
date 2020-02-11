@@ -13,7 +13,20 @@ use crate::core::common::{Decision, Variable, VarSet};
 use super::super::abstraction::mdd::*;
 
 // --- POOLED MDD --------------------------------------------------------------
-pub struct PooledMDD<T> where T: Hash + Eq + Clone {
+pub struct PooledMDD<'a, T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : Compare<Node<T>> {
+
+    pb               : &'a PB,
+    relax            : RLX,
+    vs               : VS,
+    width            : WDTH,
+    ns               : NS,
+
     mddtype          : MDDType,
     pool             : MetroHashMap<T, NodeInfo<T>>,
     current          : Vec<Node<T>>,
@@ -25,21 +38,36 @@ pub struct PooledMDD<T> where T: Hash + Eq + Clone {
     best_node        : Option<NodeInfo<T>>
 }
 
-impl <T> Default for PooledMDD<T> where T : Hash + Clone + Eq {
-    fn default() -> PooledMDD<T> {
-        PooledMDD::new()
-    }
-}
+impl <'a, T, PB, RLX, VS, WDTH, NS> MDD<T> for PooledMDD<'a, T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : Compare<Node<T>> {
 
-impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
+    fn root(&self) -> Node<T> {
+        self.pb.root_node()
+    }
+    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        self.develop(Exact, vars, root, best_lb, usize::max_value());
+    }
+    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        let w = self.width.max_width(&vars);
+        self.develop(Restricted, vars, root, best_lb, w);
+    }
+    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
+        let w = self.width.max_width(&vars);
+        self.develop(Relaxed, vars, root, best_lb, w);
+    }
+    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo<T>) {
+        self.cutset.iter_mut().for_each(|n| (f)(&n.state, &mut n.info))
+    }
+    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo<T>) {
+        self.cutset.drain(..).for_each(|n| (f)(n.state, n.info))
+    }
     fn mdd_type(&self) -> MDDType {
         self.mddtype
-    }
-    fn last_assigned(&self) -> Variable {
-        self.last_assigned
-    }
-    fn unassigned_vars(&self) -> &VarSet {
-        &self.unassigned_vars
     }
     fn is_exact(&self) -> bool {
         self.is_exact
@@ -63,10 +91,23 @@ impl <T> MDD<T> for PooledMDD<T> where T: Hash + Eq + Clone {
     }
 }
 
+/// Utility structure to represent upper and lower bounds
+#[derive(Debug, Copy, Clone)]
+struct Bounds {lb: i32, ub: i32}
+
 /// Private functions
-impl <T> PooledMDD<T> where T: Hash + Eq + Clone {
-    fn new() -> PooledMDD<T> {
+impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDD<'a, T, PB, RLX, VS, WDTH, NS>
+    where T    : Hash + Eq + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          VS   : VariableHeuristic<T>,
+          WDTH : WidthHeuristic<T>,
+          NS   : Compare<Node<T>> {
+
+    pub fn new(pb: &'a PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> Self {
         PooledMDD {
+            pb, relax, vs, width, ns,
+
             mddtype          : Exact,
             last_assigned    : Variable(std::usize::MAX),
             unassigned_vars  : VarSet::all(0),
@@ -89,71 +130,7 @@ impl <T> PooledMDD<T> where T: Hash + Eq + Clone {
         self.current          .clear();
         self.cutset           .clear();
     }
-}
 
-// --- GENERATOR ---------------------------------------------------------------
-pub struct PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
-
-    pb               : &'a PB,
-    relax            : RLX,
-    vs               : VS,
-    width            : WDTH,
-    ns               : NS,
-    dd               : PooledMDD<T>
-}
-
-impl <'a, T, PB, RLX, VS, WDTH, NS> MDDGenerator<T> for PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
-    fn root(&self) -> Node<T> {
-        self.pb.root_node()
-    }
-    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        self.develop(Exact, vars, root, best_lb, usize::max_value());
-    }
-    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        let w = self.width.max_width(&vars);
-        self.develop(Restricted, vars, root, best_lb, w);
-    }
-    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb: i32) {
-        let w = self.width.max_width(&vars);
-        self.develop(Relaxed, vars, root, best_lb, w);
-    }
-    fn mdd(&self) -> &dyn MDD<T> {
-        &self.dd
-    }
-    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo<T>) {
-        self.dd.cutset.iter_mut().for_each(|n| (f)(&n.state, &mut n.info))
-    }
-    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo<T>) {
-        self.dd.cutset.drain(..).for_each(|n| (f)(n.state, n.info))
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-struct Bounds {lb: i32, ub: i32}
-
-impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
-
-    pub fn new(pb: &'a PB, relax: RLX, vs: VS, width: WDTH, ns: NS) -> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH, NS> {
-        PooledMDDGenerator{ pb, relax, vs, width, ns, dd: PooledMDD::new() }
-    }
     fn develop(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>, best_lb : i32, w: usize) {
         self.init(kind, vars, root);
 
@@ -179,33 +156,33 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
         self.finalize()
     }
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
-        for node in self.dd.current.iter() {
+        for node in self.current.iter() {
             let domain = self.pb.domain_of(&node.state, var);
             for value in domain {
                 let decision  = Decision{variable: var, value: *value};
                 let branching = self.branch(node, decision);
 
-                if let Some(old) = self.dd.pool.get_mut(&branching.state) {
+                if let Some(old) = self.pool.get_mut(&branching.state) {
                     if old.is_exact && !branching.info.is_exact {
                         //trace!("main loop:: old was exact but new was not");
-                        self.dd.cutset.push(Node{state: branching.state, info: old.clone()});
+                        self.cutset.push(Node{state: branching.state, info: old.clone()});
                     } else if !old.is_exact && branching.info.is_exact {
                         //trace!("main loop:: new was exact but old was not");
-                        self.dd.cutset.push(branching.clone());
+                        self.cutset.push(branching.clone());
                     }
                     old.merge(branching.info)
                 } else if self.is_relevant(bounds, &branching.state, &branching.info) {
-                    self.dd.pool.insert(branching.state, branching.info);
+                    self.pool.insert(branching.state, branching.info);
                 }
             }
         }
     }
     fn pick_nodes_from_pool(&mut self, var: Variable) {
-        self.dd.current.clear();
+        self.current.clear();
 
         // Add all selected nodes to the next layer
         let mut items = vec![];
-        for (s, _i) in self.dd.pool.iter() {
+        for (s, _i) in self.pool.iter() {
             if self.pb.impacted_by(s, var) {
                 items.push(s.clone());
             }
@@ -213,31 +190,31 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
 
         // Remove all nodes that belong to the current layer from the pool
         for state in items {
-            let info = self.dd.pool.remove(&state).unwrap();
-            self.dd.current.push(Node{state, info});
+            let info = self.pool.remove(&state).unwrap();
+            self.current.push(Node{state, info});
         }
     }
 
     fn nb_vars(&self) -> usize {
-        self.dd.unassigned_vars.len()
+        self.unassigned_vars.len()
     }
     fn exhausted(&self) -> bool {
-        self.dd.pool.is_empty()
+        self.pool.is_empty()
     }
     fn select_var(&self) -> Option<Variable> {
-        self.vs.next_var(&self.dd.unassigned_vars)
+        self.vs.next_var(&self.unassigned_vars)
     }
     fn remove_var(&mut self, var: Variable) {
-        self.dd.unassigned_vars.remove(var)
+        self.unassigned_vars.remove(var)
     }
     fn set_last_assigned(&mut self, var: Variable) {
-        self.dd.last_assigned = var
+        self.last_assigned = var
     }
     fn transition_state(&self, node: &Node<T>, d: Decision) -> T {
-        self.pb.transition(&node.state, &self.dd.unassigned_vars, d)
+        self.pb.transition(&node.state, &self.unassigned_vars, d)
     }
     fn transition_cost(&self, node: &Node<T>, d: Decision) -> i32 {
-        self.pb.transition_cost(&node.state, &self.dd.unassigned_vars, d)
+        self.pb.transition_cost(&node.state, &self.unassigned_vars, d)
     }
     fn branch(&self, node: &Node<T>, d: Decision) -> Node<T> {
         let state = self.transition_state(node, d);
@@ -251,40 +228,40 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
     }
 
     fn init(&mut self, kind: MDDType, vars: VarSet, root: &Node<T>) {
-        self.dd.clear();
-        self.dd.mddtype         = kind;
-        self.dd.unassigned_vars = vars;
+        self.clear();
+        self.mddtype         = kind;
+        self.unassigned_vars = vars;
 
-        self.dd.pool.insert(root.state.clone(), root.info.clone());
+        self.pool.insert(root.state.clone(), root.info.clone());
     }
     fn finalize(&mut self) {
         self.find_best_node();
 
         // We are done, we should assign a rough upper bound on all nodes from the exact cutset
-        if let Some(best) = &self.dd.best_node {
+        if let Some(best) = &self.best_node {
             let lp_length = best.lp_len;
 
-            for n in self.dd.cutset.iter_mut() {
+            for n in self.cutset.iter_mut() {
                 n.info.ub = lp_length.min(self.relax.estimate_ub(&n.state, &n.info));
             }
         } else {
             // If no best node is found, it means this problem is unsat.
             // Hence, there is no relevant cutset to return
-            self.dd.cutset.clear();
+            self.cutset.clear();
         }
     }
     fn find_best_node(&mut self) {
         let mut best_value = std::i32::MIN;
-        for info in self.dd.pool.values() {
+        for info in self.pool.values() {
             if info.lp_len > best_value {
                 best_value = info.lp_len;
-                self.dd.best_node = Some(info.clone());
+                self.best_node = Some(info.clone());
             }
         }
     }
 
     fn maybe_squash(&mut self, i : usize, w: usize) {
-        match self.dd.mddtype {
+        match self.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
             MDDType::Restricted => self.maybe_restrict(i, w),
             MDDType::Relaxed    => self.maybe_relax(i, w),
@@ -294,32 +271,32 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
             let ns = &self.ns;
-            while self.dd.current.len() > w {
+            while self.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
-                self.dd.is_exact = false;
-                self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-                self.dd.current.truncate(w);
+                self.is_exact = false;
+                self.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+                self.current.truncate(w);
             }
         }
     }
     fn maybe_relax(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
-            while self.dd.current.len() > w {
+            while self.current.len() > w {
                 // we do squash the current layer so the mdd is now inexact
-                self.dd.is_exact = false;
+                self.is_exact = false;
 
                 // actually squash the layer
                 let merged = self.merge_overdue_nodes(w);
 
-                if let Some(old) = Self::find_same_state(&mut self.dd.current, &merged.state) {
+                if let Some(old) = Self::find_same_state(&mut self.current, &merged.state) {
                     if old.info.is_exact {
                         //trace!("squash:: there existed an equivalent");
-                        self.dd.cutset.push(old.clone());
+                        self.cutset.push(old.clone());
                     }
                     old.info.merge(merged.info);
                 } else {
-                    self.dd.current.push(merged);
+                    self.current.push(merged);
                 }
             }
         }
@@ -327,8 +304,8 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
     fn merge_overdue_nodes(&mut self, w: usize) -> Node<T> {
         // 1. Sort the current layer so that the worst nodes are at the end.
         let ns = &self.ns;
-        self.dd.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
-        let (_keep, squash) = self.dd.current.split_at(w-1);
+        self.current.sort_unstable_by(|a, b| ns.compare(a, b).reverse());
+        let (_keep, squash) = self.current.split_at(w-1);
 
         // 2. merge the nodes
         let merged = self.relax.merge_nodes(squash);
@@ -336,12 +313,12 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
         // 3. make sure to keep the cutset complete
         for n in squash {
             if n.info.is_exact {
-                self.dd.cutset.push(n.clone())
+                self.cutset.push(n.clone())
             }
         }
 
         // 4. drop overdue nodes
-        self.dd.current.truncate(w - 1);
+        self.current.truncate(w - 1);
         merged
     }
     fn find_same_state<'b>(current: &'b mut[Node<T>], state: &T) -> Option<&'b mut Node<T>> {
