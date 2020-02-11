@@ -8,8 +8,7 @@ use bitset_fixed::BitSet;
 use compare::Compare;
 
 use crate::core::abstraction::heuristics::LoadVars;
-use crate::core::abstraction::mdd::Node;
-use crate::core::common::VarSet;
+use crate::core::common::{VarSet, Node};
 
 pub struct BitSetIter<'a> {
     iter  : Cloned<Iter<'a, u64>>,

@@ -2,8 +2,7 @@ use std::cmp::Ordering;
 
 use bitset_fixed::BitSet;
 
-use crate::core::abstraction::mdd::Node;
-use crate::core::common::VarSet;
+use crate::core::common::{Node, VarSet};
 use crate::core::utils::LexBitSet;
 
 pub fn vars_from_misp_state(n: &Node<BitSet>) -> VarSet {

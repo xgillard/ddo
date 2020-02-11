@@ -5,12 +5,11 @@ use std::rc::Rc;
 use compare::Compare;
 use metrohash::MetroHashMap;
 
+use crate::core::common::{Arc, Decision, Node, NodeInfo, Variable, VarSet};
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
+use crate::core::abstraction::mdd::{MDD, MDDType};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
-use crate::core::common::{Decision, Variable, VarSet};
-
-use super::super::abstraction::mdd::*;
 
 // --- POOLED MDD --------------------------------------------------------------
 pub struct PooledMDD<'a, T, PB, RLX, VS, WDTH, NS>

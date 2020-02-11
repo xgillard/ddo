@@ -7,9 +7,9 @@ use metrohash::MetroHashMap;
 
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{VariableHeuristic, WidthHeuristic};
-use crate::core::abstraction::mdd::{Arc, MDD, MDDType, Node, NodeInfo};
+use crate::core::abstraction::mdd::{MDD, MDDType};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
-use crate::core::common::{Decision, Variable, VarSet};
+use crate::core::common::{Arc, Decision, Node, NodeInfo, Variable, VarSet};
 
 const DUMMY : Variable = Variable(usize::max_value());
 // --- MDD Data Structure -----------------------------------------------------

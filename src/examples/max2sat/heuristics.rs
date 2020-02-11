@@ -1,7 +1,7 @@
+use crate::core::common::{Node, Variable, VarSet};
 use crate::examples::max2sat::model::{Max2Sat, State};
 use crate::core::abstraction::heuristics::VariableHeuristic;
-use crate::core::common::{Variable, VarSet};
-use crate::core::abstraction::mdd::Node;
+
 use std::cmp::Ordering;
 use compare::Compare;
 

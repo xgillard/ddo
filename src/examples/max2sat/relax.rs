@@ -1,9 +1,8 @@
 use std::cmp::min;
 
+use crate::core::common::{Node, NodeInfo, VarSet};
 use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::core::abstraction::mdd::{Node, NodeInfo};
 use crate::examples::max2sat::model::{Max2Sat, State};
-use crate::core::common::VarSet;
 
 #[derive(Debug)]
 pub struct Max2SatRelax<'a> {

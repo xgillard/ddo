@@ -1,7 +1,6 @@
 //! This module defines a layer of abstraction for the heuristics one will
 //! use to customize the development of MDDs.
-use crate::core::abstraction::mdd::Node;
-use crate::core::common::{Variable, VarSet};
+use crate::core::common::{Node, Variable, VarSet};
 
 /// This trait defines an heuristic to determine the maximum allowed width of a
 /// layer in a relaxed or restricted MDD.

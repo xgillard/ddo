@@ -6,8 +6,7 @@
 //! `Problem` and `Relaxation`.
 use std::i32;
 
-use crate::core::abstraction::mdd::{Node, NodeInfo};
-use crate::core::common::{Decision, Variable, VarSet};
+use crate::core::common::{Decision, Variable, VarSet, Node, NodeInfo};
 
 /// This is the main abstraction that should be provided by any user of our
 /// library. Indeed, it defines the problem to be solved in the form of a dynamic

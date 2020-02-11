@@ -1,7 +1,7 @@
 use bitset_fixed::BitSet;
 
+use crate::core::common::{Node, NodeInfo};
 use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::core::abstraction::mdd::{Node, NodeInfo};
 use crate::examples::misp::model::Misp;
 
 pub struct MispRelax<'a> {

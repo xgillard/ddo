@@ -5,8 +5,7 @@ use compare::Compare;
 
 use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
-use crate::core::abstraction::mdd::Node;
-use crate::core::common::{Variable, VarSet};
+use crate::core::common::{Node, Variable, VarSet};
 use std::marker::PhantomData;
 
 //~~~~~ Max Width Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

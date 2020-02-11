@@ -4,9 +4,9 @@ use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
 use crate::core::abstraction::heuristics::LoadVars;
-use crate::core::abstraction::mdd::{Node, NodeInfo, MDD};
+use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
-use crate::core::common::Decision;
+use crate::core::common::{Decision, Node, NodeInfo};
 
 pub struct BBSolver<T, DD, BO, VARS>
     where T    : Hash + Eq + Clone,

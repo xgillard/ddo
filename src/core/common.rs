@@ -6,6 +6,9 @@ use bitset_fixed::BitSet;
 use crate::core::utils::{BitSetIter, LexBitSet};
 use std::ops::Not;
 use std::cmp::Ordering;
+use std::cmp::Ordering::Equal;
+use std::hash::{Hasher, Hash};
+use std::rc::Rc;
 
 /// This type denotes a variable from the optimization problem at hand.
 /// In this case, each variable is assumed to be identified with an integer
@@ -85,5 +88,110 @@ impl Iterator for VarSetIter<'_> {
     /// already been iterated upon.
     fn next(&mut self) -> Option<Variable> {
         self.0.next().map(Variable)
+    }
+}
+
+// --- NODE --------------------------------------------------------------------
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Arc<T> where T: Eq + Clone  {
+    pub src     : Rc<Node<T>>,
+    pub decision: Decision
+}
+
+#[derive(Debug, Clone, Eq)]
+pub struct NodeInfo<T> where T: Eq + Clone {
+    pub is_exact : bool,
+    pub lp_len   : i32,
+    pub lp_arc   : Option<Arc<T>>,
+    pub ub       : i32
+}
+
+impl <T> NodeInfo<T> where T: Eq + Clone {
+    pub fn new (lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> NodeInfo<T> {
+        NodeInfo { is_exact, lp_len, lp_arc, ub: i32::max_value() }
+    }
+
+    /// Merge other into this node. That is to say, it combines the information
+    /// from two nodes that are logically equivalent (should be the same).
+    /// Hence, *this has nothing to do with the user-provided `merge_*` operators !*
+    pub fn merge(&mut self, other: Self) {
+        if  self.lp_len < other.lp_len {
+            self.lp_len = other.lp_len;
+            self.lp_arc = other.lp_arc;
+        }
+        self.is_exact &= other.is_exact;
+    }
+
+    pub fn longest_path(&self) -> Vec<Decision> {
+        let mut ret = vec![];
+        let mut arc = &self.lp_arc;
+
+        while arc.is_some() {
+            let a = arc.as_ref().unwrap();
+            ret.push(a.decision);
+            arc = &a.src.info.lp_arc;
+        }
+
+        ret
+    }
+}
+impl <T> PartialEq for NodeInfo<T> where T: Eq + Clone {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_exact == other.is_exact &&
+            self.lp_len == other.lp_len &&
+            self.ub     == other.ub     &&
+            self.lp_arc == other.lp_arc
+    }
+}
+impl <T> Ord for NodeInfo<T> where T: Eq + Clone {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ub.cmp(&other.ub)
+            .then_with(|| self.lp_len.cmp(&other.lp_len))
+            .then_with(|| self.is_exact.cmp(&other.is_exact))
+    }
+}
+impl <T> PartialOrd for NodeInfo<T> where T: Eq + Clone {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+
+#[derive(Debug, Clone, Eq)]
+pub struct Node<T> where T: Eq + Clone {
+    pub state    : T,
+    pub info     : NodeInfo<T>
+}
+
+impl <T> Node<T> where T : Eq + Clone {
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
+        Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
+    }
+}
+
+impl <T> Hash for Node<T> where T: Hash + Eq + Clone {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.state.hash(state);
+    }
+}
+impl <T> PartialEq for Node<T> where T: Eq + Clone {
+    fn eq(&self, other: &Self) -> bool {
+        self.state.eq(&other.state)
+    }
+}
+impl <T> Ord for Node<T> where T: Eq + Clone + Ord {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl <T> PartialOrd for Node<T> where T: Eq + Clone + PartialOrd {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let res = self.info.cmp(&other.info);
+        if res != Equal {
+            Some(res)
+        } else {
+            self.state.partial_cmp(&other.state)
+        }
     }
 }
