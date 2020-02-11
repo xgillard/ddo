@@ -225,7 +225,7 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> PooledMDDGenerator<'a, T, PB, RLX, VS, WDTH,
         self.dd.pool.is_empty()
     }
     fn select_var(&self) -> Option<Variable> {
-        self.vs.next_var(&self.dd, &self.dd.unassigned_vars)
+        self.vs.next_var(&self.dd.unassigned_vars)
     }
     fn remove_var(&mut self, var: Variable) {
         self.dd.unassigned_vars.remove(var)

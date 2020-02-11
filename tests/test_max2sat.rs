@@ -87,57 +87,57 @@ fn debug_ordering() {
 
 #[test]
 fn frb10_6_1() {
-    assert_eq!(solve("frb10-6-1.wcnf"), 37037);
+    assert_eq!(solve("frb10-6-1.wcnf"), 37_037);
 }
 #[test]
 fn frb10_6_2() {
-    assert_eq!(solve("frb10-6-2.wcnf"), 38196);
+    assert_eq!(solve("frb10-6-2.wcnf"), 38_196);
 }
 #[test]
 fn frb10_6_3() {
-    assert_eq!(solve("frb10-6-3.wcnf"), 36671);
+    assert_eq!(solve("frb10-6-3.wcnf"), 36_671);
 }
 #[test]
 fn frb10_6_4() {
-    assert_eq!(solve("frb10-6-4.wcnf"), 38928);
+    assert_eq!(solve("frb10-6-4.wcnf"), 38_928);
 }
 #[ignore] #[test]
 fn frb15_9_1() {
-    assert_eq!(solve("frb15-9-1.wcnf"), 341783);
+    assert_eq!(solve("frb15-9-1.wcnf"), 341_783);
 }
 #[ignore] #[test]
 fn frb15_9_2() {
-    assert_eq!(solve("frb15-9-2.wcnf"), 341919);
+    assert_eq!(solve("frb15-9-2.wcnf"), 341_919);
 }
 #[ignore] #[test]
 fn frb15_9_3() {
-    assert_eq!(solve("frb15-9-3.wcnf"), 339471);
+    assert_eq!(solve("frb15-9-3.wcnf"), 339_471);
 }
 #[ignore] #[test]
 fn frb15_9_4() {
-    assert_eq!(solve("frb15-9-4.wcnf"), 340559);
+    assert_eq!(solve("frb15-9-4.wcnf"), 340_559);
 }
 #[ignore] #[test]
 fn frb15_9_5() {
-    assert_eq!(solve("frb15-9-5.wcnf"), 348311);
+    assert_eq!(solve("frb15-9-5.wcnf"), 348_311);
 }
 #[ignore] #[test]
 fn frb20_11_1() {
-    assert_eq!(solve("frb20-11-1.wcnf"), 1245134);
+    assert_eq!(solve("frb20-11-1.wcnf"), 1_245_134);
 }
 #[ignore] #[test]
 fn frb20_11_2() {
-    assert_eq!(solve("frb20-11-2.wcnf"), 1231874);
+    assert_eq!(solve("frb20-11-2.wcnf"), 1_231_874);
 }
 #[ignore] #[test]
 fn frb20_11_3() {
-    assert_eq!(solve("frb20-11-2.wcnf"), 1240493);
+    assert_eq!(solve("frb20-11-2.wcnf"), 1_240_493);
 }
 #[ignore] #[test]
 fn frb20_11_4() {
-    assert_eq!(solve("frb20-11-4.wcnf"), 1231653);
+    assert_eq!(solve("frb20-11-4.wcnf"), 1_231_653);
 }
 #[ignore] #[test]
 fn frb20_11_5() {
-    assert_eq!(solve("frb20-11-5.wcnf"), 1237841);
+    assert_eq!(solve("frb20-11-5.wcnf"), 1_237_841);
 }

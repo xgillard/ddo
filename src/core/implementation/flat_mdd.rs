@@ -236,7 +236,7 @@ impl <'a, T, PB, RLX, VS, WDTH, NS> FlatMDDGenerator<'a, T, PB, RLX, VS, WDTH, N
         self.dd.unassigned_vars.len()
     }
     fn select_var(&self) -> Option<Variable> {
-        self.vs.next_var(&self.dd, &self.dd.unassigned_vars)
+        self.vs.next_var(&self.dd.unassigned_vars)
     }
     fn remove_var(&mut self, var: Variable) {
         self.dd.unassigned_vars.remove(var)

@@ -1,7 +1,7 @@
 use crate::examples::max2sat::model::{Max2Sat, State};
 use crate::core::abstraction::heuristics::VariableHeuristic;
 use crate::core::common::{Variable, VarSet};
-use crate::core::abstraction::mdd::{MDD, Node};
+use crate::core::abstraction::mdd::Node;
 use std::cmp::Ordering;
 use compare::Compare;
 
@@ -16,11 +16,11 @@ impl <'a> Max2SatOrder<'a> {
 }
 
 impl VariableHeuristic<State> for Max2SatOrder<'_> {
-    fn next_var(&self, _dd: &dyn MDD<State>, vars: &VarSet) -> Option<Variable> {
+    fn next_var(&self, free_vars: &VarSet) -> Option<Variable> {
         let mut var = None;
         let mut wt  = i32::min_value();
 
-        for v in vars.iter() {
+        for v in free_vars.iter() {
             let v_wt = self.problem.sum_of_clause_weights[v.0];
             if v_wt > wt {
                 var = Some(v);
@@ -59,19 +59,17 @@ mod test {
     use std::path::PathBuf;
     use std::fs::File;
     use crate::core::abstraction::dp::Problem;
-    use crate::core::implementation::flat_mdd::FlatMDD;
     use crate::core::abstraction::heuristics::VariableHeuristic;
 
     #[test]
     fn variable_ordering() {
         let problem = instance("frb10-6-1.wcnf");
         let order   = Max2SatOrder::new(&problem);
-        let mock    = FlatMDD::default();
         let mut vars= problem.all_vars();
 
         let mut actual= vec![];
         for _ in 0..problem.nb_vars() {
-            let v = order.next_var(&mock, &vars).unwrap();
+            let v = order.next_var(&vars).unwrap();
             vars.remove(v);
             actual.push(v.0);
         }

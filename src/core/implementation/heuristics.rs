@@ -5,7 +5,7 @@ use compare::Compare;
 
 use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
-use crate::core::abstraction::mdd::{MDD, Node};
+use crate::core::abstraction::mdd::Node;
 use crate::core::common::{Variable, VarSet};
 use std::marker::PhantomData;
 
@@ -32,8 +32,8 @@ pub struct NaturalOrder;
 impl <T> VariableHeuristic<T> for NaturalOrder
     where T : Clone + Hash + Eq {
 
-    fn next_var(&self, _dd: &dyn MDD<T>, vars: &VarSet) -> Option<Variable> {
-        vars.iter().next()
+    fn next_var(&self, free_vars: &VarSet) -> Option<Variable> {
+        free_vars.iter().next()
     }
 }
 
@@ -61,7 +61,6 @@ impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
 }
 
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 pub struct FromLongestPath<'a, T, P>
     where T: Clone + Eq,
           P: Problem<T> {
