@@ -3,21 +3,15 @@ use std::hash::Hash;
 use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
-use crate::core::abstraction::heuristics::LoadVars;
 use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
 use crate::core::common::{Decision, Node, NodeInfo};
 
-pub struct BBSolver<T, DD, BO, VARS>
-    where T    : Hash + Eq + Clone,
-          DD   : MDD<T>,
-          BO   : Compare<Node<T>>,
-          VARS : LoadVars<T> {
+pub struct BBSolver<T, DD, BO>
+    where T: Hash + Eq + Clone, DD: MDD<T>, BO: Compare<Node<T>> {
 
     mdd          : DD,
-
     fringe       : BinaryHeap<Node<T>, BO>,
-    load_vars    : VARS,
 
     pub explored : usize,
     pub best_ub  : i32,
@@ -27,18 +21,12 @@ pub struct BBSolver<T, DD, BO, VARS>
     pub verbosity: u8
 }
 
-impl <T, DD, BO, VARS> BBSolver<T, DD, BO, VARS>
-    where T    : Hash + Eq + Clone,
-          DD  : MDD<T>,
-          BO   : Compare<Node<T>>,
-          VARS : LoadVars<T> {
-    pub fn new(mdd: DD,
-               bo : BO,
-               load_vars: VARS) -> BBSolver<T, DD, BO, VARS> {
+impl <T, DD, BO> BBSolver<T, DD, BO>
+    where T: Hash + Eq + Clone, DD: MDD<T>, BO: Compare<Node<T>> {
+    pub fn new(mdd: DD, bo : BO) -> Self {
         BBSolver {
             mdd,
             fringe: BinaryHeap::from_vec_cmp(vec![], bo),
-            load_vars,
             explored: 0,
             best_ub: std::i32::MAX,
             best_lb: std::i32::MIN,
@@ -47,13 +35,17 @@ impl <T, DD, BO, VARS> BBSolver<T, DD, BO, VARS>
             verbosity: 0
         }
     }
+
+    fn maybe_update_best(&mut self) {
+        if self.mdd.best_value() > self.best_lb {
+            self.best_lb   = self.mdd.best_value();
+            self.best_node = self.mdd.best_node().clone();
+        }
+    }
 }
 
-impl <T, DD, BO, VARS> Solver for BBSolver<T, DD, BO, VARS>
-    where T    : Hash + Eq + Clone,
-          DD   : MDD<T>,
-          BO   : Compare<Node<T>>,
-          VARS : LoadVars<T> {
+impl <T, DD, BO> Solver for BBSolver<T, DD, BO>
+    where T: Hash + Eq + Clone, DD: MDD<T>, BO: Compare<Node<T>> {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
         let root = self.mdd.root();
@@ -83,25 +75,17 @@ impl <T, DD, BO, VARS> Solver for BBSolver<T, DD, BO, VARS>
                 println!("Explored {}, LB {}, UB {}, Fringe sz {}", self.explored, self.best_lb, node.info.ub, self.fringe.len());
             }
 
-            let vars = self.load_vars.variables(&node);
-
             // 1. RESTRICTION
-            self.mdd.restricted(vars.clone(),&node, self.best_lb);
-            if self.mdd.best_value() > self.best_lb {
-                self.best_lb   = self.mdd.best_value();
-                self.best_node = self.mdd.best_node().clone();
-            }
+            self.mdd.restricted(&node, self.best_lb);
+            self.maybe_update_best();
             if self.mdd.is_exact() {
                 continue;
             }
 
             // 2. RELAXATION
-            self.mdd.relaxed(vars, &node, self.best_lb);
+            self.mdd.relaxed(&node, self.best_lb);
             if self.mdd.is_exact() {
-                if self.mdd.best_value() > self.best_lb {
-                    self.best_lb   = self.mdd.best_value();
-                    self.best_node = self.mdd.best_node().clone();
-                }
+                self.maybe_update_best();
             } else {
                 let best_ub= self.best_ub;
                 let best_lb= self.best_lb;

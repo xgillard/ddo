@@ -196,7 +196,7 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use crate::examples::max2sat::testutils::instance;
 
     #[test]
     fn test_index_state() {
@@ -264,14 +264,5 @@ mod tests {
         let state = State{substates: benef};
 
         assert_eq!(5917, state.rank());
-    }
-
-    fn instance(id: &str) -> Max2Sat {
-        let location = PathBuf::new()
-            .join(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/resources/max2sat/")
-            .join(id);
-
-        File::open(location).expect("File not found").into()
     }
 }

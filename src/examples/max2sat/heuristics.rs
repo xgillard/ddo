@@ -38,28 +38,15 @@ impl Compare<Node<State>> for MinRank {
         let xrank = x.info.lp_len + x.state.rank();
         let yrank = y.info.lp_len + y.state.rank();
         xrank.cmp(&yrank)
-        //    .then_with(||x.state.rank().cmp(&y.state.rank()))
-        //    .then_with(||{
-        //    let xdata = &x.state.0;
-        //    let ydata = &y.state.0;
-        //    for i in 0..xdata.len() {
-        //        if xdata[i] != ydata[i] {
-        //            return xdata[i].cmp(&ydata[i]);
-        //        }
-        //    }
-        //    Equal
-        //})
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::examples::max2sat::heuristics::Max2SatOrder;
-    use crate::examples::max2sat::model::Max2Sat;
-    use std::path::PathBuf;
-    use std::fs::File;
     use crate::core::abstraction::dp::Problem;
     use crate::core::abstraction::heuristics::VariableHeuristic;
+    use crate::examples::max2sat::heuristics::Max2SatOrder;
+    use crate::examples::max2sat::testutils::instance;
 
     #[test]
     fn variable_ordering() {
@@ -81,15 +68,5 @@ mod test {
             37, 51, 56, 58, 13, 21, 36, 40, 41
         ];
         assert_eq!(actual, expected);
-    }
-
-
-    fn instance(id: &str) -> Max2Sat {
-        let location = PathBuf::new()
-            .join(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/resources/max2sat/")
-            .join(id);
-
-        File::open(location).expect("File not found").into()
     }
 }

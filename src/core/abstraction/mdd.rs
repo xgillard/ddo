@@ -1,12 +1,12 @@
 //! This module defines traits for implementations of an MDD.
-use crate::core::common::{Decision, Node, NodeInfo, VarSet};
+use crate::core::common::{Decision, Node, NodeInfo};
 
 /// This enumeration characterizes the kind of MDD being generated. It can
 /// either be
 /// * `Exact` if it is a true account of the problem state space.
 /// * `Restricted` if it is an under approximation of the problem state space.
 /// * `Relaxed` if it is an over approximation of the problem state space.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum MDDType {
     Relaxed,
     Restricted,
@@ -26,13 +26,13 @@ pub trait MDD<T> where T : Clone + Eq {
     fn root(&self) -> Node<T>;
 
     /// Expands this MDD into  an exact MDD
-    fn exact(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
+    fn exact(&mut self, root: &Node<T>, best_lb : i32);
     /// Expands this MDD into a restricted (lower bound approximation)
     /// version of the exact MDD.
-    fn restricted(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
+    fn restricted(&mut self, root: &Node<T>, best_lb : i32);
     /// Expands this MDD into a relaxed (upper bound approximation)
     /// version of the exact MDD.
-    fn relaxed(&mut self, vars: VarSet, root: &Node<T>, best_lb : i32);
+    fn relaxed(&mut self, root: &Node<T>, best_lb : i32);
 
     /// Returns a set of nodes constituting an exact cutset of this `MDD`.
     fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo<T>);

@@ -91,6 +91,10 @@ impl Iterator for VarSetIter<'_> {
     }
 }
 
+/// Utility structure to represent upper and lower bounds
+#[derive(Debug, Copy, Clone)]
+pub struct Bounds {pub lb: i32, pub ub: i32}
+
 // --- NODE --------------------------------------------------------------------
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Arc<T> where T: Eq + Clone  {

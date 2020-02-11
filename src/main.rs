@@ -19,6 +19,7 @@ use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::State;
 use rust_mdd_solver::core::utils::Func;
 use rust_mdd_solver::core::implementation::mdd::flat::FlatMDD;
+use rust_mdd_solver::core::implementation::mdd::config::MDDConfig;
 use rust_mdd_solver::core::implementation::mdd::pooled::PooledMDD;
 
 /// Solves hard combinatorial problems with bounded width MDDs
@@ -92,11 +93,11 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
 
     let misp  = File::open(fname).expect("File not found").into();
     let relax = MispRelax::new(&misp);
+    let vars  = Func(vars_from_misp_state);
     let vs    = NaturalOrder;
 
-    let mdd   = PooledMDD::new(&misp, relax, vs, width, MinLP);
-
-    let mut solver = BBSolver::new(mdd, MaxUB, Func(vars_from_misp_state));
+    let cfg   = MDDConfig::new(&misp, relax, vars, vs, width, MinLP);
+    let mut solver = BBSolver::new(PooledMDD::new(cfg), MaxUB);
     solver.verbosity = verbose;
     
     let start = SystemTime::now();
@@ -129,8 +130,8 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let bo           = MaxUB;
     let vars         = FromLongestPath::new(&problem); //Func(from_state_vars);
 
-    let mdd          = FlatMDD::new(&problem, relax, vs, width, ns);
-    let mut solver   = BBSolver::new(mdd, bo, vars);
+    let config       = MDDConfig::new(&problem, relax, vars, vs, width, ns);
+    let mut solver   = BBSolver::new(FlatMDD::new(config), bo);
 
     solver.verbosity = verbose;
 
