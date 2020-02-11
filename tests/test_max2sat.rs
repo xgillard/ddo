@@ -10,7 +10,7 @@ use rust_mdd_solver::core::implementation::heuristics::{MaxUB, FromLongestPath, 
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::Max2Sat;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
-use rust_mdd_solver::core::implementation::flat_mdd::FlatMDD;
+use rust_mdd_solver::core::implementation::mdd::flat::FlatMDD;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {

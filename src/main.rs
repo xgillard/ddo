@@ -18,8 +18,8 @@ use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::State;
 use rust_mdd_solver::core::utils::Func;
-use rust_mdd_solver::core::implementation::flat_mdd::FlatMDD;
-use rust_mdd_solver::core::implementation::pooled_mdd::PooledMDD;
+use rust_mdd_solver::core::implementation::mdd::flat::FlatMDD;
+use rust_mdd_solver::core::implementation::mdd::pooled::PooledMDD;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
