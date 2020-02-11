@@ -26,14 +26,8 @@ pub struct Weighed2Sat {
     pub nb_vars : usize,
     pub weights : HashMap<BinaryClause, i32>
 }
+
 impl Weighed2Sat {
-    pub fn weight(&self, x: i32, y: i32) -> i32 {
-        if let Some(v) = self.weights.get(&BinaryClause::new(x, y)) {
-            *v
-        } else {
-            0
-        }
-    }
     pub fn from_file(fname: &str) -> Weighed2Sat {
         let f = File::open(fname).unwrap();
         let f = BufReader::new(f);

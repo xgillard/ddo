@@ -52,29 +52,63 @@ impl PartialOrd for State {
 
 #[derive(Debug)]
 pub struct Max2Sat {
-    pub inst: Weighed2Sat,
+    pub nb_vars : usize,
+    pub initial : i32,
+    pub weigths : Vec<i32>,
     pub sum_of_clause_weights: Vec<i32>
 }
 
 const fn idx(x: i32) -> usize {
     (x.abs() - 1) as usize
 }
+fn mk_lit(x: i32) -> usize {
+    let sign = if x > 0 { 1 } else { 0 };
+    let abs  = (x.abs() - 1) as usize;
+
+    abs + abs + sign
+}
 impl Max2Sat {
     pub fn new(inst: Weighed2Sat) -> Max2Sat {
-        let nb_vars = inst.nb_vars;
-        let mut ret = Max2Sat{inst, sum_of_clause_weights: vec![0; nb_vars]};
-        for (clause, weight) in ret.inst.weights.iter() {
+        let n = inst.nb_vars;
+        let mut ret = Max2Sat{
+            nb_vars: n,
+            initial: 0,
+            weigths: vec![0; (2*n)*(2*n)],
+            sum_of_clause_weights: vec![0; n]
+        };
+
+        for (clause, weight) in inst.weights.iter() {
+            let of = ret.offset(clause.a, clause.b);
+            ret.weigths[of] = *weight;
+
             ret.sum_of_clause_weights[idx(clause.a)] += *weight;
-            ret.sum_of_clause_weights[idx(clause.b)] += *weight;
+
+            if !clause.is_unit() {
+                ret.sum_of_clause_weights[idx(clause.b)] += *weight;
+            }
+            if clause.is_tautology() {
+                ret.initial += *weight;
+            }
         }
         ret
+    }
+
+    pub fn weight(&self, x: i32, y: i32) -> i32 {
+        self.weigths[self.offset(x, y)]
+    }
+
+    fn offset(&self, x: i32, y: i32) -> usize {
+        let a = x.min(y);
+        let b = x.max(y);
+
+        (mk_lit(a) * 2 * self.nb_vars) + mk_lit(b)
     }
 }
 
 impl Problem<State> for Max2Sat {
 
     fn nb_vars(&self) -> usize {
-        self.inst.nb_vars
+        self.nb_vars
     }
 
     fn initial_state(&self) -> State {
@@ -83,9 +117,7 @@ impl Problem<State> for Max2Sat {
 
     fn initial_value(&self) -> i32 {
         // sum of all tautologies
-        self.inst.weights.iter()
-            .filter_map(|(clause, cost)| if clause.is_tautology() { Some(cost) } else {None} )
-            .sum()
+        self.initial
     }
 
     fn domain_of(&self, _state: &State, _var: Variable) -> &[i32] {
@@ -98,11 +130,11 @@ impl Problem<State> for Max2Sat {
         ret[k] = 0;
         if d.value == F {
             for l in vars.iter() {
-                ret[l] += self.inst.weight(t(k), t(l)) - self.inst.weight(t(k), f(l));
+                ret[l] += self.weight(t(k), t(l)) - self.weight(t(k), f(l));
             }
         } else {
             for l in vars.iter() {
-                ret[l] += self.inst.weight(f(k), t(l)) - self.inst.weight(f(k), f(l));
+                ret[l] += self.weight(f(k), t(l)) - self.weight(f(k), f(l));
             }
         }
         ret
@@ -112,39 +144,37 @@ impl Problem<State> for Max2Sat {
         let k = d.variable;
         if d.value == F {
             let res = pos(-state[k]);
-            let mut sum = self.inst.weight(f(k), f(k)); // Weight if unit clause
+            let mut sum = self.weight(f(k), f(k)); // Weight if unit clause
             for l in vars.iter() {
                 // Those that are satisfied by [[ k = F ]]
-                let wff = self.inst.weight(f(k), f(l));
-                let wft = self.inst.weight(f(k), t(l));
+                let wff = self.weight(f(k), f(l));
+                let wft = self.weight(f(k), t(l));
                 // Those that actually depend on the truth value of `l`.
-                let wtt = self.inst.weight(t(k), t(l));
-                let wtf = self.inst.weight(t(k), f(l));
+                let wtt = self.weight(t(k), t(l));
+                let wtf = self.weight(t(k), f(l));
 
                 sum += (wff + wft) + min(pos( state[l]) + wtt,
                                          pos(-state[l]) + wtf);
             }
 
-            return res + sum;
-        }
-        if d.value == T {
+            res + sum
+        } else /*if d.value == T*/ {
             let res = pos(state[k]);
-            let mut sum = self.inst.weight(t(k), t(k)); // Weight if unit clause
+            let mut sum = self.weight(t(k), t(k)); // Weight if unit clause
             for l in vars.iter() {
                 // Those that are satisfied by [[ k = T ]]
-                let wtt = self.inst.weight(t(k), t(l));
-                let wtf = self.inst.weight(t(k), f(l));
+                let wtt = self.weight(t(k), t(l));
+                let wtf = self.weight(t(k), f(l));
                 // Those that actually depend on the truth value of `l`.
-                let wff = self.inst.weight(f(k), f(l));
-                let wft = self.inst.weight(f(k), t(l));
+                let wff = self.weight(f(k), f(l));
+                let wft = self.weight(f(k), t(l));
 
                 sum += (wtf + wtt) + min(pos( state[l]) + wft,
                                          pos(-state[l]) + wff);
             }
 
-            return res + sum;
+            res + sum
         }
-        panic!("The decision value was neither T nor F");
     }
 }
 impl From<File> for Max2Sat {
@@ -193,20 +223,9 @@ mod tests {
     }
 
     #[test]
-    fn test_initial_state_with_unit() {
-        let id         = "debug2.wcnf";
-        let problem    = instance(id);
-        assert!(!problem.inst.weights.is_empty());
-
-        let expected = State{substates: vec![0, 0, 0]};
-        assert_eq!(expected, problem.initial_state());
-    }
-
-    #[test]
     fn test_initial_value() {
         let id         = "debug2.wcnf";
         let problem    = instance(id);
-        assert!(!problem.inst.weights.is_empty());
 
         assert_eq!(0, problem.initial_value());
     }
