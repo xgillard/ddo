@@ -28,7 +28,7 @@ fn instance(id: &str) -> Max2Sat {
 fn solve(id: &str) -> i32 {
     let problem      = instance(id);
     let relax        = Max2SatRelax::new(&problem);
-    let width        = FixedWidth(10);
+    let width        = FixedWidth(5);
     let vs           = Max2SatOrder::new(&problem);
     let ns           = MinRank;
     let bo           = MaxUB;
@@ -100,4 +100,44 @@ fn frb10_6_3() {
 #[test]
 fn frb10_6_4() {
     assert_eq!(solve("frb10-6-4.wcnf"), 38928);
+}
+#[ignore] #[test]
+fn frb15_9_1() {
+    assert_eq!(solve("frb15-9-1.wcnf"), 341783);
+}
+#[ignore] #[test]
+fn frb15_9_2() {
+    assert_eq!(solve("frb15-9-2.wcnf"), 341919);
+}
+#[ignore] #[test]
+fn frb15_9_3() {
+    assert_eq!(solve("frb15-9-3.wcnf"), 339471);
+}
+#[ignore] #[test]
+fn frb15_9_4() {
+    assert_eq!(solve("frb15-9-4.wcnf"), 340559);
+}
+#[ignore] #[test]
+fn frb15_9_5() {
+    assert_eq!(solve("frb15-9-5.wcnf"), 348311);
+}
+#[ignore] #[test]
+fn frb20_11_1() {
+    assert_eq!(solve("frb20-11-1.wcnf"), 1245134);
+}
+#[ignore] #[test]
+fn frb20_11_2() {
+    assert_eq!(solve("frb20-11-2.wcnf"), 1231874);
+}
+#[ignore] #[test]
+fn frb20_11_3() {
+    assert_eq!(solve("frb20-11-2.wcnf"), 1240493);
+}
+#[ignore] #[test]
+fn frb20_11_4() {
+    assert_eq!(solve("frb20-11-4.wcnf"), 1231653);
+}
+#[ignore] #[test]
+fn frb20_11_5() {
+    assert_eq!(solve("frb20-11-5.wcnf"), 1237841);
 }
