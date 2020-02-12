@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use compare::Compare;
-use crate::core::common::{Node, VarSet, Variable, Decision, Edge, NodeInfo};
+use crate::core::common::{Node, VarSet, Variable, Decision, Edge, NodeInfo, Domain};
 use crate::core::implementation::mdd::flat::FlatMDD;
 use crate::core::implementation::mdd::pooled::PooledMDD;
 use crate::core::implementation::mdd::config::Config;
@@ -152,7 +152,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
     fn remove_var(&mut self, v: Variable) {
         self.vars.remove(v)
     }
-    fn domain_of(&self, state: &T, v: Variable) -> &[i32] {
+    fn domain_of(&self, state: &T, v: Variable) -> Domain {
         self.pb.domain_of(state, v)
     }
     fn max_width(&self) -> usize {

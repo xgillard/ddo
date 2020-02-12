@@ -4,7 +4,7 @@
 
 use bitset_fixed::BitSet;
 use crate::core::utils::{BitSetIter, LexBitSet};
-use std::ops::Not;
+use std::ops::{Not, Range};
 use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
 use std::hash::{Hasher, Hash};
@@ -94,6 +94,55 @@ impl Iterator for VarSetIter<'_> {
 /// Utility structure to represent upper and lower bounds
 #[derive(Debug, Copy, Clone)]
 pub struct Bounds {pub lb: i32, pub ub: i32}
+
+pub enum Domain<'a> {
+    Vector(Vec<i32>),
+    Range (Range<i32>),
+    Slice (&'a [i32])
+}
+impl <'a> IntoIterator for Domain<'a> {
+    type Item     = i32;
+    type IntoIter = DomainIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Domain::Vector(v) => DomainIter::Vector(v.into_iter()),
+            Domain::Slice (s) => DomainIter::Slice (s.into_iter()),
+            Domain::Range (r) => DomainIter::Range (r)
+        }
+    }
+}
+pub enum DomainIter<'a> {
+    Vector(std::vec::IntoIter<i32>),
+    Slice (std::slice::Iter<'a, i32>),
+    Range (Range<i32>)
+}
+impl Iterator for DomainIter<'_> {
+    type Item = i32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            DomainIter::Vector(i) => i.next(),
+            DomainIter::Slice (i) => i.next().map(|x| *x),
+            DomainIter::Range (i) => i.next()
+        }
+    }
+}
+impl From<Vec<i32>> for Domain<'_> {
+    fn from(v: Vec<i32>) -> Self {
+        Domain::Vector(v)
+    }
+}
+impl <'a> From<&'a [i32]> for Domain<'a> {
+    fn from(s: &'a [i32]) -> Self {
+        Domain::Slice(s)
+    }
+}
+impl From<Range<i32>> for Domain<'_> {
+    fn from(r: Range<i32>) -> Self {
+        Domain::Range(r)
+    }
+}
 
 // --- NODE --------------------------------------------------------------------
 #[derive(Debug, Clone, Eq, PartialEq)]

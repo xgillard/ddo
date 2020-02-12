@@ -6,7 +6,7 @@
 //! `Problem` and `Relaxation`.
 use std::i32;
 
-use crate::core::common::{Decision, Variable, VarSet, Node, NodeInfo};
+use crate::core::common::{Decision, Variable, VarSet, Node, NodeInfo, Domain};
 
 /// This is the main abstraction that should be provided by any user of our
 /// library. Indeed, it defines the problem to be solved in the form of a dynamic
@@ -25,7 +25,7 @@ pub trait Problem<T> where T: Eq + Clone {
     /// Returns the domain of variable `var` in the given `state`. These are the
     /// possible values that might possibly be affected to `var` when the system
     /// has taken decisions leading to `state`.
-    fn domain_of(&self, state: &T, var: Variable) -> &[i32];
+    fn domain_of(&self, state: &T, var: Variable) -> Domain;
     /// Returns the next state reached by the system if the decision `d` is
     /// taken when the system is in the given `state` and the given set of `vars`
     /// are still free (no value assigned).

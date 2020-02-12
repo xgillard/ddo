@@ -2,7 +2,7 @@ use std::cmp::{max, min, Ordering};
 use std::ops::{Index, IndexMut};
 
 use crate::core::abstraction::dp::Problem;
-use crate::core::common::{Decision, Variable, VarSet};
+use crate::core::common::{Decision, Variable, VarSet, Domain};
 use crate::examples::max2sat::instance::Weighed2Sat;
 use std::fs::File;
 use std::io::{BufReader, Read, BufRead, Lines};
@@ -120,8 +120,8 @@ impl Problem<State> for Max2Sat {
         self.initial
     }
 
-    fn domain_of(&self, _state: &State, _var: Variable) -> &[i32] {
-        &TF
+    fn domain_of(&self, _state: &State, _var: Variable) -> Domain {
+        Domain::Slice(&TF)
     }
 
     fn transition(&self, state: &State, vars: &VarSet, d: Decision) -> State {

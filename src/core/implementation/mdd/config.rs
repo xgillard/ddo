@@ -1,4 +1,4 @@
-use crate::core::common::{Node, Variable, Decision, NodeInfo};
+use crate::core::common::{Node, Variable, Decision, NodeInfo, Domain};
 use std::rc::Rc;
 use std::cmp::Ordering;
 use crate::core::abstraction::mdd::Layer;
@@ -10,7 +10,7 @@ pub trait Config<T> where T: Eq + Clone {
     fn nb_free_vars(&self) -> usize;
     fn select_var(&self, current: Layer<'_, T>, next: Layer<'_, T>) -> Option<Variable>;
     fn remove_var(&mut self, v: Variable);
-    fn domain_of (&self, state: &T, v: Variable) -> &[i32];
+    fn domain_of (&self, state: &T, v: Variable) -> Domain;
     fn max_width(&self) -> usize;
     fn branch(&self, node: Rc<Node<T>>, d: Decision) -> Node<T>;
     fn estimate_ub(&self, state: &T, info: &NodeInfo<T>) -> i32;

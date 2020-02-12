@@ -5,7 +5,7 @@ use std::ops::Not;
 use bitset_fixed::BitSet;
 
 use crate::core::abstraction::dp::Problem;
-use crate::core::common::{Decision, Variable, VarSet};
+use crate::core::common::{Decision, Variable, VarSet, Domain};
 use crate::examples::misp::instance::Graph;
 
 pub struct Misp {
@@ -35,8 +35,8 @@ impl Problem<BitSet> for Misp {
         0
     }
 
-    fn domain_of(&self, state: &BitSet, var: Variable) -> &[i32] {
-        if state[var.0] { &YES_NO } else { &NO }
+    fn domain_of(&self, state: &BitSet, var: Variable) -> Domain {
+        if state[var.0] { Domain::Slice(&YES_NO) } else { Domain::Slice(&NO) }
     }
 
     fn transition(&self, state: &BitSet, _vars: &VarSet, d: Decision) -> BitSet {
