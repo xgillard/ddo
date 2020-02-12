@@ -1,14 +1,13 @@
 use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
-use std::hash::Hash;
 use std::iter::Cloned;
 use std::slice::Iter;
 
 use bitset_fixed::BitSet;
 use compare::Compare;
 
-use crate::core::abstraction::heuristics::LoadVars;
-use crate::core::common::{VarSet, Node};
+use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
+use crate::core::common::{VarSet, Node, Variable};
 
 pub struct BitSetIter<'a> {
     iter  : Cloned<Iter<'a, u64>>,
@@ -88,14 +87,31 @@ impl PartialOrd for LexBitSet<'_> {
 pub struct Func<F>(pub F);
 
 impl <T, F> Compare<Node<T>> for Func<F>
-    where T: Clone + Hash + Eq,
+    where T: Clone + Eq,
           F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
+
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
         (self.0)(a, b)
     }
 }
+impl <T, F> WidthHeuristic<T> for Func<F>
+    where T: Clone + Eq,
+          F: Fn(&VarSet) -> usize {
+
+    fn max_width(&self, free_vars: &VarSet) -> usize {
+        (self.0)(free_vars)
+    }
+}
+impl <T, F> VariableHeuristic<T> for Func<F>
+    where T: Clone + Eq,
+          F: Fn(&VarSet) -> Option<Variable> {
+
+    fn next_var(&self, free_vars: &VarSet) -> Option<Variable> {
+        (self.0)(free_vars)
+    }
+}
 impl <T, F> LoadVars<T> for Func<F>
-    where T: Hash + Clone + Eq,
+    where T: Clone + Eq,
           F: Fn(&Node<T>) -> VarSet {
 
     fn variables(&self, node: &Node<T>) -> VarSet {
