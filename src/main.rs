@@ -11,7 +11,7 @@ use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
 use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned, FromLongestPath};
-use rust_mdd_solver::examples::misp::heuristics::vars_from_misp_state;
+use rust_mdd_solver::examples::misp::heuristics::{vars_from_misp_state, MispVarHeu};
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::common::Decision;
 use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
@@ -94,7 +94,7 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     let misp  = File::open(fname).expect("File not found").into();
     let relax = MispRelax::new(&misp);
     let vars  = Func(vars_from_misp_state);
-    let vs    = NaturalOrder;
+    let vs    = MispVarHeu::new(&misp);//NaturalOrder;
 
     let cfg   = MDDConfig::new(&misp, relax, vars, vs, width, MinLP);
     let mut solver = BBSolver::new(PooledMDD::new(cfg), MaxUB);
