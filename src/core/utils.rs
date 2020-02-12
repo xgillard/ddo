@@ -119,3 +119,4 @@ impl <T, F> LoadVars<T> for Func<F>
         (self.0)(node)
     }
 }
+

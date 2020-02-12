@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use rust_mdd_solver::core::abstraction::heuristics::WidthHeuristic;
 use rust_mdd_solver::core::abstraction::solver::Solver;
 use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, MinLP, NaturalOrder, NbUnassigned, FromLongestPath};
+use rust_mdd_solver::core::implementation::heuristics::{FixedWidth, MaxUB, NbUnassigned};
 use rust_mdd_solver::examples::misp::heuristics::{vars_from_misp_state, MispVarHeu};
 use rust_mdd_solver::examples::misp::relax::MispRelax;
 use rust_mdd_solver::core::common::Decision;
@@ -18,9 +18,7 @@ use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
 use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use rust_mdd_solver::examples::max2sat::model::State;
 use rust_mdd_solver::core::utils::Func;
-use rust_mdd_solver::core::implementation::mdd::flat::FlatMDD;
-use rust_mdd_solver::core::implementation::mdd::config::MDDConfig;
-use rust_mdd_solver::core::implementation::mdd::pooled::PooledMDD;
+use rust_mdd_solver::core::implementation::mdd::builder::mdd_builder;
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
@@ -92,12 +90,13 @@ fn misp<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<BitSet> {
 
     let misp  = File::open(fname).expect("File not found").into();
-    let relax = MispRelax::new(&misp);
-    let vars  = Func(vars_from_misp_state);
-    let vs    = MispVarHeu::new(&misp);//NaturalOrder;
+    let mdd   = mdd_builder(&misp, MispRelax::new(&misp))
+        .with_load_vars(Func(vars_from_misp_state))
+        .with_branch_heuristic(MispVarHeu::new(&misp))
+        .with_max_width(width)
+        .into_pooled();
 
-    let cfg   = MDDConfig::new(&misp, relax, vars, vs, width, MinLP);
-    let mut solver = BBSolver::new(PooledMDD::new(cfg), MaxUB);
+    let mut solver = BBSolver::new(mdd, MaxUB);
     solver.verbosity = verbose;
     
     let start = SystemTime::now();
@@ -124,14 +123,13 @@ fn max2sat<WDTH>(fname: &str, verbose: u8, width: WDTH) -> i32
     where WDTH : WidthHeuristic<State> {
 
     let problem = File::open(fname).expect("File not found").into();
-    let relax        = Max2SatRelax::new(&problem);
-    let vs           = Max2SatOrder::new(&problem);
-    let ns           = MinRank;
-    let bo           = MaxUB;
-    let vars         = FromLongestPath::new(&problem); //Func(from_state_vars);
+    let mdd     = mdd_builder(&problem, Max2SatRelax::new(&problem))
+        .with_branch_heuristic(Max2SatOrder::new(&problem))
+        .with_nodes_selection_heuristic(MinRank)
+        .with_max_width(width)
+        .into_flat();
 
-    let config       = MDDConfig::new(&problem, relax, vars, vs, width, ns);
-    let mut solver   = BBSolver::new(FlatMDD::new(config), bo);
+    let mut solver   = BBSolver::new(mdd, MaxUB);
 
     solver.verbosity = verbose;
 
