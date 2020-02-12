@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use compare::Compare;
-use crate::core::common::{Node, VarSet, Variable, Decision, Arc, NodeInfo};
+use crate::core::common::{Node, VarSet, Variable, Decision, Edge, NodeInfo};
 use crate::core::implementation::mdd::flat::FlatMDD;
 use crate::core::implementation::mdd::pooled::PooledMDD;
 use crate::core::implementation::mdd::config::Config;
@@ -165,7 +165,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
 
         let len   = node.info.lp_len;
         let exact = node.info.is_exact;
-        let arc   = Arc {src: node, decision: d};
+        let arc   = Edge {src: node, decision: d};
 
         Node::new(state, len + cost, Some(arc), exact)
     }

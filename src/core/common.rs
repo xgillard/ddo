@@ -97,7 +97,7 @@ pub struct Bounds {pub lb: i32, pub ub: i32}
 
 // --- NODE --------------------------------------------------------------------
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Arc<T> where T: Eq + Clone  {
+pub struct Edge<T> where T: Eq + Clone  {
     pub src     : Rc<Node<T>>,
     pub decision: Decision
 }
@@ -106,12 +106,12 @@ pub struct Arc<T> where T: Eq + Clone  {
 pub struct NodeInfo<T> where T: Eq + Clone {
     pub is_exact : bool,
     pub lp_len   : i32,
-    pub lp_arc   : Option<Arc<T>>,
+    pub lp_arc   : Option<Edge<T>>,
     pub ub       : i32
 }
 
 impl <T> NodeInfo<T> where T: Eq + Clone {
-    pub fn new (lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> NodeInfo<T> {
+    pub fn new (lp_len: i32, lp_arc: Option<Edge<T>>, is_exact: bool) -> NodeInfo<T> {
         NodeInfo { is_exact, lp_len, lp_arc, ub: i32::max_value() }
     }
 
@@ -168,7 +168,7 @@ pub struct Node<T> where T: Eq + Clone {
 }
 
 impl <T> Node<T> where T : Eq + Clone {
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Arc<T>>, is_exact: bool) -> Node<T> {
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge<T>>, is_exact: bool) -> Node<T> {
         Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
     }
 }
