@@ -1,6 +1,3 @@
-c optimal  = 7
-c computed = 5
-c random instance, bruteforceable
 p wcnf 2 4
 2 -2 -1 0
 2 -1 1 0

@@ -54,7 +54,7 @@ impl PartialOrd for State {
 pub struct Max2Sat {
     pub nb_vars : usize,
     pub initial : i32,
-    pub weigths : Vec<i32>,
+    pub weights : Vec<i32>,
     pub sum_of_clause_weights: Vec<i32>
 }
 
@@ -73,13 +73,13 @@ impl Max2Sat {
         let mut ret = Max2Sat{
             nb_vars: n,
             initial: 0,
-            weigths: vec![0; (2*n)*(2*n)],
+            weights: vec![0; (2*n)*(2*n)],
             sum_of_clause_weights: vec![0; n]
         };
 
         for (clause, weight) in inst.weights.iter() {
             let of = ret.offset(clause.a, clause.b);
-            ret.weigths[of] = *weight;
+            ret.weights[of] = *weight;
 
             ret.sum_of_clause_weights[idx(clause.a)] += *weight;
 
@@ -94,7 +94,7 @@ impl Max2Sat {
     }
 
     pub fn weight(&self, x: i32, y: i32) -> i32 {
-        self.weigths[self.offset(x, y)]
+        self.weights[self.offset(x, y)]
     }
 
     fn offset(&self, x: i32, y: i32) -> usize {

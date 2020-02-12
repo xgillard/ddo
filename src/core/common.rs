@@ -32,7 +32,7 @@ pub struct VarSet(pub BitSet);
 
 /// This is the implementation of the core features of a `VarSet`.
 impl VarSet {
-    /// Returns a `VarSet` where all the possible `n` variables are presetn.
+    /// Returns a `VarSet` where all the possible `n` variables are present.
     pub fn all(n: usize) -> VarSet {
         VarSet(BitSet::new(n).not())
     }

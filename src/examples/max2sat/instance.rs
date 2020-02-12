@@ -100,18 +100,19 @@ impl <B: BufRead> From<Lines<B>> for Weighed2Sat {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::examples::max2sat::testutils::locate;
 
     #[test]
     fn test_load_from_file() {
-        let fname= "/Users/user/Documents/REPO/flatmddsolver/src/test/resources/instances/max2sat/pass.wcnf";
-        let inst = Weighed2Sat::from_file(fname);
+        let fname= locate("pass.wcnf");
+        let inst = Weighed2Sat::from_file(fname.to_str().unwrap());
 
         assert_eq!(inst.nb_vars, 5);
         assert_eq!(inst.weights.len(), 10);
     }
     #[test]
     fn test_load_from_file_using_trait() {
-        let fname= "/Users/user/Documents/REPO/flatmddsolver/src/test/resources/instances/max2sat/debug2.wcnf";
+        let fname= locate("debug2.wcnf");
         let inst : Weighed2Sat = File::open(fname).expect("x").into();
 
         assert_eq!(inst.nb_vars, 3);

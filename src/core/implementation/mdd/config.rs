@@ -21,32 +21,32 @@ pub trait Config<T> where T: Eq + Clone {
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T>;
 }
 
-pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WDTH, NS>
+pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
     where T    : Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
           LV   : LoadVars<T>,
           VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
+          WIDTH: WidthHeuristic<T>,
           NS   : Compare<Node<T>>  {
 
     pb               : &'a PB,
     relax            : RLX,
     lv               : LV,
     vs               : VS,
-    width            : WDTH,
+    width            : WIDTH,
     ns               : NS,
     vars             : VarSet,
     _t               : PhantomData<*const T>
 }
 
-impl <'a, T, PB, RLX, LV, VS, WDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, LV, VS, WDTH, NS>
+impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
     where T    : Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
           LV   : LoadVars<T>,
           VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
+          WIDTH: WidthHeuristic<T>,
           NS   : Compare<Node<T>>  {
 
     fn root_node(&self) -> Node<T> {
@@ -79,10 +79,10 @@ impl <'a, T, PB, RLX, LV, VS, WDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, 
         let cost  = self.transition_cost (node.as_ref(), d);
 
         let len   = node.info.lp_len;
-        let exct  = node.info.is_exact;
+        let exact = node.info.is_exact;
         let arc   = Arc {src: node, decision: d};
 
-        Node::new(state, len + cost, Some(arc), exct)
+        Node::new(state, len + cost, Some(arc), exact)
     }
 
     fn estimate_ub(&self, state: &T, info: &NodeInfo<T>) -> i32 {
@@ -99,16 +99,16 @@ impl <'a, T, PB, RLX, LV, VS, WDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, 
 }
 
 // private functions
-impl <'a, T, PB, RLX, LV, VS, WDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WDTH, NS>
+impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
     where T    : Eq + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
           LV   : LoadVars<T>,
           VS   : VariableHeuristic<T>,
-          WDTH : WidthHeuristic<T>,
+          WIDTH: WidthHeuristic<T>,
           NS   : Compare<Node<T>>  {
 
-    pub fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WDTH, ns: NS) -> Self {
+    pub fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
         let vars = VarSet::all(pb.nb_vars());
         MDDConfig { pb, relax, lv, vs, width, ns, vars, _t: PhantomData }
     }

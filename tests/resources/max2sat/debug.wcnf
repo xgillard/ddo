@@ -1,15 +1,4 @@
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c
-c Le problème, ici, c'est qu'on a *a la fois* une clause unit et une tautologie.
-c Si on enlève ça, on a le bon résultat.
-c
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-c
-c optimal      = 24,000000
-c True account = 21,000000
-c lower bnd    = 24,000000
-c
-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c Here we have both unit and tautological clauses.
 p wcnf 3 7
 2 3 3 0
 0 -3 3 0
@@ -18,32 +7,3 @@ p wcnf 3 7
 5 -3 -1 0
 5 -3 -2 0
 2 -3 1 0
-ccccccccccccccccccccccccccccccccc
-cc
-cc
-cc c optimal      = 24,000000
-cc c True account = 24,000000
-cc c lower bnd    = 26,000000
-cc p wcnf 3 7
-cc 2 3 3 0
-cc 0 -3 3 0
-cc 5 -1 1 0
-cc 7 -2 3 0
-cc 5 -3 -1 0
-cc 5 -3 -2 0
-cc 2 -3 1 0
-cc
-cc c optimal      = 24,000000
-cc c True account = 21,000000
-cc c lower bnd    = 24,000000
-cc p wcnf 3 7
-cc 2 3 3 0
-cc 0 -3 3 0
-cc 5 -1 1 0
-cc 7 -2 3 0
-cc 5 -3 -1 0
-cc 5 -3 -2 0
-cc 2 -3 1 0
-cc
-cc
-ccccccccccccccccccccccccccccccccc

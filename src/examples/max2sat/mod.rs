@@ -9,12 +9,15 @@ mod testutils {
     use std::path::PathBuf;
     use std::fs::File;
 
-    pub fn instance(id: &str) -> Max2Sat {
-        let location = PathBuf::new()
+    pub fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
             .join(env!("CARGO_MANIFEST_DIR"))
             .join("tests/resources/max2sat/")
-            .join(id);
+            .join(id)
+    }
 
+    pub fn instance(id: &str) -> Max2Sat {
+        let location = locate(id);
         File::open(location).expect("File not found").into()
     }
 }
