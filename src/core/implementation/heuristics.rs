@@ -7,6 +7,7 @@ use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use crate::core::common::{Node, Variable, VarSet};
 use std::marker::PhantomData;
+use crate::core::abstraction::mdd::Layer;
 
 //~~~~~ Max Width Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 pub struct FixedWidth(pub usize);
@@ -31,7 +32,7 @@ pub struct NaturalOrder;
 impl <T> VariableHeuristic<T> for NaturalOrder
     where T : Clone + Hash + Eq {
 
-    fn next_var(&self, free_vars: &VarSet) -> Option<Variable> {
+    fn next_var<'a>(&self, free_vars: &'a VarSet, _c: Layer<'a, T>, _n: Layer<'a, T>) -> Option<Variable> {
         free_vars.iter().next()
     }
 }

@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use metrohash::MetroHashMap;
 
-use crate::core::abstraction::mdd::{MDD, MDDType};
+use crate::core::abstraction::mdd::{MDD, MDDType, Layer};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::common::{Decision, Node, NodeInfo, Variable, Bounds};
 use crate::core::implementation::mdd::config::Config;
@@ -134,7 +134,7 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 
         let mut i  = 0;
         while i < nbvars && !layer![self, current].is_empty() {
-            let var = self.config.select_var();
+            let var = self.config.select_var(self.it_current(), self.it_next());
             if var.is_none() { break; }
 
             let was_exact = self.is_exact;
@@ -271,5 +271,12 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
                 }
             }
         }
+    }
+
+    fn it_current(&self) -> Layer<'_, T> {
+        Layer::Mapped(layer![self, current].iter())
+    }
+    fn it_next(&self) -> Layer<'_, T> {
+        Layer::Mapped(layer![self, next].iter())
     }
 }

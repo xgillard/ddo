@@ -4,7 +4,7 @@ use std::hash::Hash;
 use metrohash::MetroHashMap;
 
 use crate::core::common::{Decision, Node, NodeInfo, Variable, Bounds};
-use crate::core::abstraction::mdd::{MDD, MDDType};
+use crate::core::abstraction::mdd::{MDD, MDDType, Layer};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::implementation::mdd::config::Config;
 use std::rc::Rc;
@@ -102,7 +102,7 @@ impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
 
         let mut i  = 0;
         while i < nbvars && !self.exhausted() {
-            let var = self.config.select_var();
+            let var = self.config.select_var(self.it_current(), self.it_next());
             if var.is_none() {
                 break;
             }
@@ -267,5 +267,11 @@ impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
             }
         }
         None
+    }
+    fn it_current(&self) -> Layer<'_, T> {
+        Layer::Plain(self.current.iter())
+    }
+    fn it_next(&self) -> Layer<'_, T> {
+        Layer::Mapped(self.pool.iter())
     }
 }

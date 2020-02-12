@@ -13,6 +13,22 @@ pub enum MDDType {
     Exact
 }
 
+pub enum Layer<'a, T> where T: Eq + Clone {
+    Plain (std::slice::Iter<'a, Node<T>>),
+    Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo<T>>),
+}
+
+impl <'a, T> Iterator for Layer<'a, T> where T: Eq + Clone {
+    type Item = (&'a T, &'a NodeInfo<T>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Layer::Plain(i)  => i.next().map(|n| (&n.state, &n.info)),
+            Layer::Mapped(i) => i.next()
+        }
+    }
+}
+
 /// This trait describes an MDD
 ///
 /// # Type param

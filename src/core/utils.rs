@@ -8,6 +8,7 @@ use compare::Compare;
 
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use crate::core::common::{VarSet, Node, Variable};
+use crate::core::abstraction::mdd::Layer;
 
 pub struct BitSetIter<'a> {
     iter  : Cloned<Iter<'a, u64>>,
@@ -104,10 +105,10 @@ impl <T, F> WidthHeuristic<T> for Func<F>
 }
 impl <T, F> VariableHeuristic<T> for Func<F>
     where T: Clone + Eq,
-          F: Fn(&VarSet) -> Option<Variable> {
+          F: Fn(&VarSet, Layer<'_, T>, Layer<'_, T>) -> Option<Variable> {
 
-    fn next_var(&self, free_vars: &VarSet) -> Option<Variable> {
-        (self.0)(free_vars)
+    fn next_var(&self, free_vars: &VarSet, current: Layer<'_, T>, next: Layer<'_, T>) -> Option<Variable> {
+        (self.0)(free_vars, current, next)
     }
 }
 impl <T, F> LoadVars<T> for Func<F>

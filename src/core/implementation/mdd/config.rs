@@ -5,13 +5,14 @@ use crate::core::common::{Node, Variable, Decision, Arc, VarSet, NodeInfo};
 use std::rc::Rc;
 use std::marker::PhantomData;
 use std::cmp::Ordering;
+use crate::core::abstraction::mdd::Layer;
 
 pub trait Config<T> where T: Eq + Clone {
     fn root_node(&self) -> Node<T>;
     fn impacted_by(&self, state: &T, v: Variable) -> bool;
     fn load_vars (&mut self, root: &Node<T>);
     fn nb_free_vars(&self) -> usize;
-    fn select_var(&self) -> Option<Variable>;
+    fn select_var(&self, current: Layer<'_, T>, next: Layer<'_, T>) -> Option<Variable>;
     fn remove_var(&mut self, v: Variable);
     fn domain_of (&self, state: &T, v: Variable) -> &[i32];
     fn max_width(&self) -> usize;
@@ -61,8 +62,8 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
     fn nb_free_vars(&self) -> usize {
         self.vars.len()
     }
-    fn select_var(&self) -> Option<Variable> {
-        self.vs.next_var(&self.vars)
+    fn select_var(&self, current: Layer<'_, T>, next: Layer<'_, T>) -> Option<Variable> {
+        self.vs.next_var(&self.vars, current, next)
     }
     fn remove_var(&mut self, v: Variable) {
         self.vars.remove(v)

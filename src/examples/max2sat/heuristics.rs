@@ -4,6 +4,7 @@ use crate::core::abstraction::heuristics::VariableHeuristic;
 
 use std::cmp::Ordering;
 use compare::Compare;
+use crate::core::abstraction::mdd::Layer;
 
 pub struct Max2SatOrder<'a> {
     problem: &'a Max2Sat
@@ -16,7 +17,7 @@ impl <'a> Max2SatOrder<'a> {
 }
 
 impl VariableHeuristic<State> for Max2SatOrder<'_> {
-    fn next_var(&self, free_vars: &VarSet) -> Option<Variable> {
+    fn next_var(&self, free_vars: &VarSet, _c: Layer<'_, State>, _n: Layer<'_, State>) -> Option<Variable> {
         let mut var = None;
         let mut wt  = i32::min_value();
 
@@ -47,6 +48,7 @@ mod test {
     use crate::core::abstraction::heuristics::VariableHeuristic;
     use crate::examples::max2sat::heuristics::Max2SatOrder;
     use crate::examples::max2sat::testutils::instance;
+    use crate::core::abstraction::mdd::Layer;
 
     #[test]
     fn variable_ordering() {
@@ -54,9 +56,14 @@ mod test {
         let order   = Max2SatOrder::new(&problem);
         let mut vars= problem.all_vars();
 
+        let dummy_l = [];
+
         let mut actual= vec![];
         for _ in 0..problem.nb_vars() {
-            let v = order.next_var(&vars).unwrap();
+            let dummy_c = Layer::Plain(dummy_l.iter());
+            let dummy_n = Layer::Plain(dummy_l.iter());
+
+            let v = order.next_var(&vars, dummy_c, dummy_n).unwrap();
             vars.remove(v);
             actual.push(v.0);
         }
