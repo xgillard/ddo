@@ -74,7 +74,7 @@ impl <B: BufRead> From<Lines<B>> for Knapsack {
                 continue;
             }
 
-            if line.starts_with("c") {
+            if line.starts_with('c') {
                 // This is just a comment, it can be ignored
                 continue;
             }

@@ -1,16 +1,16 @@
 #![cfg(test)]
-extern crate rust_mdd_solver;
+extern crate ddo;
 
 use std::fs::File;
 use std::path::PathBuf;
 
-use rust_mdd_solver::core::abstraction::solver::Solver;
-use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::{MaxUB, FixedWidth};
-use rust_mdd_solver::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
-use rust_mdd_solver::examples::max2sat::model::Max2Sat;
-use rust_mdd_solver::examples::max2sat::relax::Max2SatRelax;
-use rust_mdd_solver::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::abstraction::solver::Solver;
+use ddo::core::implementation::bb_solver::BBSolver;
+use ddo::core::implementation::heuristics::{MaxUB, FixedWidth};
+use ddo::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
+use ddo::examples::max2sat::model::Max2Sat;
+use ddo::examples::max2sat::relax::Max2SatRelax;
+use ddo::core::implementation::mdd::builder::mdd_builder;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {

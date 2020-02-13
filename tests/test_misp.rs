@@ -1,17 +1,17 @@
 #![cfg(test)]
-extern crate rust_mdd_solver;
+extern crate ddo;
 
 use std::fs::File;
 use std::path::PathBuf;
 
-use rust_mdd_solver::core::abstraction::solver::Solver;
-use rust_mdd_solver::core::implementation::bb_solver::BBSolver;
-use rust_mdd_solver::core::implementation::heuristics::FixedWidth;
-use rust_mdd_solver::core::utils::Func;
-use rust_mdd_solver::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
-use rust_mdd_solver::examples::misp::model::Misp;
-use rust_mdd_solver::examples::misp::relax::MispRelax;
-use rust_mdd_solver::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::abstraction::solver::Solver;
+use ddo::core::implementation::bb_solver::BBSolver;
+use ddo::core::implementation::heuristics::FixedWidth;
+use ddo::core::utils::Func;
+use ddo::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
+use ddo::examples::misp::model::Misp;
+use ddo::examples::misp::relax::MispRelax;
+use ddo::core::implementation::mdd::builder::mdd_builder;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Misp {

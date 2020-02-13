@@ -1,12 +1,12 @@
-extern crate rust_mdd_solver;
+extern crate ddo;
 extern crate structopt;
 
 use structopt::StructOpt;
 
-use rust_mdd_solver::examples::max2sat::main::max2sat;
-use rust_mdd_solver::examples::mcp::main::mcp;
-use rust_mdd_solver::examples::misp::main::misp;
-use rust_mdd_solver::examples::knapsack::main::knapsack;
+use ddo::examples::max2sat::main::max2sat;
+use ddo::examples::mcp::main::mcp;
+use ddo::examples::misp::main::misp;
+use ddo::examples::knapsack::main::knapsack;
 
 fn main() {
     let args = RustMddSolver::from_args();

@@ -25,7 +25,7 @@ impl Relaxation<KnapsackState> for KnapsackRelax<'_> {
         }
 
         let state = KnapsackState {capacity, free_vars: VarSet(free_vars)};
-        Node { state: state, info : lp_info.clone() }
+        Node { state, info : lp_info.clone() }
     }
     fn estimate_ub(&self, state: &KnapsackState, info: &NodeInfo<KnapsackState>) -> i32 {
         info.lp_len + state.free_vars.iter().map(|v| {
