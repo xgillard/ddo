@@ -15,6 +15,11 @@ use std::rc::Rc;
 /// ranging from 0 until `problem.nb_vars()`
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Variable(pub usize);
+impl Variable {
+    pub fn id(&self) -> usize {
+        self.0
+    }
+}
 
 /// This denotes a decision that was made during the search. It affects a given
 /// `value` to the specified `variable`. Any given `Decision` should be
