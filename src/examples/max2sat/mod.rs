@@ -3,6 +3,9 @@ pub mod model;
 pub mod relax;
 pub mod heuristics;
 
+
+pub mod main;
+
 #[cfg(test)]
 mod testutils {
     use crate::examples::max2sat::model::Max2Sat;

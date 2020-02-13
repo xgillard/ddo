@@ -2,6 +2,9 @@ pub mod graph;
 pub mod model;
 pub mod relax;
 
+
+pub mod main;
+
 #[cfg(test)]
 mod tests {
     use crate::examples::mcp::graph::Graph;
