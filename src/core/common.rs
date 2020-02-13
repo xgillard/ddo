@@ -13,9 +13,10 @@ use std::rc::Rc;
 /// This type denotes a variable from the optimization problem at hand.
 /// In this case, each variable is assumed to be identified with an integer
 /// ranging from 0 until `problem.nb_vars()`
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Variable(pub usize);
 impl Variable {
+    #[inline]
     pub fn id(&self) -> usize {
         self.0
     }
@@ -24,7 +25,7 @@ impl Variable {
 /// This denotes a decision that was made during the search. It affects a given
 /// `value` to the specified `variable`. Any given `Decision` should be
 /// understood as ```[[ variable = value ]]````
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Decision {
     pub variable : Variable,
     pub value    : i32
