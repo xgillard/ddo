@@ -35,7 +35,7 @@ impl Problem<BitSet> for Misp {
         0
     }
 
-    fn domain_of(&self, state: &BitSet, var: Variable) -> Domain {
+    fn domain_of<'a>(&self, state: &'a BitSet, var: Variable) -> Domain<'a> {
         if state[var.0] { Domain::Slice(&YES_NO) } else { Domain::Slice(&NO) }
     }
 

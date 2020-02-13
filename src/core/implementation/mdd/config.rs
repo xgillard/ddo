@@ -10,7 +10,7 @@ pub trait Config<T> where T: Eq + Clone {
     fn nb_free_vars(&self) -> usize;
     fn select_var(&self, current: Layer<'_, T>, next: Layer<'_, T>) -> Option<Variable>;
     fn remove_var(&mut self, v: Variable);
-    fn domain_of (&self, state: &T, v: Variable) -> Domain;
+    fn domain_of<'a>(&self, state: &'a T, v: Variable) -> Domain<'a>;
     fn max_width(&self) -> usize;
     fn branch(&self, node: Rc<Node<T>>, d: Decision) -> Node<T>;
     fn estimate_ub(&self, state: &T, info: &NodeInfo<T>) -> i32;

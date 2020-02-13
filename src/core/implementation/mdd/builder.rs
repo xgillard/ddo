@@ -152,7 +152,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
     fn remove_var(&mut self, v: Variable) {
         self.vars.remove(v)
     }
-    fn domain_of(&self, state: &T, v: Variable) -> Domain {
+    fn domain_of<'b>(&self, state: &'b T, v: Variable) -> Domain<'b> {
         self.pb.domain_of(state, v)
     }
     fn max_width(&self) -> usize {

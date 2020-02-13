@@ -120,7 +120,7 @@ impl Problem<State> for Max2Sat {
         self.initial
     }
 
-    fn domain_of(&self, _state: &State, _var: Variable) -> Domain {
+    fn domain_of<'a>(&self, _state: &'a State, _var: Variable) -> Domain<'a> {
         Domain::Slice(&TF)
     }
 

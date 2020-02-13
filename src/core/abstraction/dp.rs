@@ -25,7 +25,7 @@ pub trait Problem<T> where T: Eq + Clone {
     /// Returns the domain of variable `var` in the given `state`. These are the
     /// possible values that might possibly be affected to `var` when the system
     /// has taken decisions leading to `state`.
-    fn domain_of(&self, state: &T, var: Variable) -> Domain;
+    fn domain_of<'a>(&self, state: &'a T, var: Variable) -> Domain<'a>;
     /// Returns the next state reached by the system if the decision `d` is
     /// taken when the system is in the given `state` and the given set of `vars`
     /// are still free (no value assigned).

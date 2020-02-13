@@ -97,8 +97,10 @@ pub struct Bounds {pub lb: i32, pub ub: i32}
 
 pub enum Domain<'a> {
     Vector(Vec<i32>),
+    Slice (&'a [i32]),
+    BitSet(&'a BitSet),
+    VarSet(&'a VarSet),
     Range (Range<i32>),
-    Slice (&'a [i32])
 }
 impl <'a> IntoIterator for Domain<'a> {
     type Item     = i32;
@@ -108,6 +110,8 @@ impl <'a> IntoIterator for Domain<'a> {
         match self {
             Domain::Vector(v) => DomainIter::Vector(v.into_iter()),
             Domain::Slice (s) => DomainIter::Slice (s.into_iter()),
+            Domain::BitSet(b) => DomainIter::BitSet(BitSetIter::new(b)),
+            Domain::VarSet(v) => DomainIter::BitSet(BitSetIter::new(&v.0)),
             Domain::Range (r) => DomainIter::Range (r)
         }
     }
@@ -115,6 +119,7 @@ impl <'a> IntoIterator for Domain<'a> {
 pub enum DomainIter<'a> {
     Vector(std::vec::IntoIter<i32>),
     Slice (std::slice::Iter<'a, i32>),
+    BitSet(BitSetIter<'a>),
     Range (Range<i32>)
 }
 impl Iterator for DomainIter<'_> {
@@ -124,6 +129,7 @@ impl Iterator for DomainIter<'_> {
         match self {
             DomainIter::Vector(i) => i.next(),
             DomainIter::Slice (i) => i.next().map(|x| *x),
+            DomainIter::BitSet(i) => i.next().map(|x| x as i32),
             DomainIter::Range (i) => i.next()
         }
     }
@@ -141,6 +147,16 @@ impl <'a> From<&'a [i32]> for Domain<'a> {
 impl From<Range<i32>> for Domain<'_> {
     fn from(r: Range<i32>) -> Self {
         Domain::Range(r)
+    }
+}
+impl <'a> From<&'a BitSet> for Domain<'a> {
+    fn from(b: &'a BitSet) -> Self {
+        Domain::BitSet(b)
+    }
+}
+impl <'a> From<&'a VarSet> for Domain<'a> {
+    fn from(b: &'a VarSet) -> Self {
+        Domain::VarSet(b)
     }
 }
 
