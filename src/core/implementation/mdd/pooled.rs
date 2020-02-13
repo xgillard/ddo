@@ -122,7 +122,7 @@ impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
             let current = Rc::new(node.clone());
             let domain  = self.config.domain_of(&node.state, var);
             for value in domain {
-                let decision  = Decision{variable: var, value: value};
+                let decision  = Decision{variable: var, value};
                 let branching = self.config.branch(Rc::clone(&current), decision);
 
                 if let Some(old) = self.pool.get_mut(&branching.state) {

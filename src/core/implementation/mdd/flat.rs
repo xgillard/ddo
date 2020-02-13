@@ -157,7 +157,7 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             let current = Rc::new(Node{state: state.clone(), info: info.clone()});
             let domain  = self.config.domain_of(state, var);
             for value in domain {
-                let decision  = Decision{variable: var, value: value};
+                let decision  = Decision{variable: var, value};
                 let branching = self.config.branch(Rc::clone(&current), decision);
 
                 if let Some(old) = next.get_mut(&branching.state) {

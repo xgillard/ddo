@@ -17,7 +17,7 @@ use std::rc::Rc;
 pub struct Variable(pub usize);
 impl Variable {
     #[inline]
-    pub fn id(&self) -> usize {
+    pub fn id(self) -> usize {
         self.0
     }
 }
@@ -115,7 +115,7 @@ impl <'a> IntoIterator for Domain<'a> {
     fn into_iter(self) -> Self::IntoIter {
         match self {
             Domain::Vector(v) => DomainIter::Vector(v.into_iter()),
-            Domain::Slice (s) => DomainIter::Slice (s.into_iter()),
+            Domain::Slice (s) => DomainIter::Slice (s.iter()),
             Domain::BitSet(b) => DomainIter::BitSet(BitSetIter::new(b)),
             Domain::VarSet(v) => DomainIter::BitSet(BitSetIter::new(&v.0)),
             Domain::Range (r) => DomainIter::Range (r)
@@ -134,7 +134,7 @@ impl Iterator for DomainIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             DomainIter::Vector(i) => i.next(),
-            DomainIter::Slice (i) => i.next().map(|x| *x),
+            DomainIter::Slice (i) => i.next().copied(),
             DomainIter::BitSet(i) => i.next().map(|x| x as i32),
             DomainIter::Range (i) => i.next()
         }

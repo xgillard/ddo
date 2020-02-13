@@ -2,6 +2,8 @@ use crate::examples::mcp::graph::Graph;
 use crate::core::abstraction::dp::Problem;
 use crate::core::common::{Variable, VarSet, Domain, Decision};
 use std::cmp::{max, min};
+use std::fs::File;
+use std::io::{BufRead, Read, BufReader, Lines};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct McpState {
@@ -81,5 +83,25 @@ impl Mcp {
             if skl * wkl >= 0 { sum += min(skl.abs(), wkl.abs()); }
         }
         res + sum
+    }
+}
+impl From<Graph> for Mcp {
+    fn from(g: Graph) -> Self {
+        Mcp::new(g)
+    }
+}
+impl From<File> for Mcp {
+    fn from(f: File) -> Self {
+        Mcp::new(f.into())
+    }
+}
+impl <S: Read> From<BufReader<S>> for Mcp {
+    fn from(buf: BufReader<S>) -> Mcp {
+        Mcp::new(buf.into())
+    }
+}
+impl <B: BufRead> From<Lines<B>> for Mcp {
+    fn from(lines: Lines<B>) -> Mcp {
+        Mcp::new(lines.into())
     }
 }

@@ -1,6 +1,7 @@
 use crate::examples::mcp::model::{Mcp, McpState};
 use crate::core::abstraction::dp::{Relaxation, Problem};
 use crate::core::common::{Node, Variable, VarSet, NodeInfo};
+use std::cmp::Ordering;
 
 pub struct McpRelax<'a> {
     pb  : &'a Mcp,
@@ -74,8 +75,12 @@ impl McpRelax<'_> {
         let mut signs = 0_u8;
         for node in nodes.iter() {
             let substate = node.state.benef[v.id()];
-            if      substate < 0 { signs |= McpRelax::NEGATIVE; }
-            else if substate > 0 { signs |= McpRelax::POSITIVE; }
+            match substate.cmp(&0) {
+                Ordering::Less    => signs |= McpRelax::NEGATIVE,
+                Ordering::Greater => signs |= McpRelax::POSITIVE,
+                Ordering::Equal   => /* do nothing */()
+            }
+
             // short circuit
             if signs > 0 { return signs; }
         }

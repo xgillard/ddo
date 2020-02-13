@@ -13,6 +13,32 @@ mod tests {
     use crate::core::implementation::bb_solver::BBSolver;
     use crate::core::common::{Decision, Variable};
 
+    use std::path::PathBuf;
+    use std::fs::File;
+
+    pub fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/resources/mcp/")
+            .join(id)
+    }
+
+    pub fn instance(id: &str) -> Mcp {
+        let location = locate(id);
+        File::open(location).expect("File not found").into()
+    }
+
+    pub fn solve(problem: Mcp) -> (i32, Option<Vec<Decision>>) {
+        let relax       = McpRelax::new(&problem);
+        let mdd         = mdd_builder(&problem, relax).into_flat();
+        let mut solver  = BBSolver::new(mdd, MaxUB);
+
+        let (best, sln) = solver.maximize();
+
+        let solution = sln.as_ref().cloned();
+        (best, solution)
+    }
+
     fn paper_example_graph() -> Graph {
         let mut graph = Graph::new(4);
         graph.add_bidir_edge(0, 1, 1);
@@ -34,24 +60,25 @@ mod tests {
 
     #[test]
     fn paper_example() {
-        let graph       = paper_example_graph();
-        let problem     = Mcp::new(graph);
-        let relax       = McpRelax::new(&problem);
-        let mdd         = mdd_builder(&problem, relax).into_flat();
-        let mut solver  = BBSolver::new(mdd, MaxUB);
-
-        let (best, sln) = solver.maximize();
+        let (best, sln) = solve(paper_example_graph().into());
         assert_eq!(best, 4);
         assert!(sln.is_some());
 
-        let mut ordered_sln = sln.as_ref().unwrap().clone();
-        ordered_sln.sort_unstable();
+        if let Some(mut ordered_sln) = sln {
+            ordered_sln.sort_unstable();
+            assert_eq!(ordered_sln, vec![
+                Decision{variable: Variable(0), value: 1},
+                Decision{variable: Variable(1), value: 1},
+                Decision{variable: Variable(2), value:-1},
+                Decision{variable: Variable(3), value: 1}
+            ]);
+        }
+    }
 
-        assert_eq!(ordered_sln, vec![
-            Decision{variable: Variable(0), value: 1},
-            Decision{variable: Variable(1), value: 1},
-            Decision{variable: Variable(2), value:-1},
-            Decision{variable: Variable(3), value: 1}
-        ])
+    #[ignore] #[test] // this is intractable (within a short test)
+    fn g1() {
+        let problem  = instance("G1.txt");
+        let (best, _)= solve(problem);
+        println!("{}", best)
     }
 }
