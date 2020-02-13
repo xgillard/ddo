@@ -45,7 +45,7 @@ fn solve<DD: MDD<BitSet>>(mdd: DD, verbose: u8) {
     let end = SystemTime::now();
 
     if verbose >= 1 {
-        println!("Optimum {} computed in {:?}", opt, end.duration_since(start));
+        println!("Optimum {} computed in {:?}", opt, end.duration_since(start).unwrap());
     }
     maybe_print_misp_solution(verbose, sln)
 }

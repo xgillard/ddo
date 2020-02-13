@@ -70,8 +70,20 @@ impl <B: BufRead> From<Lines<B>> for Knapsack {
             let line = line.unwrap();
             let line = line.trim();
 
+            if line.is_empty() {
+                continue;
+            }
+
+            if line.starts_with("c") {
+                // This is just a comment, it can be ignored
+                continue;
+            }
+
             if let Some(caps) = sack.captures(&line) {
                 knapsack.capacity = caps["capa"].to_string().parse::<usize>().unwrap();
+
+                let nb_items = caps["nb_items"].to_string().parse::<usize>().unwrap();
+                knapsack.data.reserve_exact(nb_items);
                 continue;
             }
 

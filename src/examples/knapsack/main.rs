@@ -40,7 +40,7 @@ fn solve<DD: MDD<KnapsackState>>(mdd: DD, verbose: u8) {
     let end = SystemTime::now();
 
     if verbose >= 1 {
-        println!("Optimum {} computed in {:?}", opt, end.duration_since(start));
+        println!("Optimum {} computed in {:?}", opt, end.duration_since(start).unwrap());
     }
     maybe_print_solution(verbose, sln)
 }
