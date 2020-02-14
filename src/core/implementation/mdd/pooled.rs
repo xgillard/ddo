@@ -10,7 +10,8 @@ use crate::core::implementation::mdd::config::Config;
 use std::sync::Arc;
 
 // --- POOLED MDD --------------------------------------------------------------
-pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
+#[derive(Clone)]
+pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
     config           : C,
 
     mddtype          : MDDType,
@@ -22,7 +23,7 @@ pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
     best_node        : Option<NodeInfo>
 }
 
-impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
+impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
@@ -67,7 +68,7 @@ impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
 }
 
 /// Private functions
-impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
+impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
 
     pub fn new(config: C) -> Self {
         PooledMDD {

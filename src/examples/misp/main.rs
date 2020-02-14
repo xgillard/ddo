@@ -36,7 +36,7 @@ pub fn misp(fname: &str, verbose: u8, width:Option<usize>) {
             .into_pooled(), verbose)
     }
 }
-fn solve<DD: MDD<BitSet>>(mdd: DD, verbose: u8) {
+fn solve<DD: MDD<BitSet> + Clone + Send >(mdd: DD, verbose: u8) {
     let mut solver   = BBSolver::new(mdd, MaxUB);
     solver.verbosity = verbose;
 

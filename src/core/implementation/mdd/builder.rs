@@ -25,11 +25,11 @@ pub struct MDDBuilder<'a, T, PB, RLX,
     vs : VS,
     w  : WIDTH,
     ns : NS,
-    _t : PhantomData<*const T>
+    _t : PhantomData<T>
 }
 
 pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PB, RLX>
-    where T: Eq + Hash + Clone, PB: Problem<T>, RLX: Relaxation<T> {
+    where T: Send + Eq + Hash + Clone, PB: Send + Problem<T>, RLX: Send + Relaxation<T> {
     MDDBuilder {
         pb, rlx,
         lv: FromLongestPath::new(pb),
@@ -41,13 +41,13 @@ pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PB, RLX>
 }
 
 impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Hash + Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          LV   : LoadVars<T>,
-          VS   : VariableHeuristic<T>,
-          WIDTH: WidthHeuristic<T>,
-          NS   : Compare<Node<T>> {
+    where T    : Sync + Send + Hash + Eq + Clone,
+          PB   : Sync + Send + Problem<T> + Clone,
+          RLX  : Sync + Send + Relaxation<T> + Clone,
+          LV   : Sync + Send + LoadVars<T> + Clone,
+          VS   : Sync + Send + VariableHeuristic<T> + Clone,
+          WIDTH: Sync + Send + WidthHeuristic<T> + Clone,
+          NS   : Sync + Send + Compare<Node<T>> + Clone {
 
     pub fn with_load_vars<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, H, VS, WIDTH, NS> {
         MDDBuilder {
@@ -106,14 +106,15 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
     }
 }
 
+#[derive(Clone)]
 pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          LV   : LoadVars<T>,
-          VS   : VariableHeuristic<T>,
-          WIDTH: WidthHeuristic<T>,
-          NS   : Compare<Node<T>>  {
+    where T    : Send + Eq + Clone,
+          PB   : Send + Problem<T> + Clone,
+          RLX  : Send + Relaxation<T> + Clone,
+          LV   : Send + LoadVars<T> + Clone,
+          VS   : Send + VariableHeuristic<T> + Clone,
+          WIDTH: Send + WidthHeuristic<T> + Clone,
+          NS   : Send + Compare<Node<T>> + Clone  {
 
     pb               : &'a PB,
     relax            : RLX,
@@ -122,17 +123,17 @@ pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
     width            : WIDTH,
     ns               : NS,
     vars             : VarSet,
-    _t               : PhantomData<*const T>
+    _t               : PhantomData<T>
 }
 
 impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          LV   : LoadVars<T>,
-          VS   : VariableHeuristic<T>,
-          WIDTH: WidthHeuristic<T>,
-          NS   : Compare<Node<T>>  {
+    where T    : Send + Eq + Clone,
+          PB   : Send + Problem<T> + Clone,
+          RLX  : Send + Relaxation<T> + Clone,
+          LV   : Send + LoadVars<T> + Clone,
+          VS   : Send + VariableHeuristic<T> + Clone,
+          WIDTH: Send + WidthHeuristic<T> + Clone,
+          NS   : Send + Compare<Node<T>> + Clone  {
 
     fn root_node(&self) -> Node<T> {
         self.pb.root_node()
@@ -188,13 +189,13 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
 
 // private functions
 impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Eq + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          LV   : LoadVars<T>,
-          VS   : VariableHeuristic<T>,
-          WIDTH: WidthHeuristic<T>,
-          NS   : Compare<Node<T>>  {
+    where T    : Send + Eq + Clone,
+          PB   : Send + Problem<T> + Clone,
+          RLX  : Send + Relaxation<T> + Clone,
+          LV   : Send + LoadVars<T> + Clone,
+          VS   : Send + VariableHeuristic<T> + Clone,
+          WIDTH: Send + WidthHeuristic<T> + Clone,
+          NS   : Send + Compare<Node<T>> + Clone {
 
     pub fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
         let vars = VarSet::all(pb.nb_vars());

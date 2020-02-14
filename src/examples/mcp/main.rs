@@ -1,3 +1,4 @@
+/*
 use std::fs::File;
 
 use crate::core::common::Decision;
@@ -57,3 +58,4 @@ fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
         println!("No solution !");
     }
 }
+*/

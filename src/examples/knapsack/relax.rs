@@ -3,7 +3,7 @@ use crate::core::abstraction::dp::{Relaxation, Problem};
 use crate::core::common::{Node, NodeInfo, VarSet};
 use bitset_fixed::BitSet;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct KnapsackRelax<'a> {
     pb: &'a Knapsack
 }

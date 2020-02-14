@@ -4,6 +4,7 @@ use crate::core::common::{Node, NodeInfo};
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::examples::misp::model::Misp;
 
+#[derive(Debug, Clone)]
 pub struct MispRelax<'a> {
     pb: &'a Misp
 }

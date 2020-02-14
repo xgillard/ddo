@@ -4,6 +4,7 @@ use crate::core::common::{Variable, VarSet};
 use crate::core::abstraction::mdd::Layer;
 use std::cmp::Ordering::Equal;
 
+#[derive(Clone)]
 pub struct KnapsackOrder<'a> {
     pb: &'a Knapsack
 }

@@ -8,6 +8,7 @@ use crate::core::abstraction::dp::Problem;
 use crate::core::common::{Decision, Variable, VarSet, Domain};
 use crate::examples::misp::instance::Graph;
 
+#[derive(Debug, Clone)]
 pub struct Misp {
     pub graph : Graph
 }

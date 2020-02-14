@@ -1,3 +1,4 @@
+/*
 #![cfg(test)]
 extern crate ddo;
 
@@ -120,4 +121,4 @@ fn frb20_11_4() {
 #[ignore] #[test]
 fn frb20_11_5() {
     assert_eq!(solve("frb20-11-5.wcnf"), 1_237_841);
-}
+}*/

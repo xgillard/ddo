@@ -10,6 +10,8 @@ use crate::core::implementation::mdd::builder::mdd_builder;
 use crate::examples::knapsack::relax::KnapsackRelax;
 use crate::examples::knapsack::heuristics::KnapsackOrder;
 use crate::examples::knapsack::model::KnapsackState;
+use crate::core::implementation::mdd::config::Config;
+use crate::core::implementation::mdd::flat::FlatMDD;
 
 /// Solves the given knapsack instance with fixed width mdds
 ///
@@ -31,7 +33,7 @@ pub fn knapsack(fname: &str, verbose: u8, width: Option<usize>) {
                           .into_flat(), verbose)
     }
 }
-fn solve<DD: MDD<KnapsackState>>(mdd: DD, verbose: u8) {
+fn solve<C: Config<KnapsackState> + Clone + Send>(mdd: FlatMDD<KnapsackState, C>, verbose: u8) {
     let mut solver   = BBSolver::new(mdd, MaxUB);
     solver.verbosity = verbose;
 

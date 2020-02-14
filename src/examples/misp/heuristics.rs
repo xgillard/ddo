@@ -9,6 +9,7 @@ use crate::core::abstraction::heuristics::VariableHeuristic;
 use crate::examples::misp::model::Misp;
 use crate::core::abstraction::dp::Problem;
 
+#[derive(Debug, Clone)]
 pub struct MispVarHeu(usize);
 impl MispVarHeu {
     pub fn new(pb: &Misp) -> Self {

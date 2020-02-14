@@ -4,7 +4,7 @@ pub mod relax;
 
 
 pub mod main;
-
+/*
 #[cfg(test)]
 mod tests {
     use crate::examples::mcp::graph::Graph;
@@ -84,4 +84,4 @@ mod tests {
         let (best, _)= solve(problem);
         println!("{}", best)
     }
-}
+}*/

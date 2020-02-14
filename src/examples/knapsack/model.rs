@@ -5,7 +5,7 @@ use std::io::{BufRead, Lines, BufReader, Read};
 use regex::Regex;
 use std::fs::File;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ItemData {
     pub id      : usize,
     pub profit  : usize,
@@ -19,7 +19,7 @@ pub struct KnapsackState {
     pub free_vars: VarSet
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Knapsack {
     pub capacity: usize,
     pub data    : Vec<ItemData>

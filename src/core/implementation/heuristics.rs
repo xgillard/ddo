@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use crate::core::abstraction::mdd::Layer;
 
 //~~~~~ Max Width Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#[derive(Debug, Clone)]
 pub struct FixedWidth(pub usize);
 impl <T> WidthHeuristic<T> for FixedWidth
     where T : Clone + Hash + Eq {
@@ -18,6 +19,7 @@ impl <T> WidthHeuristic<T> for FixedWidth
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct NbUnassigned;
 impl <T> WidthHeuristic<T> for NbUnassigned
     where T : Clone + Hash + Eq  {
@@ -27,7 +29,7 @@ impl <T> WidthHeuristic<T> for NbUnassigned
 }
 
 //~~~~~ Variable Heuristics ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct NaturalOrder;
 impl <T> VariableHeuristic<T> for NaturalOrder
     where T : Clone + Hash + Eq {
@@ -38,13 +40,14 @@ impl <T> VariableHeuristic<T> for NaturalOrder
 }
 
 //~~~~~ Node Ordering Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MinLP;
 impl <T> Compare<Node<T>> for MinLP where T: Clone + Hash + Eq {
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
         a.info.lp_len.cmp(&b.info.lp_len)
     }
 }
+#[derive(Debug, Default, Clone)]
 pub struct MaxLP;
 impl <T> Compare<Node<T>> for MaxLP where T: Clone + Hash + Eq {
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
@@ -52,7 +55,7 @@ impl <T> Compare<Node<T>> for MaxLP where T: Clone + Hash + Eq {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct MaxUB;
 impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
@@ -61,6 +64,7 @@ impl <T> Compare<Node<T>> for MaxUB where T: Clone + Hash + Eq {
 }
 
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#[derive(Debug, Clone)]
 pub struct FromLongestPath<'a, T, P>
     where T: Clone + Eq,
           P: Problem<T> {

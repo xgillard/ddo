@@ -97,6 +97,7 @@ impl <B: BufRead> From<Lines<B>> for Weighed2Sat {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,4 +124,4 @@ mod tests {
         let cla = BinaryClause::new(-1, -1);
         assert!(cla.is_unit())
     }
-}
+}*/

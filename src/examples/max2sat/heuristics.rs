@@ -42,6 +42,7 @@ impl Compare<Node<State>> for MinRank {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use crate::core::abstraction::dp::Problem;
@@ -77,3 +78,4 @@ mod test {
         assert_eq!(actual, expected);
     }
 }
+*/

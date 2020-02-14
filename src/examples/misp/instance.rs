@@ -5,6 +5,7 @@ use std::io::{BufReader, BufRead, Lines, Read};
 use regex::Regex;
 use std::ops::Not;
 
+#[derive(Debug, Clone)]
 pub struct Graph {
     pub nb_vars   : usize,
     pub adj_matrix: Vec<BitSet>,

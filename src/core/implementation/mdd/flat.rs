@@ -10,7 +10,8 @@ use crate::core::implementation::mdd::config::Config;
 use std::sync::Arc;
 
 // --- MDD Data Structure -----------------------------------------------------
-pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
+#[derive(Clone)]
+pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + Clone + Send {
     config           : C,
 
     mddtype          : MDDType,
@@ -35,7 +36,7 @@ macro_rules! layer {
     };
 }
 
-impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
+impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + Clone + Send {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
@@ -82,7 +83,7 @@ impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 }
 
 /// Private functions
-impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
+impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + Clone + Send {
 
     pub fn new(config: C) -> Self {
         FlatMDD {

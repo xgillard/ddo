@@ -193,6 +193,7 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,4 +266,4 @@ mod tests {
 
         assert_eq!(5917, state.rank());
     }
-}
+}*/
