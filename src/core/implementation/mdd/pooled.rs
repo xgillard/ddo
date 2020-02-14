@@ -7,7 +7,7 @@ use crate::core::common::{Decision, Node, NodeInfo, Variable, Bounds};
 use crate::core::abstraction::mdd::{MDD, MDDType, Layer};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::implementation::mdd::config::Config;
-use std::rc::Rc;
+use std::sync::Arc;
 
 // --- POOLED MDD --------------------------------------------------------------
 pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
@@ -119,11 +119,11 @@ impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
     }
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
         for node in self.current.iter() {
-            let info    = Rc::new(node.info.clone());
+            let info    = Arc::new(node.info.clone());
             let domain  = self.config.domain_of(&node.state, var);
             for value in domain {
                 let decision  = Decision{variable: var, value};
-                let branching = self.config.branch(&node.state, Rc::clone(&info), decision);
+                let branching = self.config.branch(&node.state, Arc::clone(&info), decision);
 
                 if let Some(old) = self.pool.get_mut(&branching.state) {
                     if old.is_exact && !branching.info.is_exact {

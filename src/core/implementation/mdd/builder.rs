@@ -8,9 +8,9 @@ use crate::core::implementation::mdd::flat::FlatMDD;
 use crate::core::implementation::mdd::pooled::PooledMDD;
 use crate::core::implementation::mdd::config::Config;
 use crate::core::abstraction::mdd::Layer;
-use std::rc::Rc;
 use std::cmp::Ordering;
 use std::hash::Hash;
+use std::sync::Arc;
 
 
 
@@ -159,7 +159,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
         self.width.max_width(&self.vars)
     }
 
-    fn branch(&self, state: &T, info: Rc<NodeInfo>, d: Decision) -> Node<T> {
+    fn branch(&self, state: &T, info: Arc<NodeInfo>, d: Decision) -> Node<T> {
         let next  = self.transition_state(state, d);
         let cost  = self.transition_cost (state, d);
 

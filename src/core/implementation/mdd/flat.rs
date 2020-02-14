@@ -7,7 +7,7 @@ use crate::core::abstraction::mdd::{MDD, MDDType, Layer};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
 use crate::core::common::{Decision, Node, NodeInfo, Variable, Bounds};
 use crate::core::implementation::mdd::config::Config;
-use std::rc::Rc;
+use std::sync::Arc;
 
 // --- MDD Data Structure -----------------------------------------------------
 pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
@@ -154,11 +154,11 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
         let next = layer![self, mut next];
 
         for (state, info) in curr.iter() {
-            let info   = Rc::new(info.clone());
+            let info   = Arc::new(info.clone());
             let domain = self.config.domain_of(state, var);
             for value in domain {
                 let decision  = Decision{variable: var, value};
-                let branching = self.config.branch(&state, Rc::clone(&info), decision);
+                let branching = self.config.branch(&state, Arc::clone(&info), decision);
 
                 if let Some(old) = next.get_mut(&branching.state) {
                     old.merge(branching.info);

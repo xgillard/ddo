@@ -12,10 +12,14 @@ binary-heap-plus = "0.2.0"
 compare          = "0.1.0"
 # -- hash algorithms -------
 metrohash        = "1.0.6"
+# -- going parallel --------
+num_cpus         = "1.12.0"
+threadpool       = "1.7.1"
+parking_lot      = "0.10.0"
 
-# parsing examples
-regex     = "1.3.3"
-structopt = "0.3.8"
+# -- parsing examples ------
+regex            = "1.3.3"
+structopt        = "0.3.8"
 
 [profile.test]
 opt-level = 3

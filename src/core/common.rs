@@ -8,7 +8,7 @@ use std::ops::{Not, Range};
 use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
 use std::hash::{Hasher, Hash};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// This type denotes a variable from the optimization problem at hand.
 /// In this case, each variable is assumed to be identified with an integer
@@ -169,7 +169,7 @@ impl <'a> From<&'a VarSet> for Domain<'a> {
 // --- NODE --------------------------------------------------------------------
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Edge  {
-    pub src     : Rc<NodeInfo>,
+    pub src     : Arc<NodeInfo>,
     pub decision: Decision
 }
 
