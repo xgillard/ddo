@@ -12,8 +12,8 @@ pub trait Config<T> where T: Eq + Clone {
     fn remove_var(&mut self, v: Variable);
     fn domain_of<'a>(&self, state: &'a T, v: Variable) -> Domain<'a>;
     fn max_width(&self) -> usize;
-    fn branch(&self, node: Rc<Node<T>>, d: Decision) -> Node<T>;
-    fn estimate_ub(&self, state: &T, info: &NodeInfo<T>) -> i32;
+    fn branch(&self, state: &T, info: Rc<NodeInfo>, d: Decision) -> Node<T>;
+    fn estimate_ub(&self, state: &T, info: &NodeInfo) -> i32;
     fn compare(&self, x: &Node<T>, y: &Node<T>) -> Ordering;
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T>;
 }

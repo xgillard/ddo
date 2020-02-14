@@ -30,7 +30,7 @@ impl <'a> Relaxation<BitSet> for MispRelax<'a> {
         info.is_exact = false;
         Node {state, info}
     }
-    fn estimate_ub(&self, state: &BitSet, info: &NodeInfo<BitSet>) -> i32 {
+    fn estimate_ub(&self, state: &BitSet, info: &NodeInfo) -> i32 {
         info.lp_len + state.count_ones() as i32
     }
 }

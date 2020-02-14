@@ -58,7 +58,7 @@ pub trait Problem<T> where T: Eq + Clone {
 /// Again, the type parameter `<T>` denotes the type of the states.
 pub trait Relaxation<T> where T: Eq + Clone {
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T>;
-    fn estimate_ub(&self, _state: &T, _info: &NodeInfo<T>) -> i32 {
+    fn estimate_ub(&self, _state: &T, _info: &NodeInfo) -> i32 {
         i32::max_value()
     }
 }

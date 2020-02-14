@@ -16,7 +16,7 @@ pub struct BBSolver<T, DD, BO>
     pub explored : usize,
     pub best_ub  : i32,
     pub best_lb  : i32,
-    pub best_node: Option<NodeInfo<T>>,
+    pub best_node: Option<NodeInfo>,
     pub best_sol : Option<Vec<Decision>>,
     pub verbosity: u8
 }

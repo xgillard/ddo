@@ -159,18 +159,21 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
         self.width.max_width(&self.vars)
     }
 
-    fn branch(&self, node: Rc<Node<T>>, d: Decision) -> Node<T> {
-        let state = self.transition_state(node.as_ref(), d);
-        let cost  = self.transition_cost (node.as_ref(), d);
+    fn branch(&self, state: &T, info: Rc<NodeInfo>, d: Decision) -> Node<T> {
+        let next  = self.transition_state(state, d);
+        let cost  = self.transition_cost (state, d);
 
-        let len   = node.info.lp_len;
-        let exact = node.info.is_exact;
-        let arc   = Edge {src: node, decision: d};
+        let path  = NodeInfo {
+            is_exact: info.is_exact,
+            lp_len  : info.lp_len + cost,
+            ub      : info.ub,
+            lp_arc  : Some(Edge{src: info, decision: d}),
+        };
 
-        Node::new(state, len + cost, Some(arc), exact)
+        Node { state: next, info: path}
     }
 
-    fn estimate_ub(&self, state: &T, info: &NodeInfo<T>) -> i32 {
+    fn estimate_ub(&self, state: &T, info: &NodeInfo) -> i32 {
         self.relax.estimate_ub(state, info)
     }
 
@@ -198,10 +201,10 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH
         MDDConfig { pb, relax, lv, vs, width, ns, vars, _t: PhantomData }
     }
 
-    fn transition_state(&self, node: &Node<T>, d: Decision) -> T {
-        self.pb.transition(&node.state, &self.vars, d)
+    fn transition_state(&self, state: &T, d: Decision) -> T {
+        self.pb.transition(state, &self.vars, d)
     }
-    fn transition_cost(&self, node: &Node<T>, d: Decision) -> i32 {
-        self.pb.transition_cost(&node.state, &self.vars, d)
+    fn transition_cost(&self, state: &T, d: Decision) -> i32 {
+        self.pb.transition_cost(state, &self.vars, d)
     }
 }

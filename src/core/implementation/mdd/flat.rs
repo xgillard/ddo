@@ -14,13 +14,13 @@ pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
     config           : C,
 
     mddtype          : MDDType,
-    layers           : [MetroHashMap<T, NodeInfo<T>>; 3],
+    layers           : [MetroHashMap<T, NodeInfo>; 3],
     current          : usize,
     next             : usize,
     lel              : usize,
 
     is_exact         : bool,
-    best_node        : Option<NodeInfo<T>>
+    best_node        : Option<NodeInfo>
 }
 
 /// Be careful: this macro lets you borrow any single layer from a flat mdd.
@@ -52,10 +52,10 @@ impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
         self.develop(Relaxed, root, best_lb);
     }
 
-    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo<T>) {
+    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo) {
         layer![self, mut lel].iter_mut().for_each(|(k, v)| (f)(k, v))
     }
-    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo<T>) {
+    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo) {
         layer![self, mut lel].drain().for_each(|(k, v)| (f)(k, v))
     }
 
@@ -69,7 +69,7 @@ impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             i32::min_value()
         }
     }
-    fn best_node(&self) -> &Option<NodeInfo<T>> {
+    fn best_node(&self) -> &Option<NodeInfo> {
         &self.best_node
     }
     fn longest_path(&self) -> Vec<Decision> {
@@ -122,7 +122,7 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
         self.current = self.next;
         self.next    = tmp;
     }
-    fn is_relevant(&self, bounds: Bounds, state: &T, info: &NodeInfo<T>) -> bool {
+    fn is_relevant(&self, bounds: Bounds, state: &T, info: &NodeInfo) -> bool {
         min(self.config.estimate_ub(state, info), bounds.ub) > bounds.lb
     }
     fn develop(&mut self, kind: MDDType, root: &Node<T>, best_lb: i32) {
@@ -154,11 +154,11 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
         let next = layer![self, mut next];
 
         for (state, info) in curr.iter() {
-            let current = Rc::new(Node{state: state.clone(), info: info.clone()});
-            let domain  = self.config.domain_of(state, var);
+            let info   = Rc::new(info.clone());
+            let domain = self.config.domain_of(state, var);
             for value in domain {
                 let decision  = Decision{variable: var, value};
-                let branching = self.config.branch(Rc::clone(&current), decision);
+                let branching = self.config.branch(&state, Rc::clone(&info), decision);
 
                 if let Some(old) = next.get_mut(&branching.state) {
                     old.merge(branching.info);

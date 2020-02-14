@@ -168,21 +168,21 @@ impl <'a> From<&'a VarSet> for Domain<'a> {
 
 // --- NODE --------------------------------------------------------------------
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Edge<T> where T: Eq + Clone  {
-    pub src     : Rc<Node<T>>,
+pub struct Edge  {
+    pub src     : Rc<NodeInfo>,
     pub decision: Decision
 }
 
 #[derive(Debug, Clone, Eq)]
-pub struct NodeInfo<T> where T: Eq + Clone {
+pub struct NodeInfo {
     pub is_exact : bool,
     pub lp_len   : i32,
-    pub lp_arc   : Option<Edge<T>>,
+    pub lp_arc   : Option<Edge>,
     pub ub       : i32
 }
 
-impl <T> NodeInfo<T> where T: Eq + Clone {
-    pub fn new (lp_len: i32, lp_arc: Option<Edge<T>>, is_exact: bool) -> NodeInfo<T> {
+impl NodeInfo {
+    pub fn new (lp_len: i32, lp_arc: Option<Edge>, is_exact: bool) -> NodeInfo {
         NodeInfo { is_exact, lp_len, lp_arc, ub: i32::max_value() }
     }
 
@@ -204,13 +204,13 @@ impl <T> NodeInfo<T> where T: Eq + Clone {
         while arc.is_some() {
             let a = arc.as_ref().unwrap();
             ret.push(a.decision);
-            arc = &a.src.info.lp_arc;
+            arc = &a.src.lp_arc;
         }
 
         ret
     }
 }
-impl <T> PartialEq for NodeInfo<T> where T: Eq + Clone {
+impl PartialEq for NodeInfo {
     fn eq(&self, other: &Self) -> bool {
         self.is_exact == other.is_exact &&
             self.lp_len == other.lp_len &&
@@ -218,14 +218,14 @@ impl <T> PartialEq for NodeInfo<T> where T: Eq + Clone {
             self.lp_arc == other.lp_arc
     }
 }
-impl <T> Ord for NodeInfo<T> where T: Eq + Clone {
+impl Ord for NodeInfo {
     fn cmp(&self, other: &Self) -> Ordering {
         self.ub.cmp(&other.ub)
             .then_with(|| self.lp_len.cmp(&other.lp_len))
             .then_with(|| self.is_exact.cmp(&other.is_exact))
     }
 }
-impl <T> PartialOrd for NodeInfo<T> where T: Eq + Clone {
+impl PartialOrd for NodeInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(&other))
     }
@@ -235,11 +235,11 @@ impl <T> PartialOrd for NodeInfo<T> where T: Eq + Clone {
 #[derive(Debug, Clone, Eq)]
 pub struct Node<T> where T: Eq + Clone {
     pub state    : T,
-    pub info     : NodeInfo<T>
+    pub info     : NodeInfo
 }
 
 impl <T> Node<T> where T : Eq + Clone {
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge<T>>, is_exact: bool) -> Node<T> {
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge>, is_exact: bool) -> Node<T> {
         Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
     }
 }

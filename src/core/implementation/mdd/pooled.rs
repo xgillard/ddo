@@ -14,12 +14,12 @@ pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
     config           : C,
 
     mddtype          : MDDType,
-    pool             : MetroHashMap<T, NodeInfo<T>>,
+    pool             : MetroHashMap<T, NodeInfo>,
     current          : Vec<Node<T>>,
     cutset           : Vec<Node<T>>,
 
     is_exact         : bool,
-    best_node        : Option<NodeInfo<T>>
+    best_node        : Option<NodeInfo>
 }
 
 impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
@@ -38,10 +38,10 @@ impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
     fn relaxed(&mut self, root: &Node<T>, best_lb: i32) {
         self.develop(Relaxed, root, best_lb);
     }
-    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo<T>) {
+    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo) {
         self.cutset.iter_mut().for_each(|n| (f)(&n.state, &mut n.info))
     }
-    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo<T>) {
+    fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo) {
         self.cutset.drain(..).for_each(|n| (f)(n.state, n.info))
     }
     fn is_exact(&self) -> bool {
@@ -54,7 +54,7 @@ impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
             self.best_node.as_ref().unwrap().lp_len
         }
     }
-    fn best_node(&self) -> &Option<NodeInfo<T>> {
+    fn best_node(&self) -> &Option<NodeInfo> {
         &self.best_node
     }
     fn longest_path(&self) -> Vec<Decision> {
@@ -119,11 +119,11 @@ impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
     }
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
         for node in self.current.iter() {
-            let current = Rc::new(node.clone());
+            let info    = Rc::new(node.info.clone());
             let domain  = self.config.domain_of(&node.state, var);
             for value in domain {
                 let decision  = Decision{variable: var, value};
-                let branching = self.config.branch(Rc::clone(&current), decision);
+                let branching = self.config.branch(&node.state, Rc::clone(&info), decision);
 
                 if let Some(old) = self.pool.get_mut(&branching.state) {
                     if old.is_exact && !branching.info.is_exact {
@@ -162,7 +162,7 @@ impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> {
         self.pool.is_empty()
     }
 
-    fn is_relevant(&self, bounds: Bounds, state: &T, info: &NodeInfo<T>) -> bool {
+    fn is_relevant(&self, bounds: Bounds, state: &T, info: &NodeInfo) -> bool {
         min(self.config.estimate_ub(state, info), bounds.ub) > bounds.lb
     }
 

@@ -15,11 +15,11 @@ pub enum MDDType {
 
 pub enum Layer<'a, T> where T: Eq + Clone {
     Plain (std::slice::Iter<'a, Node<T>>),
-    Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo<T>>),
+    Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo>),
 }
 
 impl <'a, T> Iterator for Layer<'a, T> where T: Eq + Clone {
-    type Item = (&'a T, &'a NodeInfo<T>);
+    type Item = (&'a T, &'a NodeInfo);
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -51,9 +51,9 @@ pub trait MDD<T> where T : Clone + Eq {
     fn relaxed(&mut self, root: &Node<T>, best_lb : i32);
 
     /// Returns a set of nodes constituting an exact cutset of this `MDD`.
-    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo<T>);
+    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo);
     /// Consumes the cutset of this mdd.
-    fn consume_cutset<F>(&mut self, f: F) where F: FnMut(T, NodeInfo<T>);
+    fn consume_cutset<F>(&mut self, f: F) where F: FnMut(T, NodeInfo);
 
     /// Return true iff this `MDD` is exact. That is to say, it returns true if
     /// no nodes have been merged (because of relaxation) or suppressed (because
@@ -63,7 +63,7 @@ pub trait MDD<T> where T : Clone + Eq {
     /// node of this `MDD`.
     fn best_value(&self) -> i32;
     /// Returns the terminal node having the longest associated path in this `MDD`.
-    fn best_node(&self) -> &Option<NodeInfo<T>>;
+    fn best_node(&self) -> &Option<NodeInfo>;
     /// Returns the list of decisions along the longest path between the
     /// root node and the best terminal node of this `MDD`.
     fn longest_path(&self) -> Vec<Decision>;
