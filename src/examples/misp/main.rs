@@ -6,7 +6,7 @@ use crate::core::common::Decision;
 use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
 use crate::core::implementation::solver::parallel::BBSolver;
-use crate::core::implementation::heuristics::{FixedWidth, MaxUB};
+use crate::core::implementation::heuristics::FixedWidth;
 use crate::core::implementation::mdd::builder::mdd_builder;
 use crate::core::utils::Func;
 use crate::examples::misp::heuristics::{MispVarHeu, vars_from_misp_state};
@@ -37,8 +37,7 @@ pub fn misp(fname: &str, verbose: u8, width:Option<usize>) {
     }
 }
 fn solve<DD: MDD<BitSet> + Clone + Send >(mdd: DD, verbose: u8) {
-    let mut solver   = BBSolver::new(mdd, MaxUB);
-    solver.verbosity = verbose;
+    let mut solver = BBSolver::with_verbosity(mdd, verbose);
 
     let start = SystemTime::now();
     let (opt, sln) = solver.maximize();

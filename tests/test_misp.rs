@@ -8,7 +8,7 @@ use ddo::core::abstraction::solver::Solver;
 use ddo::core::implementation::solver::parallel::BBSolver;
 use ddo::core::implementation::heuristics::FixedWidth;
 use ddo::core::utils::Func;
-use ddo::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
+use ddo::examples::misp::heuristics::vars_from_misp_state;
 use ddo::examples::misp::model::Misp;
 use ddo::examples::misp::relax::MispRelax;
 use ddo::core::implementation::mdd::builder::mdd_builder;
@@ -33,7 +33,7 @@ fn solve(id: &str) -> i32 {
         .with_load_vars(Func(vars_from_misp_state))
         .into_pooled();
 
-    let mut solver = BBSolver::new(mdd, Func(misp_ub_order));
+    let mut solver = BBSolver::new(mdd);
     let (val,_sln) = solver.maximize();
 
     val

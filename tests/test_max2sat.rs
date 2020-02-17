@@ -5,12 +5,12 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use ddo::core::abstraction::solver::Solver;
+use ddo::core::implementation::heuristics::FixedWidth;
+use ddo::core::implementation::mdd::builder::mdd_builder;
 use ddo::core::implementation::solver::parallel::BBSolver;
-use ddo::core::implementation::heuristics::{MaxUB, FixedWidth};
 use ddo::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use ddo::examples::max2sat::model::Max2Sat;
 use ddo::examples::max2sat::relax::Max2SatRelax;
-use ddo::core::implementation::mdd::builder::mdd_builder;
 
 /// This method simply loads a resource into a problem instance to solve
 fn instance(id: &str) -> Max2Sat {
@@ -33,7 +33,7 @@ fn solve(id: &str) -> i32 {
         .with_branch_heuristic(Max2SatOrder::new(&problem))
         .with_nodes_selection_heuristic(MinRank)
         .into_flat();
-    let mut solver   = BBSolver::new(mdd, MaxUB);
+    let mut solver   = BBSolver::new(mdd);
     //solver.verbosity = 3;
     let (val,_sln)   = solver.maximize();
     val

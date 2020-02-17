@@ -12,7 +12,6 @@ mod tests {
     use crate::examples::mcp::relax::McpRelax;
     use crate::core::abstraction::solver::Solver;
     use crate::core::implementation::mdd::builder::mdd_builder;
-    use crate::core::implementation::heuristics::MaxUB;
     use crate::core::implementation::solver::parallel::BBSolver;
     use crate::core::common::{Decision, Variable};
 
@@ -34,7 +33,7 @@ mod tests {
     pub fn solve(problem: Mcp) -> (i32, Option<Vec<Decision>>) {
         let relax       = McpRelax::new(&problem);
         let mdd         = mdd_builder(&problem, relax).into_flat();
-        let mut solver  = BBSolver::new(mdd, MaxUB);
+        let mut solver  = BBSolver::new(mdd);
 
         let (best, sln) = solver.maximize();
 

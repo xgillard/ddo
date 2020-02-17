@@ -1,35 +1,59 @@
 use binary_heap_plus::BinaryHeap;
-use compare::Compare;
 
 use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
 use crate::core::common::{Decision, Node, NodeInfo};
 use parking_lot::{Condvar, Mutex};
 use std::sync::Arc;
+use crate::core::implementation::heuristics::MaxUB;
 
 /// The shared data that may only be manipulated within critical sections
-struct Critical<T, BO> where BO: Compare<Node<T>> {
-    pub fringe   : BinaryHeap<Node<T>, BO>,
-    pub ongoing  : usize,
-    pub explored : usize,
-    pub best_lb  : i32,
-    pub best_node: Option<NodeInfo>
+struct Critical<T> {
+    fringe   : BinaryHeap<Node<T>, MaxUB>,
+    ongoing  : usize,
+    explored : usize,
+    best_lb  : i32,
+    best_node: Option<NodeInfo>
 }
 /// The state which is shared among the many running threads
-struct Shared<T, BO> where BO: Compare<Node<T>> {
-    pub critical : Mutex<Critical<T, BO>>,
-    pub monitor  : Condvar
+struct Shared<T> {
+    critical : Mutex<Critical<T>>,
+    monitor  : Condvar
+}
+/// The workload a thread can get from the shared state
+enum WorkLoad<T> {
+    /// There is no work left to be done: you can safely terminate
+    Complete,
+    /// There is nothing you can do right now. Check again when you wake up
+    Starvation,
+    /// The item to process
+    WorkItem {
+        explored : usize,
+        fringe_sz: usize,
+        best_lb  : i32,
+        node     : Node<T>
+    }
 }
 
-pub struct BBSolver<T, DD, BO> where T: Send, DD: MDD<T>+ Clone + Send, BO: Compare<Node<T>> + Send {
-    mdd          : DD,
-    shared       : Arc<Shared<T, BO>>,
-    pub best_sol : Option<Vec<Decision>>,
-    pub verbosity: u8
+pub struct BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
+    mdd       : DD,
+    shared    : Arc<Shared<T>>,
+    best_sol  : Option<Vec<Decision>>,
+    verbosity : u8,
+    nb_threads: usize
 }
 
-impl <T, DD, BO> BBSolver<T, DD, BO> where T: Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
-    pub fn new(mdd: DD, bo : BO) -> Self {
+impl <T, DD> BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
+    pub fn new(mdd: DD) -> Self {
+        Self::customized(mdd, 0, num_cpus::get())
+    }
+    pub fn with_verbosity(mdd: DD, verbosity: u8) -> Self {
+        Self::customized(mdd, verbosity, num_cpus::get())
+    }
+    pub fn with_nb_threads(mdd: DD, nb_threads: usize) -> Self {
+        Self::customized(mdd, 0, nb_threads)
+    }
+    pub fn customized(mdd: DD, verbosity: u8, nb_threads: usize) -> Self {
         BBSolver {
             mdd,
             shared: Arc::new(Shared {
@@ -39,31 +63,28 @@ impl <T, DD, BO> BBSolver<T, DD, BO> where T: Send, DD: MDD<T> + Clone + Send, B
                     best_lb  : i32::min_value(),
                     ongoing  : 0,
                     explored : 0,
-                    fringe   : BinaryHeap::from_vec_cmp(vec![], bo)
+                    fringe   : BinaryHeap::from_vec_cmp(vec![], MaxUB)
                 })
             }),
             best_sol: None,
-            verbosity: 0
+            verbosity,
+            nb_threads
         }
     }
 
-    fn maybe_update_best(mdd: &DD, shared: &Arc<Shared<T, BO>>) {
-        let mut shared = shared.critical.lock();
-        if mdd.best_value() > shared.best_lb {
-            shared.best_lb   = mdd.best_value();
-            shared.best_node = mdd.best_node().clone();
-        }
+    fn initialize(&self) {
+        let root = self.mdd.root();
+        self.shared.critical.lock().fringe.push(root);
     }
 
-    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T, BO>>, node: Node<T>) {
+    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T>>, node: Node<T>) {
         let mut best_lb = {shared.critical.lock().best_lb};
 
         // 1. RESTRICTION
         mdd.restricted(&node, best_lb);
         Self::maybe_update_best(mdd, shared);
         if mdd.is_exact() {
-            shared.critical.lock().ongoing -= 1;
-            shared.monitor.notify_all();
+            Self::notify_node_finished(shared);
             return;
         }
 
@@ -73,81 +94,99 @@ impl <T, DD, BO> BBSolver<T, DD, BO> where T: Send, DD: MDD<T> + Clone + Send, B
         if mdd.is_exact() {
             Self::maybe_update_best(mdd, shared);
         } else {
-            let ub           = node.info.ub;
-            { // CRITICAL SECTION:: push cutset nodes
-                let mut critical = shared.critical.lock();
-                let best_lb = critical.best_lb;
-                let fringe = &mut critical.fringe;
-                mdd.consume_cutset(|state, mut info| {
-                    info.ub = ub.min(info.ub);
-                    if info.ub > best_lb {
-                        fringe.push(Node { state, info });
-                    }
-                });
-            }
+            Self::enqueue_cutset(mdd, shared, node.info.ub);
         }
+
+        Self::notify_node_finished(shared);
+    }
+
+    fn maybe_update_best(mdd: &DD, shared: &Arc<Shared<T>>) {
+        let mut shared = shared.critical.lock();
+        if mdd.best_value() > shared.best_lb {
+            shared.best_lb   = mdd.best_value();
+            shared.best_node = mdd.best_node().clone();
+        }
+    }
+
+    fn enqueue_cutset(mdd: &mut DD, shared: &Arc<Shared<T>>, ub: i32) {
+        let mut critical = shared.critical.lock();
+        let best_lb      = critical.best_lb;
+        let fringe       = &mut critical.fringe;
+        mdd.consume_cutset(|state, mut info| {
+            info.ub = ub.min(info.ub);
+            if info.ub > best_lb {
+                fringe.push(Node { state, info });
+            }
+        });
+    }
+
+    fn notify_node_finished(shared: &Arc<Shared<T>>) {
         shared.critical.lock().ongoing -= 1;
         shared.monitor.notify_all();
     }
-}
 
-impl <T, DD, BO> Solver for BBSolver<T, DD, BO> where T: Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
-
-    fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
-        let cpus   = num_cpus::get();
-
-        { // Kickstart
-            let root = self.mdd.root();
-            self.shared.critical.lock().fringe.push(root);
+    fn get_workload(shared: &Arc<Shared<T>>) -> WorkLoad<T> {
+        let mut critical = shared.critical.lock();
+        // Are we done ?
+        if critical.ongoing == 0 && critical.fringe.is_empty() {
+            return WorkLoad::Complete;
+        }
+        // Nothing to do yet ? => Wait for someone to post jobs
+        if critical.fringe.is_empty() {
+            shared.monitor.wait(&mut critical);
+            return WorkLoad::Starvation;
+        }
+        // Nothing relevant ? =>  Wait for someone to post jobs
+        let nn = critical.fringe.pop().unwrap();
+        if nn.info.ub < critical.best_lb {
+            critical.fringe.clear();
+            return WorkLoad::Starvation;
         }
 
+        // Consume the current node and process it
+        critical.ongoing += 1;
+        critical.explored+= 1;
+
+        WorkLoad::WorkItem {
+            explored : critical.explored,
+            fringe_sz: critical.fringe.len(),
+            best_lb  : critical.best_lb,
+            node     : nn
+        }
+    }
+
+    fn maybe_log(verbosity: u8, explored: usize, fringe_sz: usize, lb: i32) {
+        if verbosity >= 2 && explored % 100 == 0 {
+            println!("Explored {}, LB {}, Fringe sz {}", explored, lb, fringe_sz);
+        }
+    }
+}
+
+impl <T, DD> Solver for BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
+
+    fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
+        self.initialize();
+
         crossbeam::thread::scope(|s|{
-            for _i in 0..cpus {
-                let shared = Arc::clone(&self.shared);
-                let mut mdd = self.mdd.clone();
+            for _i in 0..self.nb_threads {
+                let shared    = Arc::clone(&self.shared);
+                let mut mdd   = self.mdd.clone();
                 let verbosity = self.verbosity;
 
                 s.spawn(move |_| {
                     loop {
-                        let mut node      = None;
-                        let mut explored  = 0;
-                        let mut lb        = 0;
-                        let mut fringe_sz = 0;
-                        { // Critical section
-                            let mut critical = shared.critical.lock();
-                            // Are we done ?
-                            if critical.ongoing == 0 && critical.fringe.is_empty() {
-                                break;
-                            }
-                            // Nothing to do yet ? => Wait for someone to post jobs
-                            if critical.fringe.is_empty() {
-                                shared.monitor.wait(&mut critical);
-                                continue;
-                            } else {
-                                let nn = critical.fringe.pop().unwrap();
-                                if nn.info.ub < critical.best_lb {
-                                    // all remaining nodes have lessed bound, drop them
-                                    critical.fringe.clear();
-                                    continue;
-                                } else {
-                                    critical.ongoing += 1;
-                                    critical.explored+= 1;
-                                    explored  = critical.explored;
-                                    lb        = critical.best_lb;
-                                    fringe_sz = critical.fringe.len();
-                                    node = Some(nn);
-                                }
+                        match Self::get_workload(&shared) {
+                            WorkLoad::Complete   => break,
+                            WorkLoad::Starvation => continue,
+                            WorkLoad::WorkItem {explored, fringe_sz, best_lb, node} => {
+                                Self::maybe_log(verbosity, explored, fringe_sz, best_lb);
+                                Self::process_one_node(&mut mdd, &shared, node);
                             }
                         }
-
-                        if verbosity >= 2 && explored % 100 == 0 {
-                            println!("Explored {}, LB {}, Fringe sz {}", explored, lb, fringe_sz);
-                        }
-                        Self::process_one_node(&mut mdd, &shared, node.unwrap());
                     }
                 });
             }
-        });
+        }).expect("Something went wrong with the worker threads");
 
         let shared = self.shared.critical.lock();
         if let Some(bn) = &shared.best_node {
