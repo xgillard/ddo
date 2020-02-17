@@ -1,4 +1,3 @@
-/*
 #![cfg(test)]
 extern crate ddo;
 
@@ -6,7 +5,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use ddo::core::abstraction::solver::Solver;
-use ddo::core::implementation::bb_solver::BBSolver;
+use ddo::core::implementation::solver::parallel::BBSolver;
 use ddo::core::implementation::heuristics::FixedWidth;
 use ddo::core::utils::Func;
 use ddo::examples::misp::heuristics::{misp_ub_order, vars_from_misp_state};
@@ -169,4 +168,3 @@ fn p_hat1500_2() {
 fn p_hat1500_3() {
     assert_eq!(solve("p_hat1500-3.clq"), 94);
 }
-*/

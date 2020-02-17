@@ -3,6 +3,7 @@ use crate::core::abstraction::dp::{Relaxation, Problem};
 use crate::core::common::{Node, Variable, VarSet, NodeInfo};
 use std::cmp::Ordering;
 
+#[derive(Debug, Clone)]
 pub struct McpRelax<'a> {
     pb  : &'a Mcp,
     vars: VarSet

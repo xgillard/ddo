@@ -4,7 +4,7 @@ pub mod relax;
 
 
 pub mod main;
-/*
+
 #[cfg(test)]
 mod tests {
     use crate::examples::mcp::graph::Graph;
@@ -13,7 +13,7 @@ mod tests {
     use crate::core::abstraction::solver::Solver;
     use crate::core::implementation::mdd::builder::mdd_builder;
     use crate::core::implementation::heuristics::MaxUB;
-    use crate::core::implementation::bb_solver::BBSolver;
+    use crate::core::implementation::solver::parallel::BBSolver;
     use crate::core::common::{Decision, Variable};
 
     use std::path::PathBuf;
@@ -84,4 +84,4 @@ mod tests {
         let (best, _)= solve(problem);
         println!("{}", best)
     }
-}*/
+}

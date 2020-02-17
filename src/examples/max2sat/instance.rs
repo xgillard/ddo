@@ -21,7 +21,7 @@ impl BinaryClause {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Weighed2Sat {
     pub nb_vars : usize,
     pub weights : HashMap<BinaryClause, i32>
@@ -97,7 +97,6 @@ impl <B: BufRead> From<Lines<B>> for Weighed2Sat {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -124,4 +123,4 @@ mod tests {
         let cla = BinaryClause::new(-1, -1);
         assert!(cla.is_unit())
     }
-}*/
+}

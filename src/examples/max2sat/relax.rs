@@ -4,7 +4,7 @@ use crate::core::common::{Node, NodeInfo, VarSet};
 use crate::core::abstraction::dp::{Problem, Relaxation};
 use crate::examples::max2sat::model::{Max2Sat, State};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Max2SatRelax<'a> {
     problem : &'a Max2Sat,
     vars    : VarSet

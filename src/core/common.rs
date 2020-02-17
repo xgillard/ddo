@@ -4,7 +4,7 @@
 
 use bitset_fixed::BitSet;
 use crate::core::utils::{BitSetIter, LexBitSet};
-use std::ops::{Not, Range};
+use std::ops::{Not, Range, RangeInclusive};
 use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
 use std::hash::{Hasher, Hash};
@@ -102,11 +102,12 @@ impl Iterator for VarSetIter<'_> {
 pub struct Bounds {pub lb: i32, pub ub: i32}
 
 pub enum Domain<'a> {
-    Vector(Vec<i32>),
-    Slice (&'a [i32]),
-    BitSet(&'a BitSet),
-    VarSet(&'a VarSet),
-    Range (Range<i32>),
+    Vector         (Vec<i32>),
+    Slice          (&'a [i32]),
+    BitSet         (&'a BitSet),
+    VarSet         (&'a VarSet),
+    Range          (Range<i32>),
+    RangeInclusive(RangeInclusive<i32>)
 }
 impl <'a> IntoIterator for Domain<'a> {
     type Item     = i32;
@@ -114,29 +115,32 @@ impl <'a> IntoIterator for Domain<'a> {
 
     fn into_iter(self) -> Self::IntoIter {
         match self {
-            Domain::Vector(v) => DomainIter::Vector(v.into_iter()),
-            Domain::Slice (s) => DomainIter::Slice (s.iter()),
-            Domain::BitSet(b) => DomainIter::BitSet(BitSetIter::new(b)),
-            Domain::VarSet(v) => DomainIter::BitSet(BitSetIter::new(&v.0)),
-            Domain::Range (r) => DomainIter::Range (r)
+            Domain::Vector         (v) => DomainIter::Vector(v.into_iter()),
+            Domain::Slice          (s) => DomainIter::Slice (s.iter()),
+            Domain::BitSet         (b) => DomainIter::BitSet(BitSetIter::new(b)),
+            Domain::VarSet         (v) => DomainIter::BitSet(BitSetIter::new(&v.0)),
+            Domain::Range          (r) => DomainIter::Range (r),
+            Domain::RangeInclusive (r) => DomainIter::RangeInclusive(r)
         }
     }
 }
 pub enum DomainIter<'a> {
-    Vector(std::vec::IntoIter<i32>),
-    Slice (std::slice::Iter<'a, i32>),
-    BitSet(BitSetIter<'a>),
-    Range (Range<i32>)
+    Vector         (std::vec::IntoIter<i32>),
+    Slice          (std::slice::Iter<'a, i32>),
+    BitSet         (BitSetIter<'a>),
+    Range          (Range<i32>),
+    RangeInclusive (RangeInclusive<i32>)
 }
 impl Iterator for DomainIter<'_> {
     type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            DomainIter::Vector(i) => i.next(),
-            DomainIter::Slice (i) => i.next().copied(),
-            DomainIter::BitSet(i) => i.next().map(|x| x as i32),
-            DomainIter::Range (i) => i.next()
+            DomainIter::Vector         (i) => i.next(),
+            DomainIter::Slice          (i) => i.next().copied(),
+            DomainIter::BitSet         (i) => i.next().map(|x| x as i32),
+            DomainIter::Range          (i) => i.next(),
+            DomainIter::RangeInclusive (i) => i.next()
         }
     }
 }
@@ -153,6 +157,11 @@ impl <'a> From<&'a [i32]> for Domain<'a> {
 impl From<Range<i32>> for Domain<'_> {
     fn from(r: Range<i32>) -> Self {
         Domain::Range(r)
+    }
+}
+impl From<RangeInclusive<i32>> for Domain<'_> {
+    fn from(r: RangeInclusive<i32>) -> Self {
+        Domain::RangeInclusive(r)
     }
 }
 impl <'a> From<&'a BitSet> for Domain<'a> {
@@ -233,34 +242,33 @@ impl PartialOrd for NodeInfo {
 
 
 #[derive(Debug, Clone, Eq)]
-pub struct Node<T> where T: Eq + Clone {
+pub struct Node<T> {
     pub state    : T,
     pub info     : NodeInfo
 }
 
-impl <T> Node<T> where T : Eq + Clone {
+impl <T> Node<T> {
     pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge>, is_exact: bool) -> Node<T> {
         Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
     }
 }
 
-impl <T> Hash for Node<T> where T: Hash + Eq + Clone {
+impl <T> Hash for Node<T> where T: Hash {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.state.hash(state);
     }
 }
-impl <T> PartialEq for Node<T> where T: Eq + Clone {
+impl <T> PartialEq for Node<T> where T: Eq {
     fn eq(&self, other: &Self) -> bool {
         self.state.eq(&other.state)
     }
 }
-impl <T> Ord for Node<T> where T: Eq + Clone + Ord {
+impl <T> Ord for Node<T> where T: Eq + Ord {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
-
-impl <T> PartialOrd for Node<T> where T: Eq + Clone + PartialOrd {
+impl <T> PartialOrd for Node<T> where T: Eq + PartialOrd {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let res = self.info.cmp(&other.info);
         if res != Equal {

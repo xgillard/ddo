@@ -88,32 +88,28 @@ impl PartialOrd for LexBitSet<'_> {
 pub struct Func<F>(pub F);
 
 impl <T, F> Compare<Node<T>> for Func<F>
-    where T: Clone + Eq,
-          F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
+    where F: Clone + Fn(&Node<T>, &Node<T>) -> Ordering {
 
     fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
         (self.0)(a, b)
     }
 }
-impl <T, F> WidthHeuristic<T> for Func<F>
-    where T: Clone + Eq,
-          F: Fn(&VarSet) -> usize {
+impl <F> WidthHeuristic for Func<F>
+    where F: Fn(&VarSet) -> usize {
 
     fn max_width(&self, free_vars: &VarSet) -> usize {
         (self.0)(free_vars)
     }
 }
 impl <T, F> VariableHeuristic<T> for Func<F>
-    where T: Clone + Eq,
-          F: Fn(&VarSet, Layer<'_, T>, Layer<'_, T>) -> Option<Variable> {
+    where F: Fn(&VarSet, Layer<'_, T>, Layer<'_, T>) -> Option<Variable> {
 
     fn next_var(&self, free_vars: &VarSet, current: Layer<'_, T>, next: Layer<'_, T>) -> Option<Variable> {
         (self.0)(free_vars, current, next)
     }
 }
 impl <T, F> LoadVars<T> for Func<F>
-    where T: Clone + Eq,
-          F: Fn(&Node<T>) -> VarSet {
+    where F: Fn(&Node<T>) -> VarSet {
 
     fn variables(&self, node: &Node<T>) -> VarSet {
         (self.0)(node)

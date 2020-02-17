@@ -1,4 +1,3 @@
-/*
 #![cfg(test)]
 extern crate ddo;
 
@@ -6,7 +5,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use ddo::core::abstraction::solver::Solver;
-use ddo::core::implementation::bb_solver::BBSolver;
+use ddo::core::implementation::solver::parallel::BBSolver;
 use ddo::core::implementation::heuristics::{MaxUB, FixedWidth};
 use ddo::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use ddo::examples::max2sat::model::Max2Sat;
@@ -121,4 +120,4 @@ fn frb20_11_4() {
 #[ignore] #[test]
 fn frb20_11_5() {
     assert_eq!(solve("frb20-11-5.wcnf"), 1_237_841);
-}*/
+}

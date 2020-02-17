@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::sync::Arc;
 use crate::core::abstraction::mdd::Layer;
 
-pub trait Config<T> where T: Eq + Clone {
+pub trait Config<T> {
     fn root_node(&self) -> Node<T>;
     fn impacted_by(&self, state: &T, v: Variable) -> bool;
     fn load_vars (&mut self, root: &Node<T>);

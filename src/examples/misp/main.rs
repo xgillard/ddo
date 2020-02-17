@@ -5,7 +5,7 @@ use bitset_fixed::BitSet;
 use crate::core::common::Decision;
 use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
-use crate::core::implementation::bb_solver::BBSolver;
+use crate::core::implementation::solver::parallel::BBSolver;
 use crate::core::implementation::heuristics::{FixedWidth, MaxUB};
 use crate::core::implementation::mdd::builder::mdd_builder;
 use crate::core::utils::Func;

@@ -5,6 +5,7 @@ use regex::Regex;
 use std::fs::File;
 
 /// The graph is represented by its adjacency matrix
+#[derive(Debug, Clone)]
 pub struct Graph {
     pub nb_vertices: usize,
     pub adj_matrix : Vec<i32>

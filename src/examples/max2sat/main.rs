@@ -1,10 +1,9 @@
-/*
 use std::fs::File;
 
 use crate::core::common::Decision;
 use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
-use crate::core::implementation::bb_solver::BBSolver;
+use crate::core::implementation::solver::parallel::BBSolver;
 use crate::core::implementation::heuristics::{FixedWidth, MaxUB};
 use crate::core::implementation::mdd::builder::mdd_builder;
 use crate::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
@@ -34,7 +33,7 @@ pub fn max2sat(fname: &str, verbose: u8, width: Option<usize>) {
                           .into_flat(), verbose)
     }
 }
-fn solve<DD: MDD<State>>(mdd: DD, verbose: u8) {
+fn solve<DD: MDD<State> + Clone + Send>(mdd: DD, verbose: u8) {
     let mut solver   = BBSolver::new(mdd, MaxUB);
     solver.verbosity = verbose;
 
@@ -63,4 +62,3 @@ fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
         println!("No solution !");
     }
 }
-*/

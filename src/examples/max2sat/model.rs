@@ -50,7 +50,7 @@ impl PartialOrd for State {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Max2Sat {
     pub nb_vars : usize,
     pub initial : i32,
@@ -193,7 +193,7 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
     }
 }
 
-/*
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,4 +266,4 @@ mod tests {
 
         assert_eq!(5917, state.rank());
     }
-}*/
+}

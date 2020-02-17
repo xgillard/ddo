@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
@@ -10,7 +8,7 @@ use parking_lot::{Condvar, Mutex};
 use std::sync::Arc;
 
 /// The shared data that may only be manipulated within critical sections
-struct Critical<T, BO> where T: Eq + Clone, BO: Compare<Node<T>> {
+struct Critical<T, BO> where BO: Compare<Node<T>> {
     pub fringe   : BinaryHeap<Node<T>, BO>,
     pub ongoing  : usize,
     pub explored : usize,
@@ -18,22 +16,19 @@ struct Critical<T, BO> where T: Eq + Clone, BO: Compare<Node<T>> {
     pub best_node: Option<NodeInfo>
 }
 /// The state which is shared among the many running threads
-struct Shared<T, BO> where T: Eq + Clone, BO: Compare<Node<T>> {
+struct Shared<T, BO> where BO: Compare<Node<T>> {
     pub critical : Mutex<Critical<T, BO>>,
     pub monitor  : Condvar
 }
 
-pub struct BBSolver<T, DD, BO>
-    where T: Hash + Eq + Clone + Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
-
+pub struct BBSolver<T, DD, BO> where T: Send, DD: MDD<T>+ Clone + Send, BO: Compare<Node<T>> + Send {
     mdd          : DD,
     shared       : Arc<Shared<T, BO>>,
     pub best_sol : Option<Vec<Decision>>,
     pub verbosity: u8
 }
 
-impl <T, DD, BO> BBSolver<T, DD, BO>
-    where T: Hash + Eq + Clone + Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
+impl <T, DD, BO> BBSolver<T, DD, BO> where T: Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
     pub fn new(mdd: DD, bo : BO) -> Self {
         BBSolver {
             mdd,
@@ -60,7 +55,7 @@ impl <T, DD, BO> BBSolver<T, DD, BO>
         }
     }
 
-    fn process_one_node(verbosity: u8, mdd: &mut DD, shared: &Arc<Shared<T, BO>>, node: Node<T>) {
+    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T, BO>>, node: Node<T>) {
         let mut best_lb = {shared.critical.lock().best_lb};
 
         // 1. RESTRICTION
@@ -96,8 +91,7 @@ impl <T, DD, BO> BBSolver<T, DD, BO>
     }
 }
 
-impl <T, DD, BO> Solver for BBSolver<T, DD, BO>
-    where T: Hash + Eq + Clone + Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
+impl <T, DD, BO> Solver for BBSolver<T, DD, BO> where T: Send, DD: MDD<T> + Clone + Send, BO: Compare<Node<T>> + Send {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
         let cpus   = num_cpus::get();
@@ -108,7 +102,7 @@ impl <T, DD, BO> Solver for BBSolver<T, DD, BO>
         }
 
         crossbeam::thread::scope(|s|{
-            for i in 0..cpus {
+            for _i in 0..cpus {
                 let shared = Arc::clone(&self.shared);
                 let mut mdd = self.mdd.clone();
                 let verbosity = self.verbosity;
@@ -149,7 +143,7 @@ impl <T, DD, BO> Solver for BBSolver<T, DD, BO>
                         if verbosity >= 2 && explored % 100 == 0 {
                             println!("Explored {}, LB {}, Fringe sz {}", explored, lb, fringe_sz);
                         }
-                        Self::process_one_node(verbosity, &mut mdd, &shared, node.unwrap());
+                        Self::process_one_node(&mut mdd, &shared, node.unwrap());
                     }
                 });
             }

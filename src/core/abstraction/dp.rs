@@ -14,7 +14,7 @@ use crate::core::common::{Decision, Variable, VarSet, Node, NodeInfo, Domain};
 /// dynamic program.
 ///
 /// The type parameter `<T>` denotes the type of the states of the dynamic program.
-pub trait Problem<T> where T: Eq + Clone {
+pub trait Problem<T> {
     /// Returns the number of decision variables that play a role in the problem.
     fn nb_vars(&self) -> usize;
     /// Returns the initial state of the problem (when no decision is taken).
@@ -56,7 +56,7 @@ pub trait Problem<T> where T: Eq + Clone {
 /// the given problem.
 ///
 /// Again, the type parameter `<T>` denotes the type of the states.
-pub trait Relaxation<T> where T: Eq + Clone {
+pub trait Relaxation<T> {
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T>;
     fn estimate_ub(&self, _state: &T, _info: &NodeInfo) -> i32 {
         i32::max_value()

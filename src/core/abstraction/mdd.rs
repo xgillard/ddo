@@ -13,12 +13,12 @@ pub enum MDDType {
     Exact
 }
 
-pub enum Layer<'a, T> where T: Eq + Clone {
+pub enum Layer<'a, T> {
     Plain (std::slice::Iter<'a, Node<T>>),
     Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo>),
 }
 
-impl <'a, T> Iterator for Layer<'a, T> where T: Eq + Clone {
+impl <'a, T> Iterator for Layer<'a, T> {
     type Item = (&'a T, &'a NodeInfo);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -34,7 +34,7 @@ impl <'a, T> Iterator for Layer<'a, T> where T: Eq + Clone {
 /// # Type param
 /// The type parameter `<T>` denotes the type of the state defined/manipulated
 /// by the `Problem` definition.
-pub trait MDD<T> where T : Clone + Eq {
+pub trait MDD<T> {
     /// Tells whether this MDD is exact, relaxed, or restricted.
     fn mdd_type(&self) -> MDDType;
 

@@ -40,7 +40,7 @@ impl Problem<KnapsackState> for Knapsack {
     fn domain_of<'a>(&self, state: &'a KnapsackState, var: Variable) -> Domain<'a> {
         let item       = &self.data[var.id()];
         let amount_max = min(item.quantity, state.capacity / item.weight) as i32;
-        Domain::Range(0..amount_max + 1)
+        (0..=amount_max).into()
     }
 
     fn transition(&self, state: &KnapsackState, _vars: &VarSet, d: Decision) -> KnapsackState {

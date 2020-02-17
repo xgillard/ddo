@@ -2,30 +2,25 @@ extern crate ddo;
 extern crate structopt;
 
 use structopt::StructOpt;
-/*
+
+use ddo::examples::knapsack::main::knapsack;
 use ddo::examples::max2sat::main::max2sat;
 use ddo::examples::mcp::main::mcp;
-use ddo::examples::misp::main::misp;
-*/
-use ddo::examples::knapsack::main::knapsack;
 use ddo::examples::misp::main::misp;
 
 fn main() {
     let args = RustMddSolver::from_args();
     match args {
-        /*
+        RustMddSolver::Knapsack{fname, verbose, width} => knapsack(&fname, verbose, width),
         RustMddSolver::Max2sat {fname, verbose, width} => max2sat(&fname, verbose, width),
         RustMddSolver::Mcp     {fname, verbose, width} => mcp(&fname, verbose, width),
-        */
         RustMddSolver::Misp    {fname, verbose, width} => misp(&fname, verbose, width),
-        RustMddSolver::Knapsack{fname, verbose, width} => knapsack(&fname, verbose, width),
     };
 }
 
 /// Solves hard combinatorial problems with bounded width MDDs
 #[derive(StructOpt)]
 enum RustMddSolver {
-    /*
     /// Solve weighed max2sat from DIMACS (.wcnf) files
     Max2sat {
         /// Path to the DIMACS MAX2SAT instance
@@ -45,7 +40,7 @@ enum RustMddSolver {
         verbose: u8,
         /// If specified, the max width allowed for any layer
         width: Option<usize>
-    },*/
+    },
     /// Solve maximum weighted independent set problem from DIMACS (.clq) files
     Misp {
         /// Path to the DIMACS MSIP instance

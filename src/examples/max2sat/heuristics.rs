@@ -6,6 +6,7 @@ use std::cmp::Ordering;
 use compare::Compare;
 use crate::core::abstraction::mdd::Layer;
 
+#[derive(Debug, Clone)]
 pub struct Max2SatOrder<'a> {
     problem: &'a Max2Sat
 }
@@ -33,6 +34,7 @@ impl VariableHeuristic<State> for Max2SatOrder<'_> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct MinRank;
 impl Compare<Node<State>> for MinRank {
     fn compare(&self, x: &Node<State>, y: &Node<State>) -> Ordering {
@@ -42,7 +44,6 @@ impl Compare<Node<State>> for MinRank {
     }
 }
 
-/*
 #[cfg(test)]
 mod test {
     use crate::core::abstraction::dp::Problem;
@@ -78,4 +79,3 @@ mod test {
         assert_eq!(actual, expected);
     }
 }
-*/

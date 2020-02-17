@@ -6,7 +6,6 @@ pub mod heuristics;
 
 pub mod main;
 
-/*
 #[cfg(test)]
 mod testutils {
     use crate::examples::max2sat::model::Max2Sat;
@@ -24,4 +23,4 @@ mod testutils {
         let location = locate(id);
         File::open(location).expect("File not found").into()
     }
-}*/
+}

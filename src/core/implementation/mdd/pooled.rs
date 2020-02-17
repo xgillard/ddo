@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 // --- POOLED MDD --------------------------------------------------------------
 #[derive(Clone)]
-pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
+pub struct PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
     config           : C,
 
     mddtype          : MDDType,
@@ -23,7 +23,7 @@ pub struct PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
     best_node        : Option<NodeInfo>
 }
 
-impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
+impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
@@ -68,7 +68,7 @@ impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Cl
 }
 
 /// Private functions
-impl <T, C> PooledMDD<T, C> where T: Eq+Hash+Clone, C: Config<T> + Clone {
+impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
 
     pub fn new(config: C) -> Self {
         PooledMDD {

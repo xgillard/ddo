@@ -15,10 +15,11 @@ use std::sync::Arc;
 
 
 pub struct MDDBuilder<'a, T, PB, RLX,
-    LV   = FromLongestPath<'a, T, PB>,
+    LV   = FromLongestPath<'a, PB>,
     VS   = NaturalOrder,
     WIDTH= NbUnassigned,
     NS   = MinLP> {
+
     pb : &'a PB,
     rlx: RLX,
     lv : LV,
@@ -28,8 +29,7 @@ pub struct MDDBuilder<'a, T, PB, RLX,
     _t : PhantomData<T>
 }
 
-pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PB, RLX>
-    where T: Send + Eq + Hash + Clone, PB: Send + Problem<T>, RLX: Send + Relaxation<T> {
+pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PB, RLX> {
     MDDBuilder {
         pb, rlx,
         lv: FromLongestPath::new(pb),
@@ -41,13 +41,13 @@ pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PB, RLX>
 }
 
 impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Sync + Send + Hash + Eq + Clone,
-          PB   : Sync + Send + Problem<T> + Clone,
-          RLX  : Sync + Send + Relaxation<T> + Clone,
-          LV   : Sync + Send + LoadVars<T> + Clone,
-          VS   : Sync + Send + VariableHeuristic<T> + Clone,
-          WIDTH: Sync + Send + WidthHeuristic<T> + Clone,
-          NS   : Sync + Send + Compare<Node<T>> + Clone {
+    where T    : Eq + Hash + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          LV   : LoadVars<T>,
+          VS   : VariableHeuristic<T>,
+          WIDTH: WidthHeuristic,
+          NS   : Compare<Node<T>> {
 
     pub fn with_load_vars<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, H, VS, WIDTH, NS> {
         MDDBuilder {
@@ -57,7 +57,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : self.vs,
             w  : self.w,
             ns : self.ns,
-            _t : self._t
+            _t : PhantomData
         }
     }
     pub fn with_branch_heuristic<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, LV, H, WIDTH, NS> {
@@ -68,7 +68,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : h,
             w  : self.w,
             ns : self.ns,
-            _t : self._t
+            _t : PhantomData
         }
     }
     pub fn with_max_width<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, LV, VS, H, NS> {
@@ -79,7 +79,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : self.vs,
             w  : h,
             ns : self.ns,
-            _t : self._t
+            _t : PhantomData
         }
     }
     pub fn with_nodes_selection_heuristic<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDTH, H> {
@@ -90,32 +90,24 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : self.vs,
             w  : self.w,
             ns : h,
-            _t : self._t
+            _t : PhantomData
         }
     }
     pub fn config(self) -> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS> {
         MDDConfig::new(self.pb, self.rlx, self.lv, self.vs, self.w, self.ns)
     }
-    #[allow(clippy::type_complexity)] // as long as inherent type aliases are not supported
+    #[allow(clippy::type_complexity)] // as long as type aliases are not supported
     pub fn into_flat(self) -> FlatMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
         FlatMDD::new(self.config())
     }
-    #[allow(clippy::type_complexity)] // as long as inherent type aliases are not supported
+    #[allow(clippy::type_complexity)] // as long as type aliases are not supported
     pub fn into_pooled(self) -> PooledMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
         PooledMDD::new(self.config())
     }
 }
 
 #[derive(Clone)]
-pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Send + Eq + Clone,
-          PB   : Send + Problem<T> + Clone,
-          RLX  : Send + Relaxation<T> + Clone,
-          LV   : Send + LoadVars<T> + Clone,
-          VS   : Send + VariableHeuristic<T> + Clone,
-          WIDTH: Send + WidthHeuristic<T> + Clone,
-          NS   : Send + Compare<Node<T>> + Clone  {
-
+pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS> {
     pb               : &'a PB,
     relax            : RLX,
     lv               : LV,
@@ -127,13 +119,13 @@ pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
 }
 
 impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Send + Eq + Clone,
-          PB   : Send + Problem<T> + Clone,
-          RLX  : Send + Relaxation<T> + Clone,
-          LV   : Send + LoadVars<T> + Clone,
-          VS   : Send + VariableHeuristic<T> + Clone,
-          WIDTH: Send + WidthHeuristic<T> + Clone,
-          NS   : Send + Compare<Node<T>> + Clone  {
+    where T    : Eq + Hash + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          LV   : LoadVars<T>,
+          VS   : VariableHeuristic<T>,
+          WIDTH: WidthHeuristic,
+          NS   : Compare<Node<T>> {
 
     fn root_node(&self) -> Node<T> {
         self.pb.root_node()
@@ -189,13 +181,13 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
 
 // private functions
 impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Send + Eq + Clone,
-          PB   : Send + Problem<T> + Clone,
-          RLX  : Send + Relaxation<T> + Clone,
-          LV   : Send + LoadVars<T> + Clone,
-          VS   : Send + VariableHeuristic<T> + Clone,
-          WIDTH: Send + WidthHeuristic<T> + Clone,
-          NS   : Send + Compare<Node<T>> + Clone {
+    where T    : Eq + Hash + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          LV   : LoadVars<T>,
+          VS   : VariableHeuristic<T>,
+          WIDTH: WidthHeuristic,
+          NS   : Compare<Node<T>> {
 
     pub fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
         let vars = VarSet::all(pb.nb_vars());

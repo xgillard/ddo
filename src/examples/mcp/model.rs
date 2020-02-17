@@ -17,6 +17,7 @@ const T      : i32 =-1;
 const ONLY_S : [i32; 1] = [S];
 const BOTH_ST: [i32; 2] = [S, T];
 
+#[derive(Debug, Clone)]
 pub struct Mcp {
     pub graph : Graph
 }

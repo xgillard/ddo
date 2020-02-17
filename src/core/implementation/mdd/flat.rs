@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 // --- MDD Data Structure -----------------------------------------------------
 #[derive(Clone)]
-pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + Clone + Send {
+pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
     config           : C,
 
     mddtype          : MDDType,
@@ -36,7 +36,7 @@ macro_rules! layer {
     };
 }
 
-impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + Clone + Send {
+impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
     }
@@ -83,7 +83,7 @@ impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + 
 }
 
 /// Private functions
-impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> + Clone + Send {
+impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 
     pub fn new(config: C) -> Self {
         FlatMDD {
