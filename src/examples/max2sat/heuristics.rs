@@ -1,10 +1,10 @@
-use crate::core::common::{Node, Variable, VarSet};
-use crate::examples::max2sat::model::{Max2Sat, State};
-use crate::core::abstraction::heuristics::VariableHeuristic;
-
 use std::cmp::Ordering;
+
 use compare::Compare;
-use crate::core::abstraction::mdd::Layer;
+
+use crate::core::abstraction::heuristics::VariableHeuristic;
+use crate::core::common::{Layer, Node, Variable, VarSet};
+use crate::examples::max2sat::model::{Max2Sat, State};
 
 #[derive(Debug, Clone)]
 pub struct Max2SatOrder<'a> {
@@ -48,9 +48,9 @@ impl Compare<Node<State>> for MinRank {
 mod test {
     use crate::core::abstraction::dp::Problem;
     use crate::core::abstraction::heuristics::VariableHeuristic;
+    use crate::core::common::Layer;
     use crate::examples::max2sat::heuristics::Max2SatOrder;
     use crate::examples::max2sat::testutils::instance;
-    use crate::core::abstraction::mdd::Layer;
 
     #[test]
     fn variable_ordering() {

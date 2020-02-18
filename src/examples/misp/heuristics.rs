@@ -2,12 +2,11 @@ use std::cmp::Ordering;
 
 use bitset_fixed::BitSet;
 
-use crate::core::common::{Node, VarSet, Variable};
-use crate::core::utils::{LexBitSet, BitSetIter};
-use crate::core::abstraction::mdd::Layer;
-use crate::core::abstraction::heuristics::VariableHeuristic;
-use crate::examples::misp::model::Misp;
 use crate::core::abstraction::dp::Problem;
+use crate::core::abstraction::heuristics::VariableHeuristic;
+use crate::core::common::{Layer, Node, Variable, VarSet};
+use crate::core::utils::{BitSetIter, LexBitSet};
+use crate::examples::misp::model::Misp;
 
 #[derive(Debug, Clone)]
 pub struct MispVarHeu(usize);

@@ -5,7 +5,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use ddo::core::abstraction::solver::Solver;
-use ddo::core::implementation::solver::parallel::BBSolver;
+use ddo::core::implementation::solver::parallel::ParallelSolver;
 use ddo::core::implementation::heuristics::FixedWidth;
 use ddo::core::utils::Func;
 use ddo::examples::misp::heuristics::vars_from_misp_state;
@@ -33,7 +33,7 @@ fn solve(id: &str) -> i32 {
         .with_load_vars(Func(vars_from_misp_state))
         .into_pooled();
 
-    let mut solver = BBSolver::new(mdd);
+    let mut solver = ParallelSolver::new(mdd);
     let (val,_sln) = solver.maximize();
 
     val

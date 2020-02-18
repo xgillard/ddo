@@ -278,3 +278,19 @@ impl <T> PartialOrd for Node<T> where T: Eq + PartialOrd {
         }
     }
 }
+
+pub enum Layer<'a, T> {
+    Plain (std::slice::Iter<'a, Node<T>>),
+    Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo>),
+}
+
+impl <'a, T> Iterator for Layer<'a, T> {
+    type Item = (&'a T, &'a NodeInfo);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Layer::Plain(i)  => i.next().map(|n| (&n.state, &n.info)),
+            Layer::Mapped(i) => i.next()
+        }
+    }
+}

@@ -1,7 +1,7 @@
-use crate::core::common::{Node, Variable, Decision, NodeInfo, Domain};
 use std::cmp::Ordering;
 use std::sync::Arc;
-use crate::core::abstraction::mdd::Layer;
+
+use crate::core::common::{Decision, Domain, Layer, Node, NodeInfo, Variable};
 
 pub trait Config<T> {
     fn root_node(&self) -> Node<T>;

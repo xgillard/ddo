@@ -35,7 +35,7 @@ enum WorkLoad<T> {
     }
 }
 
-pub struct BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
+pub struct ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
     mdd       : DD,
     shared    : Arc<Shared<T>>,
     best_sol  : Option<Vec<Decision>>,
@@ -43,7 +43,7 @@ pub struct BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
     nb_threads: usize
 }
 
-impl <T, DD> BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
+impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
     pub fn new(mdd: DD) -> Self {
         Self::customized(mdd, 0, num_cpus::get())
     }
@@ -54,7 +54,7 @@ impl <T, DD> BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
         Self::customized(mdd, 0, nb_threads)
     }
     pub fn customized(mdd: DD, verbosity: u8, nb_threads: usize) -> Self {
-        BBSolver {
+        ParallelSolver {
             mdd,
             shared: Arc::new(Shared {
                 monitor : Condvar::new(),
@@ -162,7 +162,7 @@ impl <T, DD> BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
     }
 }
 
-impl <T, DD> Solver for BBSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
+impl <T, DD> Solver for ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
 
     fn maximize(&mut self) -> (i32, &Option<Vec<Decision>>) {
         self.initialize();

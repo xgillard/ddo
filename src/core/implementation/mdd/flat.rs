@@ -1,13 +1,13 @@
 use std::cmp::min;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use metrohash::MetroHashMap;
 
-use crate::core::abstraction::mdd::{MDD, MDDType, Layer};
+use crate::core::abstraction::mdd::{MDD, MDDType};
 use crate::core::abstraction::mdd::MDDType::{Exact, Relaxed, Restricted};
-use crate::core::common::{Decision, Node, NodeInfo, Variable, Bounds};
+use crate::core::common::{Bounds, Decision, Layer, Node, NodeInfo, Variable};
 use crate::core::implementation::mdd::config::Config;
-use std::sync::Arc;
 
 // --- MDD Data Structure -----------------------------------------------------
 #[derive(Clone)]

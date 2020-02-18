@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::implementation::heuristics::FixedWidth;
 use ddo::core::implementation::mdd::builder::mdd_builder;
-use ddo::core::implementation::solver::parallel::BBSolver;
+use ddo::core::implementation::solver::parallel::ParallelSolver;
 use ddo::examples::max2sat::heuristics::{Max2SatOrder, MinRank};
 use ddo::examples::max2sat::model::Max2Sat;
 use ddo::examples::max2sat::relax::Max2SatRelax;
@@ -33,7 +33,7 @@ fn solve(id: &str) -> i32 {
         .with_branch_heuristic(Max2SatOrder::new(&problem))
         .with_nodes_selection_heuristic(MinRank)
         .into_flat();
-    let mut solver   = BBSolver::new(mdd);
+    let mut solver   = ParallelSolver::new(mdd);
     //solver.verbosity = 3;
     let (val,_sln)   = solver.maximize();
     val

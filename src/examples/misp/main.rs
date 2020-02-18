@@ -5,7 +5,7 @@ use bitset_fixed::BitSet;
 use crate::core::common::Decision;
 use crate::core::abstraction::mdd::MDD;
 use crate::core::abstraction::solver::Solver;
-use crate::core::implementation::solver::parallel::BBSolver;
+use crate::core::implementation::solver::parallel::ParallelSolver;
 use crate::core::implementation::heuristics::FixedWidth;
 use crate::core::implementation::mdd::builder::mdd_builder;
 use crate::core::utils::Func;
@@ -37,7 +37,7 @@ pub fn misp(fname: &str, verbose: u8, width:Option<usize>) {
     }
 }
 fn solve<DD: MDD<BitSet> + Clone + Send >(mdd: DD, verbose: u8) {
-    let mut solver = BBSolver::with_verbosity(mdd, verbose);
+    let mut solver = ParallelSolver::with_verbosity(mdd, verbose);
 
     let start = SystemTime::now();
     let (opt, sln) = solver.maximize();

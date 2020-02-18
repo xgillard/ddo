@@ -1,18 +1,17 @@
-use crate::core::implementation::heuristics::{FromLongestPath, NaturalOrder, NbUnassigned, MinLP};
-use std::marker::PhantomData;
-use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
-use compare::Compare;
-use crate::core::common::{Node, VarSet, Variable, Decision, Edge, NodeInfo, Domain};
-use crate::core::implementation::mdd::flat::FlatMDD;
-use crate::core::implementation::mdd::pooled::PooledMDD;
-use crate::core::implementation::mdd::config::Config;
-use crate::core::abstraction::mdd::Layer;
 use std::cmp::Ordering;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
+use compare::Compare;
 
+use crate::core::abstraction::dp::{Problem, Relaxation};
+use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
+use crate::core::common::{Decision, Domain, Edge, Layer, Node, NodeInfo, Variable, VarSet};
+use crate::core::implementation::heuristics::{FromLongestPath, MinLP, NaturalOrder, NbUnassigned};
+use crate::core::implementation::mdd::config::Config;
+use crate::core::implementation::mdd::flat::FlatMDD;
+use crate::core::implementation::mdd::pooled::PooledMDD;
 
 pub struct MDDBuilder<'a, T, PB, RLX,
     LV   = FromLongestPath<'a, PB>,

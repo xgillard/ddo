@@ -13,22 +13,6 @@ pub enum MDDType {
     Exact
 }
 
-pub enum Layer<'a, T> {
-    Plain (std::slice::Iter<'a, Node<T>>),
-    Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo>),
-}
-
-impl <'a, T> Iterator for Layer<'a, T> {
-    type Item = (&'a T, &'a NodeInfo);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Layer::Plain(i)  => i.next().map(|n| (&n.state, &n.info)),
-            Layer::Mapped(i) => i.next()
-        }
-    }
-}
-
 /// This trait describes an MDD
 ///
 /// # Type param
@@ -50,9 +34,21 @@ pub trait MDD<T> {
     /// version of the exact MDD.
     fn relaxed(&mut self, root: &Node<T>, best_lb : i32);
 
-    /// Returns a set of nodes constituting an exact cutset of this `MDD`.
+    /// Iterates over the nodes from the cutset and applies the given function
+    /// `f` to each pair of `(state, node_info)` present in the cutset of this
+    /// MDD.
     fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo);
-    /// Consumes the cutset of this mdd.
+    /// Consumes (removes) all nodes from the cutset of this mdd ands applies
+    /// the given function `f` to each pair of `(state, node_info)` present in
+    /// this mdd.
+    ///
+    /// # Note:
+    /// Because the nodes are consumed, they are no longer available for use
+    /// after a call to this method completes.
+    ///
+    /// All nodes from the cutset are considered to be used even though the
+    /// function may decide to skip them. Hence, calling `for_each_cutset_node`
+    /// after a call to this method completes will have absolutely no effect.
     fn consume_cutset<F>(&mut self, f: F) where F: FnMut(T, NodeInfo);
 
     /// Return true iff this `MDD` is exact. That is to say, it returns true if

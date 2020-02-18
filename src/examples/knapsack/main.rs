@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use crate::core::common::Decision;
 use crate::core::abstraction::solver::Solver;
-use crate::core::implementation::solver::parallel::BBSolver;
+use crate::core::implementation::solver::parallel::ParallelSolver;
 use crate::core::implementation::heuristics::FixedWidth;
 use crate::core::implementation::mdd::builder::mdd_builder;
 use crate::examples::knapsack::relax::KnapsackRelax;
@@ -33,7 +33,7 @@ pub fn knapsack(fname: &str, verbose: u8, width: Option<usize>) {
     }
 }
 fn solve<C: Config<KnapsackState> + Clone + Send>(mdd: FlatMDD<KnapsackState, C>, verbose: u8) {
-    let mut solver = BBSolver::with_verbosity(mdd, verbose);
+    let mut solver = ParallelSolver::with_verbosity(mdd, verbose);
 
     let start = SystemTime::now();
     let (opt, sln) = solver.maximize();

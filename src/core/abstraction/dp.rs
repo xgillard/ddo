@@ -35,17 +35,26 @@ pub trait Problem<T> {
     /// the given set of `vars` are still free (no value assigned).
     fn transition_cost(&self, state: &T, vars : &VarSet, d: Decision) -> i32;
 
-    /// Optional method for the case where you'd want to use a pooled mdd implementation.
-    /// Returns true iff taking a decision on 'variable' might have an impact (state or lp)
-    /// on a node having the given 'state'
+    /// Optional method for the case where you'd want to use a pooled mdd
+    /// implementation. This method returns true iff taking a decision on
+    /// `variable` might have an impact (state or longest path) on a node having
+    /// the given `state`
     #[allow(unused_variables)]
     fn impacted_by(&self, state: &T, variable: Variable) -> bool {
         true
     }
 
+    /// Returns the root node of an exact MDD standing for this problem.
+    ///
+    /// This method is (trivially) auto-implemented, but re-implementing it
+    /// does not make much sense.
     fn root_node(&self) -> Node<T> {
         Node::new(self.initial_state(), self.initial_value(), None, true)
     }
+    /// Returns a var set with all the variables of this problem.
+    ///
+    /// This method is (trivially) auto-implemented, but re-implementing it
+    /// does not make much sense.
     fn all_vars(&self) -> VarSet {
         VarSet::all(self.nb_vars())
     }
@@ -53,11 +62,20 @@ pub trait Problem<T> {
 
 /// This is the second most important abstraction that a client should provide
 /// when using this library. It defines the relaxation that may be applied to
-/// the given problem.
+/// the given problem. In particular, the `merge_nodes` method from this trait
+/// defines how the nodes of a layer may be combined to provide an upper bound
+/// approximation standing for an arbitrarily selected set of nodes.
 ///
 /// Again, the type parameter `<T>` denotes the type of the states.
 pub trait Relaxation<T> {
+    /// This method merges the given set of `nodes` into a new _inexact_ node.
+    /// The role of this method is really to _only_ provide an inexact
+    /// node to use as a replacement for the selected `nodes`. It is the MDD that
+    /// takes care of maintaining a cutset.
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T>;
+    /// This optional method derives a _rough_ upper bound on the maximum value
+    /// reachable by passing through the node characterized by the given `state`
+    /// and node `info`.
     fn estimate_ub(&self, _state: &T, _info: &NodeInfo) -> i32 {
         i32::max_value()
     }
