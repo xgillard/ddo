@@ -90,25 +90,26 @@ impl WidthHeuristic for FixedWidth {
 /// # use ddo::core::abstraction::heuristics::VariableHeuristic;
 /// # use ddo::core::implementation::heuristics::NaturalOrder;
 /// # use ddo::core::common::Layer;
+/// # let dummy = vec![];
 ///
 /// let mut variables = VarSet::all(3);
-/// # let current_layer = Layer::Plain(vec![].iter());
-/// # let next_layer    = Layer::Plain(vec![].iter());
+/// # let current_layer = Layer::<u8>::Plain(dummy.iter());
+/// # let next_layer    = Layer::<u8>::Plain(dummy.iter());
 /// assert_eq!(Some(Variable(0)), NaturalOrder.next_var(&variables, current_layer, next_layer));
 ///
 /// variables.remove(Variable(0)); // move on to the next layer
-/// # let current_layer = Layer::Plain(vec![].iter());
-/// # let next_layer    = Layer::Plain(vec![].iter());
+/// # let current_layer = Layer::<u8>::Plain(dummy.iter());
+/// # let next_layer    = Layer::<u8>::Plain(dummy.iter());
 /// assert_eq!(Some(Variable(1)), NaturalOrder.next_var(&variables, current_layer, next_layer));
 ///
 /// variables.remove(Variable(1)); // move on to the next layer
-/// # let current_layer = Layer::Plain(vec![].iter());
-/// # let next_layer    = Layer::Plain(vec![].iter());
+/// # let current_layer = Layer::<u8>::Plain(dummy.iter());
+/// # let next_layer    = Layer::<u8>::Plain(dummy.iter());
 /// assert_eq!(Some(Variable(2)), NaturalOrder.next_var(&variables, current_layer, next_layer));
 ///
 /// variables.remove(Variable(2)); // move on to the last layer, no more var to branch on
-/// # let current_layer = Layer::Plain(vec![].iter());
-/// # let next_layer    = Layer::Plain(vec![].iter());
+/// # let current_layer = Layer::<u8>::Plain(dummy.iter());
+/// # let next_layer    = Layer::<u8>::Plain(dummy.iter());
 /// assert_eq!(None, NaturalOrder.next_var(&variables, current_layer, next_layer));
 /// ```
 ///
@@ -126,6 +127,32 @@ impl <T> VariableHeuristic<T> for NaturalOrder {
 }
 
 //~~~~~ Node Ordering Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+/// **This is the default node selection heuristic**
+/// This heuristic orders the nodes from best to worst by considering the nodes
+/// having a minimal longest path as being the wost.
+///
+/// `MinLP` considers the worst nodes as the ones being the _least_ according
+/// to this ordering. This means that in order to sort a vector of nodes from
+/// best to worst (ie. to implement restriction), the ordering should be reversed.
+///
+/// # Example
+/// ```
+/// # use compare::Compare;
+/// # use ddo::core::common::{Node, NodeInfo};
+/// # use ddo::core::implementation::heuristics::MinLP;
+///
+/// let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
+/// let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
+/// let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 100, is_exact: true}};
+/// let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub: 100, is_exact: true}};
+/// let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 100, is_exact: true}};
+/// let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true}};
+///
+/// let mut nodes = vec![&a, &b, &c, &d, &e, &f];
+/// nodes.sort_by(|x, y| MinLP.compare(x, y).reverse());
+/// assert_eq!(vec![&e, &a, &c, &f, &d, &b], nodes);
+/// ```
 #[derive(Debug, Default, Clone)]
 pub struct MinLP;
 impl <T> Compare<Node<T>> for MinLP {
@@ -133,14 +160,45 @@ impl <T> Compare<Node<T>> for MinLP {
         a.info.lp_len.cmp(&b.info.lp_len)
     }
 }
-#[derive(Debug, Default, Clone)]
-pub struct MaxLP;
-impl <T> Compare<Node<T>> for MaxLP {
-    fn compare(&self, a: &Node<T>, b: &Node<T>) -> Ordering {
-        a.info.lp_len.cmp(&b.info.lp_len).reverse()
-    }
-}
 
+/// **This is the default heuristic to set the order in which nodes are popped from the fringe**
+/// So far, this is not only the default heuristic, but it is also your only
+/// choice (this was configurable in the past and could possibly change back in
+/// the future).
+///
+/// This ordering optimistically selects the most promising nodes first. That is,
+/// it ranks nodes based on the upper bound reachable passing through them
+/// (larger is ranked higher) and then on the length of their longest path
+/// (again, longer is better).
+///
+/// # Note
+/// This ordering considers the worst nodes as being the _least_ elements
+/// of the order.
+///
+/// # Example
+/// ```
+/// # use binary_heap_plus::BinaryHeap;
+/// # use compare::Compare;
+/// # use ddo::core::common::{Node, NodeInfo};
+/// # use ddo::core::implementation::heuristics::MaxUB;
+///
+/// let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
+/// let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
+/// let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 150, is_exact: true}};
+/// let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub:  60, is_exact: true}};
+/// let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 700, is_exact: true}};
+/// let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true}};
+///
+/// let nodes = vec![a.clone(), b.clone(), c.clone(), d.clone(), e.clone(), f.clone()];
+/// let mut priority_q = BinaryHeap::from_vec_cmp(nodes, MaxUB);
+///
+/// assert_eq!(e, priority_q.pop().unwrap()); // because 700 is the highest upper bound
+/// assert_eq!(a, priority_q.pop().unwrap()); // because 300 is the next highest
+/// assert_eq!(c, priority_q.pop().unwrap()); // idem, because of ub = 150
+/// assert_eq!(f, priority_q.pop().unwrap()); // because ub = 100 but lp_len = 19
+/// assert_eq!(b, priority_q.pop().unwrap()); // because ub = 100 but lp_len = 2
+/// assert_eq!(d, priority_q.pop().unwrap()); // because ub = 13 which is the worst
+/// ```
 #[derive(Debug, Default, Clone)]
 pub struct MaxUB;
 impl <T> Compare<Node<T>> for MaxUB {
@@ -150,16 +208,29 @@ impl <T> Compare<Node<T>> for MaxUB {
 }
 
 //~~~~~ Load Vars Strategies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+/// **This is the default strategy to recover the set of free variables from a node**
+/// This strategy retrieves the set of free variables from a node by walking the
+/// set of variables assigned along the longest path to the current node.
+///
+/// It starts from the full set of variables (`problem.all_vars()`) and
+/// iteratively removes the variables that have been assigned a value on the
+/// longest path.
 #[derive(Debug, Clone)]
 pub struct FromLongestPath<'a, P> {
+    /// This is a (private) reference to the problem being solved.
     pb: &'a P
 }
 impl <'a, P> FromLongestPath<'a, P> {
+    /// This function creates a `FromLongestPath` heuristic from a reference
+    /// to the problem being solved.
     pub fn new(pb: &'a P) -> FromLongestPath<'a, P>{
         FromLongestPath {pb}
     }
 }
 impl <'a, T, P> LoadVars<T> for FromLongestPath<'a, P> where P: Problem<T> {
+    /// Returns the set of variables having no assigned value along the longest
+    /// path to `node`.
     fn variables(&self, node: &Node<T>) -> VarSet {
         let mut vars = self.pb.all_vars();
         for d in node.info.longest_path() {
