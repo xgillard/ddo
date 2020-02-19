@@ -18,25 +18,26 @@ use std::time::SystemTime;
 ///           description of the instance to solve
 /// width is the maximum allowed width of a layer.
 ///
-pub fn mcp(fname: &str, verbose: u8, width: Option<usize>) {
+pub fn mcp(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) {
     let problem = File::open(fname).expect("File not found").into();
     match width {
         Some(max_width) => solve(mdd_builder(&problem, McpRelax::new(&problem))
                            .with_max_width(FixedWidth(max_width))
-                           .into_flat(), verbose),
+                           .into_flat(), verbose, threads),
         None => solve(mdd_builder(&problem, McpRelax::new(&problem))
-                          .into_flat(), verbose)
+                          .into_flat(), verbose, threads)
     }
 }
-fn solve<DD: MDD<McpState> + Clone + Send>(mdd: DD, verbose: u8) {
-    let mut solver = ParallelSolver::with_verbosity(mdd, verbose);
+fn solve<DD: MDD<McpState> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) {
+    let threads    = threads.unwrap_or(num_cpus::get());
+    let mut solver = ParallelSolver::customized(mdd, verbose, threads);
 
     let start = SystemTime::now();
     let (opt, sln) = solver.maximize();
     let end = SystemTime::now();
 
     if verbose >= 1 {
-        println!("Optimum {} computed in {:?}", opt, end.duration_since(start).unwrap());
+        println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
     }
     maybe_print_solution(verbose, sln)
 }

@@ -11,10 +11,10 @@ use ddo::examples::misp::main::misp;
 fn main() {
     let args = RustMddSolver::from_args();
     match args {
-        RustMddSolver::Knapsack{fname, verbose, width} => knapsack(&fname, verbose, width),
-        RustMddSolver::Max2sat {fname, verbose, width} => max2sat(&fname, verbose, width),
-        RustMddSolver::Mcp     {fname, verbose, width} => mcp(&fname, verbose, width),
-        RustMddSolver::Misp    {fname, verbose, width} => misp(&fname, verbose, width),
+        RustMddSolver::Knapsack{fname, verbose, threads, width} => knapsack(&fname, verbose, threads, width),
+        RustMddSolver::Max2sat {fname, verbose, threads, width} => max2sat (&fname, verbose, threads, width),
+        RustMddSolver::Mcp     {fname, verbose, threads, width} => mcp     (&fname, verbose, threads, width),
+        RustMddSolver::Misp    {fname, verbose, threads, width} => misp    (&fname, verbose, threads, width),
     };
 }
 
@@ -28,7 +28,11 @@ enum RustMddSolver {
         /// Log the progression
         #[structopt(short, long, parse(from_occurrences))]
         verbose: u8,
+        /// The number of threads to use (default: number of physical threads on this machine)
+        #[structopt(name="threads", short, long)]
+        threads: Option<usize>,
         /// If specified, the max width allowed for any layer
+        #[structopt(name="width", short, long)]
         width: Option<usize>
     },
     /// Solve max cut from a DIMACS graph files
@@ -38,7 +42,11 @@ enum RustMddSolver {
         /// Log the progression
         #[structopt(short, long, parse(from_occurrences))]
         verbose: u8,
+        /// The number of threads to use (default: number of physical threads on this machine)
+        #[structopt(name="threads", short, long)]
+        threads: Option<usize>,
         /// If specified, the max width allowed for any layer
+        #[structopt(name="width", short, long)]
         width: Option<usize>
     },
     /// Solve maximum weighted independent set problem from DIMACS (.clq) files
@@ -48,7 +56,11 @@ enum RustMddSolver {
         /// Log the progression
         #[structopt(short, long, parse(from_occurrences))]
         verbose: u8,
+        /// The number of threads to use (default: number of physical threads on this machine)
+        #[structopt(name="threads", short, long)]
+        threads: Option<usize>,
         /// If specified, the max width allowed for any layer
+        #[structopt(name="width", short, long)]
         width: Option<usize>
     },
     /// Solve a knapsack problem.
@@ -83,7 +95,11 @@ enum RustMddSolver {
         /// Log the progression
         #[structopt(short, long, parse(from_occurrences))]
         verbose: u8,
+        /// The number of threads to use (default: number of physical threads on this machine)
+        #[structopt(name="threads", short, long)]
+        threads: Option<usize>,
         /// If specified, the max width allowed for any layer
+        #[structopt(name="width", short, long)]
         width: Option<usize>
     }
 }

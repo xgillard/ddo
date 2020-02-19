@@ -21,30 +21,31 @@ use std::time::SystemTime;
 ///           description of the instance to solve
 /// width is the maximum allowed width of a layer.
 ///
-pub fn misp(fname: &str, verbose: u8, width:Option<usize>) {
+pub fn misp(fname: &str, verbose: u8, threads: Option<usize>, width:Option<usize>) {
     let misp = File::open(fname).expect("File not found").into();
     match width {
         Some(max_size) => solve(mdd_builder(&misp, MispRelax::new(&misp))
             .with_load_vars(Func(vars_from_misp_state))
             .with_max_width(FixedWidth(max_size))
             .with_branch_heuristic(MispVarHeu::new(&misp))
-            .into_pooled(), verbose),
+            .into_pooled(), verbose, threads),
 
         None => solve(mdd_builder(&misp, MispRelax::new(&misp))
             .with_load_vars(Func(vars_from_misp_state))
             .with_branch_heuristic(MispVarHeu::new(&misp))
-            .into_pooled(), verbose)
+            .into_pooled(), verbose, threads)
     }
 }
-fn solve<DD: MDD<BitSet> + Clone + Send >(mdd: DD, verbose: u8) {
-    let mut solver = ParallelSolver::with_verbosity(mdd, verbose);
+fn solve<DD: MDD<BitSet> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) {
+    let threads    = threads.unwrap_or(num_cpus::get());
+    let mut solver = ParallelSolver::customized(mdd, verbose, threads);
 
     let start = SystemTime::now();
     let (opt, sln) = solver.maximize();
     let end = SystemTime::now();
 
     if verbose >= 1 {
-        println!("Optimum {} computed in {:?}", opt, end.duration_since(start).unwrap());
+        println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
     }
     maybe_print_misp_solution(verbose, sln)
 }
