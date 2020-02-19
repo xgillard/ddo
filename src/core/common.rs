@@ -251,6 +251,9 @@ impl <T> Node<T> {
     pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge>, is_exact: bool) -> Node<T> {
         Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
     }
+    pub fn merged(state: T, lp_len: i32, lp_arc: Option<Edge>) -> Node<T> {
+        Node{state, info: NodeInfo::new(lp_len, lp_arc, false)}
+    }
 }
 
 impl <T> Hash for Node<T> where T: Hash {
