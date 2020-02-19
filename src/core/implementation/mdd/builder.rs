@@ -96,6 +96,10 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
         MDDConfig::new(self.pb, self.rlx, self.lv, self.vs, self.w, self.ns)
     }
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
+    pub fn build(self) -> FlatMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
+        self.into_flat()
+    }
+    #[allow(clippy::type_complexity)] // as long as type aliases are not supported
     pub fn into_flat(self) -> FlatMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
         FlatMDD::new(self.config())
     }
