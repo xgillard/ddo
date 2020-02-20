@@ -37,7 +37,7 @@ pub fn misp(fname: &str, verbose: u8, threads: Option<usize>, width:Option<usize
     }
 }
 fn solve<DD: MDD<BitSet> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) {
-    let threads    = threads.unwrap_or(num_cpus::get());
+    let threads    = threads.unwrap_or_else(num_cpus::get);
     let mut solver = ParallelSolver::customized(mdd, verbose, threads);
 
     let start = SystemTime::now();
