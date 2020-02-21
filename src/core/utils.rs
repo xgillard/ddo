@@ -41,9 +41,13 @@ use crate::core::common::{Layer, Node, Variable, VarSet};
 /// ```
 ///
 pub struct BitSetIter<'a> {
-    iter  : Cloned<Iter<'a, u64>>,
-    word  : Option<u64>,
-    base  : usize,
+    /// An iterator over the buffer of words of the bitset
+    iter: Cloned<Iter<'a, u64>>,
+    /// The current word (or none if we exhausted all iterations)
+    word: Option<u64>,
+    /// The value of position 0 in the current word
+    base: usize,
+    /// An offset in the current word
     offset: usize,
 }
 impl BitSetIter<'_> {
