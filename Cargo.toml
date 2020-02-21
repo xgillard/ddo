@@ -11,6 +11,7 @@ keywords      = ["Combinatorial Optimization",
                  "Constraint Programming",
                  "Decision Diagrams"]
 categories    = ["science", "mathematics", "algorithms", "concurrency"]
+exclude       = ["examples/tests/resources/*" ]
 
 [badges]
 travis-ci = { repository = "https://github.com/xgillard/ddo", branch = "master" }
