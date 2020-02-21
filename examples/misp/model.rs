@@ -4,9 +4,10 @@ use std::ops::Not;
 
 use bitset_fixed::BitSet;
 
-use crate::core::abstraction::dp::Problem;
-use crate::core::common::{Decision, Variable, VarSet, Domain};
-use crate::examples::misp::instance::Graph;
+use ddo::core::abstraction::dp::Problem;
+use ddo::core::common::{Decision, Variable, VarSet, Domain};
+
+use crate::instance::Graph;
 
 #[derive(Debug, Clone)]
 pub struct Misp {

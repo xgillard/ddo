@@ -1,9 +1,9 @@
-use crate::core::abstraction::dp::Problem;
-use crate::core::common::{Variable, VarSet, Domain, Decision};
-use std::cmp::min;
-use std::io::{BufRead, Lines, BufReader, Read};
+use ddo::core::abstraction::dp::Problem;
+use ddo::core::common::{Decision, Domain, Variable, VarSet};
 use regex::Regex;
+use std::cmp::min;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Lines, Read};
 
 #[derive(Debug, Clone)]
 pub struct ItemData {

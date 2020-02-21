@@ -1,7 +1,8 @@
-use crate::examples::mcp::model::{Mcp, McpState};
-use crate::core::abstraction::dp::{Relaxation, Problem};
-use crate::core::common::{Node, Variable, VarSet, NodeInfo};
+use ddo::core::abstraction::dp::{Problem, Relaxation};
+use ddo::core::common::{Node, NodeInfo, Variable, VarSet};
 use std::cmp::Ordering;
+
+use crate::model::{Mcp, McpState};
 
 #[derive(Debug, Clone)]
 pub struct McpRelax<'a> {

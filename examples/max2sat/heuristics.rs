@@ -1,10 +1,9 @@
+use compare::Compare;
+use ddo::core::abstraction::heuristics::VariableHeuristic;
+use ddo::core::common::{Layer, Node, Variable, VarSet};
 use std::cmp::Ordering;
 
-use compare::Compare;
-
-use crate::core::abstraction::heuristics::VariableHeuristic;
-use crate::core::common::{Layer, Node, Variable, VarSet};
-use crate::examples::max2sat::model::{Max2Sat, State};
+use crate::model::{Max2Sat, State};
 
 #[derive(Debug, Clone)]
 pub struct Max2SatOrder<'a> {
@@ -46,11 +45,15 @@ impl Compare<Node<State>> for MinRank {
 
 #[cfg(test)]
 mod test {
-    use crate::core::abstraction::dp::Problem;
-    use crate::core::abstraction::heuristics::VariableHeuristic;
-    use crate::core::common::Layer;
-    use crate::examples::max2sat::heuristics::Max2SatOrder;
-    use crate::examples::max2sat::testutils::instance;
+    use std::path::PathBuf;
+    use std::fs::File;
+
+    use ddo::core::abstraction::dp::Problem;
+    use ddo::core::abstraction::heuristics::VariableHeuristic;
+    use ddo::core::common::Layer;
+
+    use crate::model::Max2Sat;
+    use crate::heuristics::Max2SatOrder;
 
     #[test]
     fn variable_ordering() {
@@ -77,5 +80,17 @@ mod test {
             37, 51, 56, 58, 13, 21, 36, 40, 41
         ];
         assert_eq!(actual, expected);
+    }
+
+    fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/tests/resources/max2sat/")
+            .join(id)
+    }
+
+    fn instance(id: &str) -> Max2Sat {
+        let location = locate(id);
+        File::open(location).expect("File not found").into()
     }
 }

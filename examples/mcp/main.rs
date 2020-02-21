@@ -1,14 +1,41 @@
+extern crate structopt;
 use std::fs::File;
 
-use crate::core::common::Decision;
-use crate::core::abstraction::mdd::MDD;
-use crate::core::abstraction::solver::Solver;
-use crate::core::implementation::solver::parallel::ParallelSolver;
-use crate::core::implementation::heuristics::FixedWidth;
-use crate::core::implementation::mdd::builder::mdd_builder;
-use crate::examples::mcp::model::McpState;
-use crate::examples::mcp::relax::McpRelax;
+use ddo::core::common::Decision;
+use ddo::core::abstraction::mdd::MDD;
+use ddo::core::abstraction::solver::Solver;
+use ddo::core::implementation::solver::parallel::ParallelSolver;
+use ddo::core::implementation::heuristics::FixedWidth;
+use ddo::core::implementation::mdd::builder::mdd_builder;
 use std::time::SystemTime;
+use structopt::StructOpt;
+
+mod graph;
+mod model;
+mod relax;
+use model::McpState;
+use relax::McpRelax;
+
+#[derive(StructOpt)]
+/// Solve max cut from a DIMACS graph files
+struct Mcp {
+    /// Path to the graph instance
+    fname: String,
+    /// Log the progression
+    #[structopt(short, long, parse(from_occurrences))]
+    verbose: u8,
+    /// The number of threads to use (default: number of physical threads on this machine)
+    #[structopt(name="threads", short, long)]
+    threads: Option<usize>,
+    /// If specified, the max width allowed for any layer
+    #[structopt(name="width", short, long)]
+    width: Option<usize>
+}
+
+fn main() {
+    let args = Mcp::from_args();
+    mcp(&args.fname, args.verbose, args.threads, args.width);
+}
 
 /// Solves the given mcp instance with fixed width mdds
 ///

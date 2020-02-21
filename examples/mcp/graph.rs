@@ -1,8 +1,8 @@
-use std::ops::{Index, IndexMut};
-use crate::core::common::Variable;
-use std::io::{BufRead, Lines, BufReader, Read};
+use ddo::core::common::Variable;
 use regex::Regex;
 use std::fs::File;
+use std::io::{BufRead, BufReader, Lines, Read};
+use std::ops::{Index, IndexMut};
 
 /// The graph is represented by its adjacency matrix
 #[derive(Debug, Clone)]

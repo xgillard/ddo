@@ -1,12 +1,11 @@
-use std::cmp::Ordering;
-
 use bitset_fixed::BitSet;
 
-use crate::core::abstraction::dp::Problem;
-use crate::core::abstraction::heuristics::VariableHeuristic;
-use crate::core::common::{Layer, Node, Variable, VarSet};
-use crate::core::utils::{BitSetIter, LexBitSet};
-use crate::examples::misp::model::Misp;
+use ddo::core::abstraction::dp::Problem;
+use ddo::core::abstraction::heuristics::VariableHeuristic;
+use ddo::core::common::{Layer, Node, Variable, VarSet};
+use ddo::core::utils::BitSetIter;
+
+use crate::model::Misp;
 
 #[derive(Debug, Clone)]
 pub struct MispVarHeu(usize);
@@ -34,9 +33,4 @@ impl VariableHeuristic<BitSet> for MispVarHeu {
 
 pub fn vars_from_misp_state(n: &Node<BitSet>) -> VarSet {
     VarSet(n.state.clone())
-}
-
-pub fn misp_min_lp(a: &Node<BitSet>, b: &Node<BitSet>) -> Ordering {
-    a.info.lp_len.cmp(&b.info.lp_len)
-        .then_with(|| LexBitSet(&a.state).cmp(&LexBitSet(&b.state)))
 }

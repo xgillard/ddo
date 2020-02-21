@@ -1,8 +1,8 @@
+use ddo::core::abstraction::heuristics::VariableHeuristic;
+use ddo::core::common::{Layer, Variable, VarSet};
 use std::cmp::Ordering::Equal;
 
-use crate::core::abstraction::heuristics::VariableHeuristic;
-use crate::core::common::{Layer, Variable, VarSet};
-use crate::examples::knapsack::model::{Knapsack, KnapsackState};
+use crate::model::{Knapsack, KnapsackState};
 
 #[derive(Clone)]
 pub struct KnapsackOrder<'a> {

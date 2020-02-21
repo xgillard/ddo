@@ -1,8 +1,9 @@
 use bitset_fixed::BitSet;
 
-use crate::core::common::{Node, NodeInfo};
-use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::examples::misp::model::Misp;
+use ddo::core::common::{Node, NodeInfo};
+use ddo::core::abstraction::dp::{Problem, Relaxation};
+
+use crate::model::Misp;
 
 #[derive(Debug, Clone)]
 pub struct MispRelax<'a> {

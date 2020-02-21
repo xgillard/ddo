@@ -1,7 +1,7 @@
-use crate::examples::knapsack::model::{Knapsack, KnapsackState};
-use crate::core::abstraction::dp::{Relaxation, Problem};
-use crate::core::common::{Node, NodeInfo, VarSet};
 use bitset_fixed::BitSet;
+use ddo::core::abstraction::dp::{Problem, Relaxation};
+use ddo::core::common::{Node, NodeInfo, VarSet};
+use crate::model::{Knapsack, KnapsackState};
 
 #[derive(Debug, Clone)]
 pub struct KnapsackRelax<'a> {

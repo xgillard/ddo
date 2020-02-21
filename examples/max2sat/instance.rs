@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use regex::Regex;
+use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufRead, Lines, Read};
+use std::io::{BufRead, BufReader, Lines, Read};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, Ord, PartialOrd, PartialEq)]
 pub struct BinaryClause {
@@ -28,13 +28,6 @@ pub struct Weighed2Sat {
 }
 
 impl Weighed2Sat {
-    pub fn from_file(fname: &str) -> Weighed2Sat {
-        let f = File::open(fname).unwrap();
-        let f = BufReader::new(f);
-
-        Self::from_lines(f.lines())
-    }
-
     pub fn from_lines<B: BufRead>(lines: Lines<B>) -> Weighed2Sat {
         let comment   = Regex::new(r"^c\s.*$").unwrap();
         let pb_decl   = Regex::new(r"^p\s+wcnf\s+(?P<vars>\d+)\s+(?P<clauses>\d+)").unwrap();
@@ -99,17 +92,10 @@ impl <B: BufRead> From<Lines<B>> for Weighed2Sat {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
-    use crate::examples::max2sat::testutils::locate;
 
-    #[test]
-    fn test_load_from_file() {
-        let fname= locate("pass.wcnf");
-        let inst = Weighed2Sat::from_file(fname.to_str().unwrap());
-
-        assert_eq!(inst.nb_vars, 5);
-        assert_eq!(inst.weights.len(), 10);
-    }
     #[test]
     fn test_load_from_file_using_trait() {
         let fname= locate("debug2.wcnf");
@@ -122,5 +108,12 @@ mod tests {
     fn test_is_unit() {
         let cla = BinaryClause::new(-1, -1);
         assert!(cla.is_unit())
+    }
+
+    fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/tests/resources/max2sat/")
+            .join(id)
     }
 }

@@ -1,8 +1,8 @@
+use ddo::core::abstraction::dp::{Problem, Relaxation};
+use ddo::core::common::{Node, NodeInfo, VarSet};
 use std::cmp::min;
 
-use crate::core::common::{Node, NodeInfo, VarSet};
-use crate::core::abstraction::dp::{Problem, Relaxation};
-use crate::examples::max2sat::model::{Max2Sat, State};
+use crate::model::{Max2Sat, State};
 
 #[derive(Debug, Clone)]
 pub struct Max2SatRelax<'a> {

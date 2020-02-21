@@ -1,11 +1,11 @@
+use ddo::core::abstraction::dp::Problem;
+use ddo::core::common::{Decision, Domain, Variable, VarSet};
 use std::cmp::{max, min, Ordering};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Lines, Read};
 use std::ops::{Index, IndexMut};
 
-use crate::core::abstraction::dp::Problem;
-use crate::core::common::{Decision, Variable, VarSet, Domain};
-use crate::examples::max2sat::instance::Weighed2Sat;
-use std::fs::File;
-use std::io::{BufReader, Read, BufRead, Lines};
+use crate::instance::Weighed2Sat;
 
 const T  : i32      = 1;
 const F  : i32      =-1;
@@ -197,7 +197,9 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::examples::max2sat::testutils::instance;
+
+    use std::path::PathBuf;
+    use std::fs::File;
 
     #[test]
     fn test_index_state() {
@@ -265,5 +267,17 @@ mod tests {
         let state = State{substates: benef};
 
         assert_eq!(5917, state.rank());
+    }
+
+    fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/tests/resources/max2sat/")
+            .join(id)
+    }
+
+    fn instance(id: &str) -> Max2Sat {
+        let location = locate(id);
+        File::open(location).expect("File not found").into()
     }
 }

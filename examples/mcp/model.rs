@@ -1,9 +1,10 @@
-use crate::examples::mcp::graph::Graph;
-use crate::core::abstraction::dp::Problem;
-use crate::core::common::{Variable, VarSet, Domain, Decision};
+use ddo::core::abstraction::dp::Problem;
+use ddo::core::common::{Decision, Domain, Variable, VarSet};
 use std::cmp::{max, min};
 use std::fs::File;
-use std::io::{BufRead, Read, BufReader, Lines};
+use std::io::{BufRead, BufReader, Lines, Read};
+
+use crate::graph::Graph;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct McpState {

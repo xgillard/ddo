@@ -13,14 +13,6 @@ pub struct Graph {
 }
 
 impl Graph {
-
-    pub fn from_file(fname: &str) -> Graph {
-        let f = File::open(fname).unwrap();
-        let f = BufReader::new(f);
-
-        Self::from_lines(f.lines())
-    }
-
     pub fn from_lines<B: BufRead>(lines: Lines<B>) -> Graph {
         let comment   = Regex::new(r"^c\s.*$").unwrap();
         let pb_decl   = Regex::new(r"^p\s+edge\s+(?P<vars>\d+)\s+(?P<edges>\d+)$").unwrap();
