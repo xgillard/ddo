@@ -7,9 +7,7 @@ description   = "DDO a generic and efficient framework for MDD-based  optimizati
 repository    = "https://github.com/xgillard/ddo"
 readme        = "README.md"
 license       = "MIT"
-keywords      = ["Combinatorial Optimization",
-                 "Constraint Programming",
-                 "Decision Diagrams"]
+keywords      = ["optimization", "solver", "decision-diagrams", "combinatorial", "constraint-programming"]
 categories    = ["science", "mathematics", "algorithms", "concurrency"]
 exclude       = ["examples/tests/resources/*" ]
 
