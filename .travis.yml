@@ -1,5 +1,8 @@
 language: rust
 sudo: required
+script:
+  - cargo build --release --all-targets
+  - cargo test --release --all-targets
 rust:
   - stable
 addons:
