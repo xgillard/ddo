@@ -6,7 +6,6 @@ use bitset_fixed::BitSet;
 use crate::core::utils::{BitSetIter, LexBitSet};
 use std::ops::{Not, Range, RangeInclusive};
 use std::cmp::Ordering;
-use std::cmp::Ordering::Equal;
 use std::hash::{Hasher, Hash};
 use std::sync::Arc;
 
@@ -436,34 +435,27 @@ impl <T> PartialEq for Node<T> where T: Eq {
         self.state.eq(&other.state)
     }
 }
-impl <T> Ord for Node<T> where T: Eq + Ord {
-    /// Nodes are ordered by first considering their metadata, and then only
-    /// their states.
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-impl <T> PartialOrd for Node<T> where T: Eq + PartialOrd {
-    /// Nodes are ordered by first considering their metadata, and then only
-    /// their states.
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let res = self.info.cmp(&other.info);
-        if res != Equal {
-            Some(res)
-        } else {
-            self.state.partial_cmp(&other.state)
-        }
-    }
-}
 
+/// A `Layer` is a set of nodes that may be iterated upon.
+///
+/// This enum should really be considered as an opaque iterator even through
+/// the `Layer` type pays for itself in various ways.
+///
+///   1. It facilitates the lecture of the code (it is much clearer to read that
+///      you have an access to the current and next layers than knowing you
+///      can iterate over two sets of nodes.
+///   2. It makes it possible to use a polymorphic return type in traits
 pub enum Layer<'a, T> {
+    /// When a layer is simply backed by a vector (or a slice) of nodes
     Plain (std::slice::Iter<'a, Node<T>>),
+    /// When a layer is implemented as a hashmap
     Mapped(std::collections::hash_map::Iter<'a, T, NodeInfo>),
 }
-
+/// Because a `Layer` is an opaque iterator, it implements the
+/// standard `Iterator` trait from std lib.
 impl <'a, T> Iterator for Layer<'a, T> {
     type Item = (&'a T, &'a NodeInfo);
-
+    /// Returns the next node, or None if the iteration is exhausted.
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Layer::Plain(i)  => i.next().map(|n| (&n.state, &n.info)),
@@ -775,6 +767,25 @@ mod test_domain {
         let domain : Domain<'_> = data.into();
         assert_eq!(vec![0,1,2,3,4], domain.into_iter().collect::<Vec<i32>>());
     }
+
+    #[test]
+    fn from_range_inclusive_empty_going_negative() {
+        let data = 0..=-1_i32;
+        let domain : Domain<'_> = data.into();
+        assert_eq!(Vec::<i32>::new(), domain.into_iter().collect::<Vec<i32>>());
+    }
+    #[test]
+    fn from_range_inclusive_single_value() {
+        let data = 0..=0_i32;
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![0], domain.into_iter().collect::<Vec<i32>>());
+    }
+    #[test]
+    fn from_range_inclusive_non_empty() {
+        let data = 0..=5_i32;
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![0,1,2,3,4,5], domain.into_iter().collect::<Vec<i32>>());
+    }
 }
 
 #[cfg(test)]
@@ -1021,5 +1032,224 @@ mod test_nodeinfo {
 
 #[cfg(test)]
 mod test_node {
+    use crate::core::common::{Node, Edge, Decision, Variable};
+    use std::sync::Arc;
+    use metrohash::MetroHash64;
+    use std::hash::{Hash, Hasher};
+    use bitset_fixed::BitSet;
 
+    #[test]
+    fn constructor_new_root() {
+        let x = Node::new(64, 42, None, true); // root
+
+        assert_eq!(64,   x.state);
+        assert_eq!(42,   x.info.lp_len);
+        assert_eq!(None, x.info.lp_arc);
+        assert_eq!(true, x.info.is_exact);
+    }
+    #[test]
+    fn constructor_new_default_ub_value() {
+        let x = Node::new(64, 42, None, true);
+
+        assert_eq!(i32::max_value(), x.info.ub);
+    }
+    #[test]
+    fn constructor_new_parent() {
+        let x   = Node::new(64, 42, None, true);
+        let edge= Edge {src: Arc::new(x.info), decision: Decision{variable: Variable(0), value: 4}};
+        let y   = Node::new(32, 64, Some(edge), true);
+
+        assert_eq!(32,   y.state);
+        assert_eq!(64,   y.info.lp_len);
+        assert_eq!(true, y.info.is_exact);
+        assert!(y.info.lp_arc.is_some());
+        assert_eq!(0,   y.info.lp_arc.as_ref().unwrap().decision.variable.id());
+        assert_eq!(4,   y.info.lp_arc.as_ref().unwrap().decision.value);
+        assert_eq!(42,  y.info.lp_arc.as_ref().unwrap().src.lp_len);
+        assert_eq!(true,y.info.lp_arc.as_ref().unwrap().src.is_exact);
+    }
+    #[test]
+    fn constructor_new_longest_path() {
+        let x   = Node::new(30, 42, None, true);
+        let edge= Edge {src: Arc::new(x.info), decision: Decision{variable: Variable(0), value: 4}};
+        let y   = Node::new(20, 64, Some(edge), true);
+        let edge= Edge {src: Arc::new(y.info), decision: Decision{variable: Variable(1), value: 2}};
+        let z   = Node::new(10, 66, Some(edge), true);
+
+        assert_eq!(
+            vec![Decision{variable: Variable(1), value: 2},
+                 Decision{variable: Variable(0), value: 4}],
+            z.info.longest_path()
+        )
+    }
+
+    #[test]
+    fn constructor_merged_always_not_exact() {
+        let x = Node::merged(64, 42, None);
+        assert_eq!(false, x.info.is_exact);
+    }
+    #[test]
+    fn constructor_merged_default_ub_value() {
+        let x = Node::merged(64, 42, None);
+        assert_eq!(i32::max_value(), x.info.ub);
+    }
+    #[test]
+    fn constructor_merged_parent() {
+        let x   = Node::new(64, 42, None, true);
+        let edge= Edge {src: Arc::new(x.info), decision: Decision{variable: Variable(0), value: 4}};
+        let y   = Node::merged(32, 64, Some(edge));
+
+        assert_eq!(32,    y.state);
+        assert_eq!(64,    y.info.lp_len);
+        assert_eq!(false, y.info.is_exact);
+        assert!(y.info.lp_arc.is_some());
+        assert_eq!(0,   y.info.lp_arc.as_ref().unwrap().decision.variable.id());
+        assert_eq!(4,   y.info.lp_arc.as_ref().unwrap().decision.value);
+        assert_eq!(42,  y.info.lp_arc.as_ref().unwrap().src.lp_len);
+        assert_eq!(true,y.info.lp_arc.as_ref().unwrap().src.is_exact);
+    }
+
+    #[test]
+    fn node_hash_is_a_passthrough_for_state_integer() {
+        let mut n_hasher = MetroHash64::with_seed(42);
+        let mut s_hasher = MetroHash64::with_seed(42);
+
+        let x = Node::new(42, 128, None, true);
+        x.hash(&mut n_hasher);
+        42.hash(&mut s_hasher);
+
+        assert_eq!(n_hasher.finish(), s_hasher.finish());
+    }
+    #[test]
+    fn node_hash_is_a_passthrough_for_state_string() {
+        let mut n_hasher = MetroHash64::with_seed(42);
+        let mut s_hasher = MetroHash64::with_seed(42);
+
+        let x = Node::new("coucou", 128, None, true);
+        x.hash(&mut n_hasher);
+        "coucou".hash(&mut s_hasher);
+
+        assert_eq!(n_hasher.finish(), s_hasher.finish());
+    }
+    #[test]
+    fn node_hash_is_a_passthrough_for_state_bitset() {
+        let mut n_hasher = MetroHash64::with_seed(42);
+        let mut s_hasher = MetroHash64::with_seed(42);
+
+        let mut state = BitSet::new(5);
+        state.set(3, true);
+        state.set(4, true);
+
+        let x = Node::new(state.clone(), 128, None, true);
+        x.hash(&mut n_hasher);
+        state.hash(&mut s_hasher);
+
+        assert_eq!(n_hasher.finish(), s_hasher.finish());
+    }
+    #[test]
+    fn node_equality_depends_on_state_only_integer() {
+        // integers
+        let x = Node::new(42, 12, None, true);
+        let y = Node::new(42, 64, None, false);
+        assert_eq!(x, y);
+    }
+    #[test]
+    fn node_equality_depends_on_state_only_string() {
+        // strings
+        let x = Node::new("coucou", 12, None, true);
+        let y = Node::new("coucou", 64, None, false);
+        assert_eq!(x, y);
+    }
+    #[test]
+    fn node_equality_depends_on_state_only_bitset() {
+        // bitsets
+        let mut state = BitSet::new(5);
+        state.set(3, true);
+        state.set(4, true);
+        let x = Node::new(state.clone(), 12, None, true);
+        let y = Node::new(state        , 64, None, false);
+        assert_eq!(x, y);
+    }
+}
+
+#[cfg(test)]
+mod test_layer {
+    use crate::core::common::{Node, Layer, NodeInfo};
+    use std::collections::HashMap;
+
+    #[test]
+    fn plain_empty() {
+        let nodes : Vec<Node<usize>> = vec![];
+        let layer = Layer::Plain(nodes.iter());
+
+        assert_eq!(Vec::<(&usize, &NodeInfo)>::new(), layer.collect::<Vec<(&usize, &NodeInfo)>>());
+    }
+    #[test]
+    fn plain_non_empty() {
+        let x = Node::new(12, 12, None, true);
+        let nodes : Vec<Node<usize>> = vec![x.clone()];
+        let layer = Layer::Plain(nodes.iter());
+
+        assert_eq!(vec![(&x.state, &x.info)], layer.collect::<Vec<(&usize, &NodeInfo)>>());
+    }
+    #[test]
+    fn plain_next() {
+        let x = Node::new(12, 12, None, true);
+        let nodes : Vec<Node<usize>> = vec![x.clone()];
+        let mut layer = Layer::Plain(nodes.iter());
+
+        assert_eq!(Some((&x.state, &x.info)), layer.next());
+        assert_eq!(None, layer.next());
+    }
+    #[test]
+    fn plain_next_exhausted() {
+        let x = Node::new(12, 12, None, true);
+        let nodes : Vec<Node<usize>> = vec![x.clone()];
+        let mut layer = Layer::Plain(nodes.iter());
+
+        assert_eq!(Some((&x.state, &x.info)), layer.next());
+        assert_eq!(None, layer.next());
+        assert_eq!(None, layer.next());
+        assert_eq!(None, layer.next());
+        assert_eq!(None, layer.next());
+    }
+    #[test]
+    fn mapped_empty() {
+        let nodes : HashMap<usize, NodeInfo> = HashMap::new();
+        let layer = Layer::Mapped(nodes.iter());
+
+        assert_eq!(Vec::<(&usize, &NodeInfo)>::new(), layer.collect::<Vec<(&usize, &NodeInfo)>>());
+    }
+    #[test]
+    fn mapped_non_empty() {
+        let x = Node::new(12, 12, None, true);
+        let mut nodes : HashMap<usize, NodeInfo> = HashMap::new();
+        nodes.insert(x.state.clone(), x.info.clone());
+        let layer = Layer::Mapped(nodes.iter());
+
+        assert_eq!(vec![(&x.state, &x.info)], layer.collect::<Vec<(&usize, &NodeInfo)>>());
+    }
+    #[test]
+    fn mapped_next() {
+        let x = Node::new(12, 12, None, true);
+        let mut nodes : HashMap<usize, NodeInfo> = HashMap::new();
+        nodes.insert(x.state.clone(), x.info.clone());
+        let mut layer = Layer::Mapped(nodes.iter());
+
+        assert_eq!(Some((&x.state, &x.info)), layer.next());
+        assert_eq!(None, layer.next());
+    }
+    #[test]
+    fn mapped_next_exhausted() {
+        let x = Node::new(12, 12, None, true);
+        let mut nodes : HashMap<usize, NodeInfo> = HashMap::new();
+        nodes.insert(x.state.clone(), x.info.clone());
+        let mut layer = Layer::Mapped(nodes.iter());
+
+        assert_eq!(Some((&x.state, &x.info)), layer.next());
+        assert_eq!(None, layer.next());
+        assert_eq!(None, layer.next());
+        assert_eq!(None, layer.next());
+        assert_eq!(None, layer.next());
+    }
 }
