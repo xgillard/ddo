@@ -2,6 +2,7 @@
 [![Crates.io](https://img.shields.io/crates/v/ddo)](https://crates.io/crates/ddo)
 [![Documentation](https://img.shields.io/badge/Docs.rs-Latest-informational)](https://docs.rs/ddo/0.1.0/ddo/)
 [![Build Status](https://travis-ci.org/xgillard/ddo.svg?branch=master)](https://travis-ci.org/xgillard/ddo)
+[![codecov](https://codecov.io/gh/xgillard/ddo/branch/master/graph/badge.svg)](https://codecov.io/gh/xgillard/ddo)
 ![GitHub](https://img.shields.io/github/license/xgillard/ddo)
 
 DDO is a truly generic framework to develop MDD-based combinatorial optimization

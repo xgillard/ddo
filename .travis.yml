@@ -16,6 +16,6 @@ script:
   - cargo test --all-targets
 after_success: |
   if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
-    cargo tarpaulin --all-targets --out Xml
+    cargo tarpaulin --out Xml
     bash <(curl -s https://codecov.io/bash)
   fi
