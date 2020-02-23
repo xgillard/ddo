@@ -1,3 +1,5 @@
+//! This module provides the declaration of a `Config` trait which is used to
+//! parameterize the behavior of various MDD implementations.
 use std::cmp::Ordering;
 use std::sync::Arc;
 
