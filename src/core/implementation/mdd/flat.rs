@@ -415,7 +415,6 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 #[cfg(test)]
 mod test_mdd {
     use mock_it::verify;
-
     use crate::core::abstraction::dp::{Problem, Relaxation};
     use crate::core::abstraction::mdd::{MDD, MDDType};
     use crate::core::common::{Decision, Domain, Node, NodeInfo, Variable, VarSet};
@@ -546,5 +545,185 @@ mod test_mdd {
         mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i.clone() }));
         assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
         assert!(cutset.iter().all(|n| n.info.is_exact));
+    }
+    #[test]
+    fn foreach_cutset_node_iterates_over_cutset() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
+        let root = mdd.root();
+
+        mdd.relaxed(&root, 0);
+
+        let mut cutset = vec![];
+        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+
+        cutset.clear();
+        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+
+        cutset.clear();
+        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+
+        cutset.clear();
+        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+
+        cutset.clear();
+        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+
+        cutset.clear();
+        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+    }
+    #[test]
+    fn consume_cutset_clears_the_cutset() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
+        let root = mdd.root();
+
+        mdd.relaxed(&root, 0);
+
+        let mut cutset = vec![];
+        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i.clone() }));
+        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
+        assert!(cutset.iter().all(|n| n.info.is_exact));
+
+        cutset.clear();
+        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i.clone() }));
+        assert_eq!(cutset.len(), 0); // because both 1,1 and (0,2) yield same state
+    }
+
+    #[test]
+    fn an_exact_mdd_must_be_exact() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
+        let root = mdd.root();
+
+        mdd.exact(&root, 0);
+        assert_eq!(true, mdd.is_exact())
+    }
+    #[test]
+    fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
+        let root = mdd.root();
+
+        mdd.relaxed(&root, 0);
+        assert_eq!(true, mdd.is_exact())
+    }
+    #[test]
+    fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
+        let root = mdd.root();
+
+        mdd.relaxed(&root, 0);
+        assert_eq!(false, mdd.is_exact())
+    }
+    #[test]
+    fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
+        let root = mdd.root();
+
+        mdd.restricted(&root, 0);
+        assert_eq!(true, mdd.is_exact())
+    }
+
+    #[test]
+    fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
+        let root = mdd.root();
+
+        mdd.restricted(&root, 0);
+        assert_eq!(false, mdd.is_exact())
+    }
+
+    struct DummyInfeasibleProblem;
+    impl Problem<usize> for DummyInfeasibleProblem {
+        fn nb_vars(&self)       -> usize { 3 }
+        fn initial_state(&self) -> usize { 0 }
+        fn initial_value(&self) -> i32   { 0 }
+        fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+            (0..0).into()
+        }
+        fn transition(&self, state: &usize, _: &VarSet, d: Decision) -> usize {
+            *state + d.value as usize
+        }
+        fn transition_cost(&self, _: &usize, _: &VarSet, d: Decision) -> i32 {
+            d.value
+        }
+    }
+    #[test]
+    fn when_the_problem_is_infeasible_there_is_no_best_node() {
+        let pb      = DummyInfeasibleProblem;
+        let rlx     = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).build();
+        let root    = mdd.root();
+
+        mdd.exact(&root, 0);
+        assert_eq!(None, mdd.best_node().clone())
+    }
+    #[test]
+    fn when_the_problem_is_infeasible_the_best_value_is_min_infinity() {
+        let pb      = DummyInfeasibleProblem;
+        let rlx     = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).build();
+        let root    = mdd.root();
+
+        mdd.exact(&root, 0);
+        assert_eq!(i32::min_value(), mdd.best_value())
+    }
+    #[test]
+    fn when_the_problem_is_infeasible_the_longest_path_is_empty() {
+        let pb      = DummyInfeasibleProblem;
+        let rlx     = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).build();
+        let root    = mdd.root();
+
+        mdd.exact(&root, 0);
+        assert_eq!(Vec::<Decision>::new(), mdd.longest_path())
+    }
+
+    #[test]
+    fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).build();
+        let root    = mdd.root();
+
+        mdd.exact(&root, 100);
+        assert!(mdd.best_node().is_none())
+    }
+    #[test]
+    fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).build();
+        let root    = mdd.root();
+
+        mdd.relaxed(&root, 100);
+        assert!(mdd.best_node().is_none())
+    }
+    #[test]
+    fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx).build();
+        let root    = mdd.root();
+
+        mdd.restricted(&root, 100);
+        assert!(mdd.best_node().is_none())
     }
 }
