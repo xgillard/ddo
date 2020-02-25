@@ -25,7 +25,7 @@ use crate::core::common::{Decision, Node, NodeInfo};
 /// * `Exact` if it is a true account of the problem state space.
 /// * `Restricted` if it is an under approximation of the problem state space.
 /// * `Relaxed` if it is an over approximation of the problem state space.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum MDDType {
     Relaxed,
     Restricted,

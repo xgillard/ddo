@@ -1,3 +1,26 @@
+// Copyright 2020 Xavier Gillard
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of
+// this software and associated documentation files (the "Software"), to deal in
+// the Software without restriction, including without limitation the rights to
+// use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+// the Software, and to permit persons to whom the Software is furnished to do so,
+// subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+// FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+// IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+// CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+//! This module provides the implementation of a _flat_ MDD. This is a kind of
+//! bounded width MDD which offers a real guarantee wrt to the maximum amount
+//! of used memory. This should be your go-to implementation of a bounded-width
+//! MDD, and it is the default type of MDD built by the `mdd_builder`.
 use std::cmp::min;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -11,22 +34,127 @@ use crate::core::implementation::mdd::config::Config;
 
 // --- MDD Data Structure -----------------------------------------------------
 #[derive(Clone)]
+/// This is the structure implementing _flat MDD_. This is a kind of
+/// bounded width MDD which offers a real guarantee wrt to the maximum amount
+/// of used memory. This should be your go-to implementation of a bounded-width
+/// MDD, and it is the default type of MDD built by the `mdd_builder`.
+///
+/// A flat mdd is highly efficient in the sense that it only maintains one
+/// 'slice' of the current MDD unrolling. That is, at any time, it only knows
+/// the current layer, and the next layer (being developed). All previous layers
+/// are irremediably forgotten (but this causes absolutely no harm). Alongside
+/// the current and next layers, this structure also knows of a 3rd layer which
+/// materializes the last exact layer (exact cutset) of this mdd. Moving from
+/// one layer to the next (after the next layer has been expanded) is extremely
+/// inexpensive as it only amounts to swapping two integer indices.
+///
+/// # Remark
+/// So far, the `FlatMDD` implementation only supports the *last exact layer*
+/// (LEL) kind of exact cutset. This might change in the future, but it is your
+/// only option at the time being since it keeps the code clean and simple.
+///
+/// # Note
+/// The behavior of this MDD is heavily dependent on the configuration you
+/// provide. Therefore, and although a public constructor exists for this
+/// structure, it it recommended that you build this type of mdd using the
+/// `mdd_builder` functionality as shown in the following examples.
+///
+/// ## Example
+/// ```
+/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::core::implementation::heuristics::FixedWidth;
+/// use ddo::core::abstraction::dp::{Problem, Relaxation};
+/// use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> i32   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         unimplemented!()
+/// #     }
+/// #     fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         unimplemented!()
+/// #     }
+/// #     fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> i32 {
+/// #         unimplemented!()
+/// #     }
+/// # }
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
+/// #         unimplemented!()
+/// #     }
+/// # }
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// // Following line configure and builds a flat mdd.
+/// let flat_mdd   = mdd_builder(&problem, relaxation).build();
+///
+/// // ... or equivalently (where you emphasize the use of a *flat* mdd)
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// let flat_mdd   = mdd_builder(&problem, relaxation).into_flat();
+///
+/// // Naturally, you can also provide configuration parameters to customize
+/// // the behavior of your MDD. For instance, you can use a custom max width
+/// // heuristic as follows (below, a fixed width)
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// let flat_mdd = mdd_builder(&problem, relaxation)
+///                 .with_max_width(FixedWidth(100))
+///                 .build();
+/// ```
 pub struct FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
-    config           : C,
+    /// This is the configuration used to parameterize the behavior of this
+    /// MDD. Even though the internal state (free variables) of the configuration
+    /// is subject to change, the configuration itself is immutable over time.
+    config: C,
 
-    mddtype          : MDDType,
-    layers           : [MetroHashMap<T, NodeInfo>; 3],
-    current          : usize,
-    next             : usize,
-    lel              : usize,
+    // -- The following fields characterize the current unrolling of the MDD. --
+    /// This is the kind of unrolling that was requested. It determines if this
+    /// mdd must be an `Exact`, `Restricted` or `Relaxed` MDD.
+    mddtype: MDDType,
+    /// This array stores the three layers known by the mdd: the current, next
+    /// and last exact layer (lel). The position of each layer in the array is
+    /// determined by the `current`, `next` and `lel` fields of the structure.
+    layers: [MetroHashMap<T, NodeInfo>; 3],
+    /// The index of the current layer in the array of `layers`.
+    current: usize,
+    /// The index of the next layer in the array of `layers`.
+    next: usize,
+    /// The index of the last exact layer (lel) in the array of `layers`
+    lel: usize,
 
-    is_exact         : bool,
-    best_node        : Option<NodeInfo>
+    // -- The following are transient fields -----------------------------------
+    /// This flag indicates whether or not this MDD is an exact MDD (that is,
+    /// it tells if no relaxation/restriction has occurred yet).
+    is_exact: bool,
+    /// This field memoizes the best node of the MDD. That is, the node of this
+    /// mdd having the longest path from root.
+    best_node: Option<NodeInfo>
 }
 
 /// Be careful: this macro lets you borrow any single layer from a flat mdd.
 /// While this is generally safe, it is way too easy to use this macro to break
 /// aliasing rules.
+///
+/// # Example
+/// ```
+/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::test_utils::{MockProblem, MockRelax};
+/// # use ddo::core::implementation::heuristics::FixedWidth;
+///
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// let mut mdd    = mdd_builder(&problem, relaxation).build();
+///
+/// // This gets you an immutable borrow to the mdd's next layer.
+/// let next_l = layer![&mdd, next];
+///
+/// // This gets you a mutable borrow of the mdd's current layer.
+/// let curr_l = layer![&mut mdd, current];
+/// ```
 macro_rules! layer {
     ($dd:expr, $id:ident) => {
         unsafe { &*$dd.layers.as_ptr().add($dd.$id) }
@@ -36,6 +164,8 @@ macro_rules! layer {
     };
 }
 
+/// FlatMDD implements the MDD abstract data type. Check its documentation
+/// for further details.
 impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
@@ -279,5 +409,32 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
     }
     fn it_next(&self) -> Layer<'_, T> {
         Layer::Mapped(layer![self, next].iter())
+    }
+}
+
+#[cfg(test)]
+mod test_mdd {
+    use crate::core::abstraction::mdd::{MDDType, MDD};
+    use crate::core::implementation::mdd::flat::FlatMDD;
+    use crate::test_utils::{MockConfig, ProxyMut};
+
+    #[test]
+    fn by_default_the_mdd_type_is_exact() {
+        let mut config = MockConfig::default();
+        let mdd        = FlatMDD::new(ProxyMut::new(&mut config));
+
+        assert_eq!(MDDType::Exact, mdd.mdd_type());
+    }
+    #[test]
+    fn mdd_type_changes_depending_on_the_requested_type_of_mdd() {
+        let mut config  = MockConfig::default();
+        let mut mdd     = FlatMDD::new(ProxyMut::new(&mut config));
+        let root        = mdd.root();
+
+        mdd.relaxed(&root, 0);
+        assert_eq!(MDDType::Relaxed, mdd.mdd_type());
+
+        mdd.restricted(&root, 0);
+        assert_eq!(MDDType::Restricted, mdd.mdd_type());
     }
 }
