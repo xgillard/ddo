@@ -404,10 +404,11 @@ mod test_config_builder {
     use mock_it::verify;
 
     use crate::core::abstraction::dp::Problem;
+    use crate::core::abstraction::mdd::MDD;
     use crate::core::common::{Decision, Edge, Layer, Node, NodeInfo, Variable, VarSet};
     use crate::core::implementation::mdd::builder::mdd_builder;
     use crate::core::implementation::mdd::config::Config;
-    use crate::test_utils::{MockLoadVars, MockMaxWidth, MockProblem, MockRelax, Nothing, Proxy, MockNodeSelectionHeuristic, MockVariableHeuristic};
+    use crate::test_utils::{MockLoadVars, MockMaxWidth, MockNodeSelectionHeuristic, MockProblem, MockRelax, MockVariableHeuristic, Nothing, Proxy};
 
     #[test]
     fn root_node_is_pass_though_for_problem() {
@@ -661,5 +662,31 @@ mod test_config_builder {
         let next = Layer::Plain(data2.iter());
         config.select_var(curr, next);
         assert!(verify(heu.next_var.was_called_with((prob.all_vars(), data1, data2))))
+    }
+
+
+    #[test]
+    fn it_can_build_an_mdd() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let mdd    = mdd_builder(&prob, Proxy::new(&relax)).build();
+
+        assert_eq!(prob.root_node(), mdd.root())
+    }
+    #[test]
+    fn it_can_build_a_flat_mdd() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let mdd    = mdd_builder(&prob, Proxy::new(&relax)).into_flat();
+
+        assert_eq!(prob.root_node(), mdd.root())
+    }
+    #[test]
+    fn it_can_build_a_pooled_mdd() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let mdd    = mdd_builder(&prob, Proxy::new(&relax)).into_pooled();
+
+        assert_eq!(prob.root_node(), mdd.root())
     }
 }
