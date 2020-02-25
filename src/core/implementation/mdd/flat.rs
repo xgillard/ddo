@@ -214,7 +214,7 @@ impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 
 /// Private functions
 impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
-
+    /// Constructor, uses the given config to parameterize the mdd's behavior
     pub fn new(config: C) -> Self {
         FlatMDD {
             config,
@@ -229,7 +229,8 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             layers           : [Default::default(), Default::default(), Default::default()]
         }
     }
-
+    /// Resets the state of the mdd to make it reusable and ready to explore an
+    /// other subproblem-space.
     fn clear(&mut self) {
         self.mddtype       = Exact;
         self.is_exact      = true;
@@ -242,20 +243,30 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 
         self.layers.iter_mut().for_each(|l| l.clear());
     }
-
+    /// Swaps the indices of the current and last exact layers, effectively
+    /// remembering current as the last exact layer.
     fn swap_current_lel(&mut self) {
         let tmp      = self.current;
         self.current = self.lel;
         self.lel     = tmp;
     }
+    /// Swaps the indices of the current and next layers effectively moving
+    /// to the next layer (next is now considered current)
     fn swap_current_next(&mut self) {
         let tmp      = self.current;
         self.current = self.next;
         self.next    = tmp;
     }
+    /// Returns true iff the a node made of `state` and `info` would be relevant
+    /// considering the given bounds. A node is considered to be relevant iff
+    /// its estimated upper bound (rough upper bound) is strictly greater than
+    /// the current lower bound.
     fn is_relevant(&self, bounds: Bounds, state: &T, info: &NodeInfo) -> bool {
         min(self.config.estimate_ub(state, info), bounds.ub) > bounds.lb
     }
+    /// Develops/Unrolls the requested type of MDD, starting from the given `root`
+    /// and considering only nodes that are relevant wrt. the given best lower
+    /// bound (`best_lb`).
     fn develop(&mut self, kind: MDDType, root: &Node<T>, best_lb: i32) {
         self.init(kind, root);
         let w = if self.mddtype == Exact { usize::max_value() } else { self.config.max_width() };
@@ -280,6 +291,15 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 
         self.finalize()
     }
+    /// Unrolls the current layer by making all possible decisions about the
+    /// given variable `var` from all the nodes of the current layer. Only nodes
+    /// having an estimated upper bound greater than the best known lower bound
+    /// will be considered relevant and make their way to the next layer.
+    ///
+    /// # Note
+    /// This type of MDD is a _reduced_ MDD. Here, the reduction rule is only
+    /// applied top-down, and nodes are merged iff they have the exact same
+    /// state.
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
         let curr = layer![self,  current];
         let next = layer![self, mut next];
@@ -299,7 +319,10 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             }
         }
     }
-
+    /// Takes all necessary actions to effectively prepare the unrolling of the
+    /// next layer. That is, it saves the last exact layer if needed, it swaps
+    /// the current and next layers, and clears the content of the next layer to
+    /// make it ready to accept new nodes.
     fn move_to_next(&mut self, was_exact: bool) {
         if self.is_exact != was_exact {
             self.swap_current_lel();
@@ -307,7 +330,12 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
         self.swap_current_next();
         layer![self, mut next].clear();
     }
-
+    /// Takes all necessary actions to start the development of an MDD.
+    /// Concretely, this means:
+    ///   - clearing stale data,
+    ///   - loading the set of free variables from the given root node,
+    ///   - setting the type of mdd to develop, and
+    ///   - inserting the given root node in the first layer of this mdd.
     fn init(&mut self, kind: MDDType, root: &Node<T>) {
         self.clear();
         self.config.load_vars(root);
@@ -315,6 +343,11 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
 
         layer![self, mut current].insert(root.state.clone(), root.info.clone());
     }
+    /// Takes the necessary actions to finalize the processing of an MDD rooted
+    /// in a given sub-problem. Concretely, it identifies the best terminal node
+    /// and, if such a node exists, it sets a tight upper bound on the nodes
+    /// from the cutset. Otherwise, it empties the cutset since it would make
+    /// no sense to try to use that cutset.
     fn finalize(&mut self) {
         self.find_best_node();
 
@@ -331,6 +364,8 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             layer![self, mut lel].clear();
         }
     }
+    /// Iterates over all nodes from the terminal layer and identifies the
+    /// nodes having the longest path from the root.
     fn find_best_node(&mut self) {
         let mut best_value = i32::min_value();
         for info in layer![self, current].values() {
@@ -340,6 +375,8 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             }
         }
     }
+    /// Possibly takes actions (if layer > 1) to shrink the size of the current
+    /// layer in case its width exceeds the limit.
     fn maybe_squash(&mut self, i : usize, w: usize) {
         match self.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
@@ -347,6 +384,10 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             MDDType::Relaxed    => self.maybe_relax(i, w),
         }
     }
+    /// Performs a restriction of the current layer if its width exceeds the
+    /// maximum limit. In other words, it drops the worst nodes of the current
+    /// layer to make its width fit within the maximum size determined by the
+    /// configuration.
     fn maybe_restrict(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
@@ -366,6 +407,10 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             nodes.drain(..).for_each(|n| {next.insert(n.state, n.info);});
         }
     }
+    /// Performs a relaxation of the current layer if its width exceeds the
+    /// maximum limit. In other words, it merges the worst nodes of the current
+    /// layer to make its width fit within the maximum size determined by the
+    /// configuration.
     fn maybe_relax(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
@@ -403,10 +448,11 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
             }
         }
     }
-
+    /// Returns a `Layer` iterator over the nodes of the current layer.
     fn it_current(&self) -> Layer<'_, T> {
         Layer::Mapped(layer![self, current].iter())
     }
+    /// Returns a `Layer` iterator over the nodes of the next layer.
     fn it_next(&self) -> Layer<'_, T> {
         Layer::Mapped(layer![self, next].iter())
     }
