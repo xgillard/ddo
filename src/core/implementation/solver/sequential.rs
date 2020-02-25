@@ -29,15 +29,15 @@ use crate::core::implementation::heuristics::MaxUB;
 pub struct SequentialSolver<T, DD>
     where T: Hash + Eq + Clone, DD: MDD<T> {
 
-    mdd          : DD,
-    fringe       : BinaryHeap<Node<T>, MaxUB>,
+    mdd      : DD,
+    fringe   : BinaryHeap<Node<T>, MaxUB>,
 
-    pub explored : usize,
-    pub best_ub  : i32,
-    pub best_lb  : i32,
-    pub best_node: Option<NodeInfo>,
-    pub best_sol : Option<Vec<Decision>>,
-    pub verbosity: u8
+    explored : usize,
+    best_ub  : i32,
+    best_lb  : i32,
+    best_node: Option<NodeInfo>,
+    best_sol : Option<Vec<Decision>>,
+    verbosity: u8
 }
 
 impl <T, DD> SequentialSolver<T, DD>
