@@ -17,6 +17,12 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+//! This module provides the implementation of a _pooled_ MDD. This is a kind of
+//! bounded width MDD which cannot offer a strong guarantees wrt to the maximum
+//! amount of used memory. However, this structure is perfectly suited for
+//! problems like MISP, where one decision can affect more than one variable,
+//! and expanding a node is expensive but checkinig if a node is going to be
+//! impacted by a decision is cheap.
 use std::cmp::min;
 use std::hash::Hash;
 use std::sync::Arc;
@@ -30,18 +36,90 @@ use crate::core::implementation::mdd::config::Config;
 
 // --- POOLED MDD --------------------------------------------------------------
 #[derive(Clone)]
+/// This structure implements a _pooled_ MDD. This is a kind of bounded width
+/// MDD which cannot offer a strong guarantees wrt to the maximum amount of used
+/// memory. However, this structure is perfectly suited for problems like MISP,
+/// where one decision can affect more than one variable, and expanding a node
+/// is expensive but checkinig if a node is going to be impacted by a decision
+/// is cheap.
+///
+/// # Note
+/// The behavior of this MDD is heavily dependent on the configuration you
+/// provide. Therefore, and although a public constructor exists for this
+/// structure, it it recommended that you build this type of mdd using the
+/// `mdd_builder` functionality as shown in the following examples.
+///
+/// ## Example
+/// ```
+/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::core::implementation::heuristics::FixedWidth;
+/// use ddo::core::abstraction::dp::{Problem, Relaxation};
+/// use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> i32   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         unimplemented!()
+/// #     }
+/// #     fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         unimplemented!()
+/// #     }
+/// #     fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> i32 {
+/// #         unimplemented!()
+/// #     }
+/// # }
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
+/// #         unimplemented!()
+/// #     }
+/// # }
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// // Following line configure and builds a pooled mdd.
+/// let pooled_mdd = mdd_builder(&problem, relaxation).into_pooled();
+///
+/// // Naturally, you can also provide configuration parameters to customize
+/// // the behavior of your MDD. For instance, you can use a custom max width
+/// // heuristic as follows (below, a fixed width)
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// let pooled_mdd = mdd_builder(&problem, relaxation)
+///                 .with_max_width(FixedWidth(100))
+///                 .into_pooled();
+/// ```
 pub struct PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
+    /// This is the configuration used to parameterize the behavior of this
+    /// MDD. Even though the internal state (free variables) of the configuration
+    /// is subject to change, the configuration itself is immutable over time.
     config           : C,
 
+    // -- The following fields characterize the current unrolling of the MDD. --
+    /// This is the kind of unrolling that was requested. It determines if this
+    /// mdd must be an `Exact`, `Restricted` or `Relaxed` MDD.
     mddtype          : MDDType,
+    /// This is the pool of candidate nodes that might possibly participate in
+    /// the next layer.
     pool             : MetroHashMap<T, NodeInfo>,
+    /// This is the set of nodes constituting the current layer
     current          : Vec<Node<T>>,
+    /// This set of nodes comprises all nodes that belong to a
+    /// _frontier cutset_ (FC).
     cutset           : Vec<Node<T>>,
 
+    // -- The following are transient fields -----------------------------------
+    /// This flag indicates whether or not this MDD is an exact MDD (that is,
+    /// it tells if no relaxation/restriction has occurred yet).
     is_exact         : bool,
+    /// This field memoizes the best node of the MDD. That is, the node of this
+    /// mdd having the longest path from root.
     best_node        : Option<NodeInfo>
 }
 
+/// PooledMDD implements the MDD abstract data type. Check its documentation
+/// for further details.
 impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
     fn mdd_type(&self) -> MDDType {
         self.mddtype
@@ -88,7 +166,7 @@ impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> 
 
 /// Private functions
 impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
-
+    /// Constructor, uses the given config to parameterize the mdd's behavior
     pub fn new(config: C) -> Self {
         PooledMDD {
             config,
@@ -101,7 +179,8 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             cutset           : vec![]
         }
     }
-
+    /// Resets the state of the mdd to make it reusable and ready to explore an
+    /// other subproblem-space.
     fn clear(&mut self) {
         self.mddtype          = Exact;
         self.is_exact         = true;
@@ -112,7 +191,9 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
         self.current          .clear();
         self.cutset           .clear();
     }
-
+    /// Develops/Unrolls the requested type of MDD, starting from the given `root`
+    /// and considering only nodes that are relevant wrt. the given best lower
+    /// bound (`best_lb`).
     fn develop(&mut self, kind: MDDType, root: &Node<T>, best_lb : i32) {
         self.init(kind, root);
         let w = if self.mddtype == Exact { usize::max_value() } else { self.config.max_width() };
@@ -137,6 +218,15 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
 
         self.finalize()
     }
+    /// Unrolls the current layer by making all possible decisions about the
+    /// given variable `var` from all the nodes of the current layer. Only nodes
+    /// having an estimated upper bound greater than the best known lower bound
+    /// will be considered relevant and make their way to the next layer.
+    ///
+    /// # Note
+    /// This type of MDD is a _reduced_ MDD. Here, the reduction rule is only
+    /// applied top-down, and nodes are merged iff they have the exact same
+    /// state.
     fn unroll_layer(&mut self, var: Variable, bounds: Bounds) {
         for node in self.current.iter() {
             let info    = Arc::new(node.info.clone());
@@ -160,6 +250,10 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             }
         }
     }
+    /// Iterates over all nodes in the pool and selects all those that are
+    /// possibly impacted by a decision on variable `var`. These nodes are
+    /// then removed from the pool and effectively constitute the new
+    /// `current` layer.
     fn pick_nodes_from_pool(&mut self, var: Variable) {
         self.current.clear();
 
@@ -177,15 +271,25 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             self.current.push(Node{state, info});
         }
     }
-
+    /// Returns true iff the problem space has been exhausted. That is, if
+    /// all nodes have been removed from the pool (and hence no possible
+    /// successor exists).
     fn exhausted(&self) -> bool {
         self.pool.is_empty()
     }
-
+    /// Returns true iff the a node made of `state` and `info` would be relevant
+    /// considering the given bounds. A node is considered to be relevant iff
+    /// its estimated upper bound (rough upper bound) is strictly greater than
+    /// the current lower bound.
     fn is_relevant(&self, bounds: Bounds, state: &T, info: &NodeInfo) -> bool {
         min(self.config.estimate_ub(state, info), bounds.ub) > bounds.lb
     }
-
+    /// Takes all necessary actions to start the development of an MDD.
+    /// Concretely, this means:
+    ///   - clearing stale data,
+    ///   - loading the set of free variables from the given root node,
+    ///   - setting the type of mdd to develop, and
+    ///   - inserting the given root node in the first layer of this mdd.
     fn init(&mut self, kind: MDDType, root: &Node<T>) {
         self.clear();
         self.config.load_vars(root);
@@ -193,6 +297,11 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
 
         self.pool.insert(root.state.clone(), root.info.clone());
     }
+    /// Takes the necessary actions to finalize the processing of an MDD rooted
+    /// in a given sub-problem. Concretely, it identifies the best terminal node
+    /// and, if such a node exists, it sets a tight upper bound on the nodes
+    /// from the cutset. Otherwise, it empties the cutset since it would make
+    /// no sense to try to use that cutset.
     fn finalize(&mut self) {
         self.find_best_node();
 
@@ -209,6 +318,8 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             self.cutset.clear();
         }
     }
+    /// Iterates over all nodes from the terminal layer and identifies the
+    /// nodes having the longest path from the root.
     fn find_best_node(&mut self) {
         let mut best_value = std::i32::MIN;
         for info in self.pool.values() {
@@ -218,7 +329,8 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             }
         }
     }
-
+    /// Possibly takes actions (if layer > 1) to shrink the size of the current
+    /// layer in case its width exceeds the limit.
     fn maybe_squash(&mut self, i : usize, w: usize) {
         match self.mddtype {
             MDDType::Exact      => /* nothing to do ! */(),
@@ -226,6 +338,10 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             MDDType::Relaxed    => self.maybe_relax(i, w),
         }
     }
+    /// Performs a restriction of the current layer if its width exceeds the
+    /// maximum limit. In other words, it drops the worst nodes of the current
+    /// layer to make its width fit within the maximum size determined by the
+    /// configuration.
     fn maybe_restrict(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
@@ -238,6 +354,16 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             }
         }
     }
+    /// Performs a relaxation of the current layer if its width exceeds the
+    /// maximum limit. In other words, it merges the worst nodes of the current
+    /// layer to make its width fit within the maximum size determined by the
+    /// configuration.
+    ///
+    /// # Note
+    /// The role of this method is both to:  merge the nodes
+    /// (delegated to `merge_overdue_nodes`) and to maintain the state of the
+    /// cutset.
+    ///
     fn maybe_relax(&mut self, i: usize, w: usize) {
         /* you cannot compress the 1st layer: you wouldn't get an useful cutset  */
         if i > 1 {
@@ -260,6 +386,8 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
             }
         }
     }
+    /// This method effectively merges the n wost nodes and retunrs a new
+    /// (inexact) relaxed one.
     fn merge_overdue_nodes(&mut self, w: usize) -> Node<T> {
         // 1. Sort the current layer so that the worst nodes are at the end.
         let config = &self.config;
@@ -280,6 +408,8 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
         self.current.truncate(w - 1);
         merged
     }
+    /// Finds another node in the current layer having the same state as the
+    /// given `state` parameter (if there is one such node).
     fn find_same_state<'b>(current: &'b mut[Node<T>], state: &T) -> Option<&'b mut Node<T>> {
         for n in current.iter_mut() {
             if n.state.eq(state) {
@@ -288,9 +418,11 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
         }
         None
     }
+    /// Returns a `Layer` iterator over the nodes of the current layer.
     fn it_current(&self) -> Layer<'_, T> {
         Layer::Plain(self.current.iter())
     }
+    /// Returns a `Layer` iterator over all the nodes of the *pool*.
     fn it_next(&self) -> Layer<'_, T> {
         Layer::Mapped(self.pool.iter())
     }
