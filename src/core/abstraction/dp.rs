@@ -80,3 +80,55 @@ pub trait Relaxation<T> {
         i32::max_value()
     }
 }
+
+#[cfg(test)]
+mod test_problem_defaults {
+    use crate::core::abstraction::dp::{Problem, Relaxation};
+    use crate::core::common::{Variable, VarSet, Domain, Decision, Node, NodeInfo};
+
+    struct MockProblem;
+    impl Problem<usize> for MockProblem {
+        fn nb_vars(&self)       -> usize {  5 }
+        fn initial_state(&self) -> usize { 42 }
+        fn initial_value(&self) -> i32   { 84 }
+        fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+            unimplemented!()
+        }
+        fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
+            unimplemented!()
+        }
+        fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> i32 {
+            unimplemented!()
+        }
+    }
+    struct MockRelax;
+    impl Relaxation<usize> for MockRelax {
+        fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn by_default_all_vars_impact_all_states() {
+        assert!(MockProblem.impacted_by(&0, Variable(0)));
+        assert!(MockProblem.impacted_by(&4, Variable(10)));
+        assert!(MockProblem.impacted_by(&92, Variable(53)));
+    }
+
+    #[test]
+    fn by_default_all_vars_return_all_possible_variables(){
+        assert_eq!(VarSet::all(5), MockProblem.all_vars());
+    }
+
+    #[test]
+    fn by_default_the_root_node_consitsts_of_the_initial_state_and_value() {
+        let node = Node::new(MockProblem.initial_state(), MockProblem.initial_value(), None, true);
+        assert_eq!(node, MockProblem.root_node());
+    }
+
+    #[test]
+    fn the_default_rough_upper_bound_is_infinity() {
+        let info = NodeInfo::new(12, None, true);
+        assert_eq!(i32::max_value(), MockRelax.estimate_ub(&12, &info));
+    }
+}

@@ -165,7 +165,7 @@ pub struct Bounds {pub lb: i32, pub ub: i32}
 /// algebraic data type. The second option was retained as it combines both
 /// efficiency and elegance (+ it is a fairly common approach to polymorphism
 /// in rust and c).
-///
+#[derive(Clone)]
 pub enum Domain<'a> {
     /// When the domain consists of an owned vector (vec![])
     Vector(Vec<i32>),
