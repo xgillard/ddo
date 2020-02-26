@@ -108,7 +108,7 @@ impl Default for MockRelax {
 }
 impl Relaxation<usize> for MockRelax {
     fn merge_nodes(&self, nodes: &[Node<usize>]) -> Node<usize> {
-        self.merge_nodes.called(nodes.iter().cloned().collect::<Vec<Node<usize>>>())
+        self.merge_nodes.called(nodes.to_vec())
     }
     fn estimate_ub(&self, state: &usize, info: &NodeInfo) -> i32 {
         self.estimate_ub.called((*state, info.clone()))
@@ -147,6 +147,7 @@ impl WidthHeuristic for MockMaxWidth {
 
 #[derive(Clone)]
 pub struct MockVariableHeuristic {
+    #[allow(clippy::type_complexity)]
     pub next_var: Mock<(VarSet, Vec<Node<usize>>, Vec<Node<usize>>), Option<Variable>>
 }
 impl Default for MockVariableHeuristic {
@@ -160,12 +161,12 @@ impl VariableHeuristic<usize> for MockVariableHeuristic {
     fn next_var<'a>(&self, free_vars: &'a VarSet, current: Layer<'a, usize>, next: Layer<'a, usize>) -> Option<Variable> {
         let mut cur = vec![];
         for n in current {
-            cur.push(Node{ state: n.0.clone(), info: n.1.clone() });
+            cur.push(Node{ state: *n.0, info: n.1.clone() });
         }
 
         let mut nxt= vec![];
         for n in next {
-            nxt.push(Node{ state: n.0.clone(), info: n.1.clone() });
+            nxt.push(Node{ state: *n.0, info: n.1.clone() });
         }
         self.next_var.called((free_vars.clone(), cur, nxt))
     }
@@ -192,6 +193,7 @@ pub struct MockConfig {
     pub impacted_by:  Mock<(usize, Variable), bool>,
     pub load_vars:    Mock<Node<usize>, Nothing>,
     pub nb_free_vars: Mock<Nothing, usize>,
+    #[allow(clippy::type_complexity)]
     pub select_var:   Mock<(Vec<Node<usize>>, Vec<Node<usize>>), Option<Variable>>,
     pub remove_var:   Mock<Variable, Nothing>,
     pub domain_of:    Mock<(usize, Variable), Vec<i32>>,
@@ -239,11 +241,11 @@ impl Config<usize> for MockConfig {
     fn select_var(&self, current: Layer<'_, usize>, next: Layer<'_, usize>) -> Option<Variable> {
         let mut cur = vec![];
         for (s,i) in current {
-            cur.push(Node{state: s.clone(), info: i.clone()})
+            cur.push(Node{state: *s, info: i.clone()})
         }
         let mut nxt = vec![];
         for (s,i) in next {
-            nxt.push(Node{state: s.clone(), info: i.clone()})
+            nxt.push(Node{state: *s, info: i.clone()})
         }
         self.select_var.called((cur, nxt))
     }
@@ -273,7 +275,7 @@ impl Config<usize> for MockConfig {
     }
 
     fn merge_nodes(&self, nodes: &[Node<usize>]) -> Node<usize> {
-        self.merge_nodes.called(nodes.iter().cloned().collect::<Vec<Node<usize>>>())
+        self.merge_nodes.called(nodes.to_vec())
     }
 }
 

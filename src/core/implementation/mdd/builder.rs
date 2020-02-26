@@ -459,12 +459,12 @@ mod test_config_builder {
 
         let mut config  = mdd_builder(&prob, relax).with_load_vars(Proxy::new(&lv)).config();
         let node = Node::new(0, 0, None, true);
-        let _ = config.load_vars(&node);
+        config.load_vars(&node);
         assert!(verify(lv.variables.was_called_with(node.clone())));
 
         let node = Node::new(10, 1000, Some(Edge{ src: Arc::new(node.info),  decision: Decision{variable: Variable(7), value: 12}}), true);
-        let _ = config.load_vars(&node);
-        assert!(verify(lv.variables.was_called_with(node.clone())));
+        config.load_vars(&node);
+        assert!(verify(lv.variables.was_called_with(node)));
     }
     #[test]
     fn domain_is_pass_though_for_problem() {
@@ -552,7 +552,7 @@ mod test_config_builder {
         let info    = Arc::new(info);
 
         prob.transition.given((state, varset.clone(), decision)).will_return(10);
-        prob.transition_cost.given((state, varset.clone(), decision)).will_return(666);
+        prob.transition_cost.given((state, varset, decision)).will_return(666);
 
         assert_eq!(
           config.branch(&state, info.clone(), decision),
@@ -562,7 +562,7 @@ mod test_config_builder {
                   is_exact: true,
                   lp_len  : 676,
                   lp_arc  : Some(Edge {
-                      src: info.clone(),
+                      src: info,
                       decision
                   }),
                   ub: 100
@@ -584,7 +584,7 @@ mod test_config_builder {
         let info    = Arc::new(info);
 
         prob.transition.given((state, varset.clone(), decision)).will_return(10);
-        prob.transition_cost.given((state, varset.clone(), decision)).will_return(666);
+        prob.transition_cost.given((state, varset, decision)).will_return(666);
 
         assert_eq!(
           config.branch(&state, info.clone(), decision),
@@ -594,7 +594,7 @@ mod test_config_builder {
                   is_exact: false,
                   lp_len  : 676,
                   lp_arc  : Some(Edge {
-                      src: info.clone(),
+                      src: info,
                       decision
                   }),
                   ub: 100

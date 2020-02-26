@@ -588,7 +588,7 @@ mod test_mdd {
         mdd.relaxed(&root, 0);
 
         let mut cutset = vec![];
-        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i.clone() }));
+        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i }));
         assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
         assert!(cutset.iter().all(|n| n.info.is_exact));
     }
@@ -635,12 +635,12 @@ mod test_mdd {
         mdd.relaxed(&root, 0);
 
         let mut cutset = vec![];
-        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i.clone() }));
+        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i }));
         assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
         assert!(cutset.iter().all(|n| n.info.is_exact));
 
         cutset.clear();
-        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i.clone() }));
+        mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i }));
         assert_eq!(cutset.len(), 0); // because both 1,1 and (0,2) yield same state
     }
 
