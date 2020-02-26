@@ -5,8 +5,20 @@
 [![codecov](https://codecov.io/gh/xgillard/ddo/branch/master/graph/badge.svg)](https://codecov.io/gh/xgillard/ddo)
 ![GitHub](https://img.shields.io/github/license/xgillard/ddo)
 
-DDO is a truly generic framework to develop MDD-based combinatorial optimization
-solvers in [Rust](https://www.rust-lang.org/). 
+DDO is a truly generic framework to develop MDD-based combinatorial optimization 
+solvers in  [Rust](https://www.rust-lang.org/). Its goal is to let you describe 
+your optimization problem as a dynamic program along with a relaxation. 
+
+When the dynamic program of the problem is considered as a transition system, 
+the relaxation serves the purpose of merging different nodes of the transition 
+system into an other node standing for them all. In that setup, the sole 
+condition to ensure the correctness of the optimization algorithm is that the 
+replacement node must be an over approximation of all what is feasible from the 
+merged nodes.
+
+***Bonus:***
+As a side benefit from using `ddo`, you will be able to exploit all of your
+hardware to solve your optimization in parallel.
 
 ## Setup
 This library is written in stable rust (1.41 at the time of writing). Therefore, 
@@ -143,10 +155,10 @@ will find the desired binaries at :
 
 ### Note 
 The implementation of MISP, MAX2SAT and MCP correspond to the formulation and
-relaxation proposed by Bergman et al. in [^bergman16].
+relaxation proposed by [Bergman et al](https://pubsonline.informs.org/doi/abs/10.1287/ijoc.2015.0648).
 
 ## References
- * [^bergman14]  ```David Bergman, Andre A. Cire, Ashish Sabharwal, Samulowitz Horst, Saraswat Vijay, and Willem-Jan and van Hoeve. Parallel combinatorial optimization with decision diagrams. In Helmut Simonis, editor, Integration of AI and OR Techniques in Constraint Programming, volume 8451, pages 351–367. Springer, 2014.```
- * [^bergman16a] ```David Bergman and Andre A. Cire. Theoretical insights and algorithmic tools for decision diagram-based optimization. Constraints, 21(4):533–556, 2016.```
- * [^bergman16b] ```David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. Decision Diagrams for Optimization. Springer, 2016.```
- * [^bergman16c] ```David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. Discrete optimization with decision diagrams. INFORMS Journal on Computing, 28(1):47–66, 2016.```
+ * David Bergman, Andre A. Cire, Ashish Sabharwal, Samulowitz Horst, Saraswat Vijay, and Willem-Jan and van Hoeve. [Parallel combinatorial optimization with decision diagrams.](https://link.springer.com/chapter/10.1007/978-3-319-07046-9_25) In Helmut Simonis, editor, Integration of AI and OR Techniques in Constraint Programming, volume 8451, pages 351–367. Springer, 2014.
+ * David Bergman and Andre A. Cire. [Theoretical insights and algorithmic tools for decision diagram-based optimization.](https://link.springer.com/article/10.1007/s10601-016-9239-9) Constraints, 21(4):533–556, 2016.
+ * David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. [Decision Diagrams for Optimization.](https://link.springer.com/book/10.1007%2F978-3-319-42849-9) Springer, 2016.
+ * David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. [Discrete optimization with decision diagrams.](https://pubsonline.informs.org/doi/abs/10.1287/ijoc.2015.0648) INFORMS Journal on Computing, 28(1):47–66, 2016.
