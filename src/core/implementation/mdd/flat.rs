@@ -783,6 +783,9 @@ mod test_private {
     use crate::core::common::{NodeInfo, Bounds, Node, Variable, Decision};
     use mock_it::verify;
     use std::sync::Arc;
+    use std::cmp::Ordering;
+    use crate::core::implementation::heuristics::MinLP;
+    use compare::Compare;
 
     #[test]
     fn clear_prepares_the_mdd_for_reuse_hence_mddtype_must_be_exact() {
@@ -1376,47 +1379,389 @@ mod test_private {
 
     #[test]
     fn no_restriction_may_occur_for_first_layer() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_restrict(0, 1);
+        assert_eq!(4, layer![mdd, next].len());
+
+        mdd.maybe_restrict(1, 1);
+        assert_eq!(4, layer![mdd, next].len());
+        assert_eq!(true, mdd.is_exact);
     }
     #[test]
     fn no_relaxation_may_occur_for_first_layer() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_relax(0, 1);
+        assert_eq!(4, layer![mdd, next].len());
+
+        mdd.maybe_relax(1, 1);
+        assert_eq!(4, layer![mdd, next].len());
+        assert_eq!(true, mdd.is_exact);
     }
     #[test]
     fn restriction_only_keeps_the_w_best_nodes() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_restrict(2, 2);
+        assert_eq!(2, layer![mdd, next].len());
+        assert_eq!(&z.info, layer![mdd, mut next].get(&z.state).unwrap());
+        assert_eq!(&y.info, layer![mdd, mut next].get(&y.state).unwrap());
     }
     #[test]
     fn restriction_makes_the_mdd_inexact() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_restrict(2, 2);
+        assert_eq!(false, mdd.is_exact)
     }
     #[test]
     fn relaxation_keeps_the_w_min_1_best_nodes() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(42, 42, None, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_relax(2, 3); // max width of 3
+        assert_eq!(3, layer![mdd, next].len());
+        assert_eq!(&z.info, layer![mdd, mut next].get(&z.state).unwrap());
+        assert_eq!(&y.info, layer![mdd, mut next].get(&y.state).unwrap());
+        // the 3rd node is none of the others
+        assert_eq!(None, layer![mdd, mut next].get(&w.state));
+        assert_eq!(None, layer![mdd, mut next].get(&x.state));
     }
     #[test]
     fn relaxation_merges_the_worst_nodes() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(42, 42, None, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_relax(2, 3); // max width of 3
+        assert_eq!(Some(&merged.info), layer![mdd, mut next].get(&merged.state));
+        assert!(verify(config.merge_nodes.was_called_with(vec![x, w])));
     }
     #[test]
     fn relaxation_makes_the_mdd_inexact() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(42, 42, None, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_relax(2, 3); // max width of 3
+        assert_eq!(false, mdd.is_exact());
     }
     #[test]
     fn when_the_merged_node_has_the_same_state_as_one_of_the_best_the_two_are_merged() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, true);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(8, 8, None, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_relax(2, 3); // max width of 3
+        assert_eq!(2, layer![mdd, next].len());
+        assert_eq!(&z.info, layer![mdd, mut next].get(&z.state).unwrap());
+        // it has been merged w/ the relaxed node so it state is a blend of the two
+        assert_ne!(&y.info, layer![mdd, mut next].get(&y.state).unwrap());
+        assert_ne!(&merged.info, layer![mdd, mut next].get(&y.state).unwrap());
     }
+
     #[test]
     fn when_the_merged_node_is_distinct_from_all_others_it_is_added_to_the_set_of_candidate_nodes() {
-        // TODO
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, true);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(36, 36, None, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        mdd.maybe_relax(2, 3); // max width of 3
+        assert_eq!(3, layer![mdd, next].len());
+        assert_eq!(&z.info,      layer![mdd, next].get(&z.state).unwrap());
+        assert_eq!(&y.info,      layer![mdd, next].get(&y.state).unwrap());
+        assert_eq!(&merged.info, layer![mdd, next].get(&merged.state).unwrap());
     }
 
     #[test]
     fn it_current_allows_iteration_on_all_nodes_from_current_layer(){
-        // TODO
+        let w = Node::new(5, 200, None, false);
+        let x = Node::new(7, 150, None, false);
+        let y = Node::new(8, 100, None, true);
+        let z = Node::new(9,  90, None, false);
+
+        let mut config = MockConfig::default();
+        let mut mdd    = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut current].insert(w.state, w.info.clone());
+        layer![mdd, mut current].insert(x.state, x.info.clone());
+        layer![mdd, mut current].insert(y.state, y.info.clone());
+        layer![mdd, mut current].insert(z.state, z.info.clone());
+
+        let mut res = mdd.it_current().map(|(s, i)| Node{state: *s, info: i.clone()}).collect::<Vec<Node<usize>>>();
+        res.sort_unstable_by(|a, b| MinLP.compare(a, b).reverse());
+        assert_eq!(vec![w, x, y, z], res);
     }
     #[test]
     fn it_next_allows_iteration_on_all_nodes_from_next_layer() {
-        // TODO
+        let w = Node::new(5, 200, None, false);
+        let x = Node::new(7, 150, None, false);
+        let y = Node::new(8, 100, None, true);
+        let z = Node::new(9,  90, None, false);
+
+        let mut config = MockConfig::default();
+        let mut mdd    = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info.clone());
+        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info.clone());
+        layer![mdd, mut next].insert(z.state, z.info.clone());
+
+        let mut res = mdd.it_next().map(|(s, i)| Node{state: *s, info: i.clone()}).collect::<Vec<Node<usize>>>();
+        res.sort_unstable_by(|a, b| MinLP.compare(a, b).reverse());
+        assert_eq!(vec![w, x, y, z], res);
     }
 }
