@@ -921,9 +921,9 @@ mod test_private {
         let c = Node::new(2, 2, None, true);
 
         let mut config = MockConfig::default();
-        config.domain_of.given((0, v)).will_return(vec![0, 1].into());
-        config.domain_of.given((1, v)).will_return(vec![2, 3].into());
-        config.domain_of.given((2, v)).will_return(vec![4, 5].into());
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
 
@@ -956,15 +956,15 @@ mod test_private {
         let c = Node::new(2, 2, None, true);
 
         let mut config = MockConfig::default();
-        config.domain_of.given((0, v)).will_return(vec![].into());
-        config.domain_of.given((1, v)).will_return(vec![].into());
-        config.domain_of.given((2, v)).will_return(vec![].into());
+        config.domain_of.given((0, v)).will_return(vec![]);
+        config.domain_of.given((1, v)).will_return(vec![]);
+        config.domain_of.given((2, v)).will_return(vec![]);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
 
-        layer![mdd, mut current].insert(a.state, a.info.clone());
-        layer![mdd, mut current].insert(b.state, b.info.clone());
-        layer![mdd, mut current].insert(c.state, c.info.clone());
+        layer![mdd, mut current].insert(a.state, a.info);
+        layer![mdd, mut current].insert(b.state, b.info);
+        layer![mdd, mut current].insert(c.state, c.info);
 
         mdd.unroll_layer(v, Bounds{lb: -1000, ub: 1000});
         assert_eq!(true, layer![mdd, next].is_empty());
@@ -980,16 +980,16 @@ mod test_private {
         let a_info = Arc::new(a.info.clone());
 
         let mut config = MockConfig::default();
-        config.domain_of.given((0, v)).will_return(vec![0, 1].into());
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
         config.branch
             .given((0, a_info.clone(), Decision{variable: v, value: 0}))
-            .will_return(b.clone());
+            .will_return(b);
         config.branch
-            .given((0, a_info.clone(), Decision{variable: v, value: 1}))
-            .will_return(c.clone());
+            .given((0, a_info, Decision{variable: v, value: 1}))
+            .will_return(c);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut current].insert(a.state, a.info.clone());
+        layer![mdd, mut current].insert(a.state, a.info);
 
         mdd.unroll_layer(v, Bounds{lb: -1000, ub: 1000});
         assert_eq!(1, layer![mdd, next].len());
@@ -1005,16 +1005,16 @@ mod test_private {
         let a_info = Arc::new(a.info.clone());
 
         let mut config = MockConfig::default();
-        config.domain_of.given((0, v)).will_return(vec![0, 1].into());
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
         config.branch
             .given((0, a_info.clone(), Decision{variable: v, value: 0}))
-            .will_return(b.clone());
+            .will_return(b);
         config.branch
-            .given((0, a_info.clone(), Decision{variable: v, value: 1}))
+            .given((0, a_info, Decision{variable: v, value: 1}))
             .will_return(c.clone());
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut current].insert(a.state, a.info.clone());
+        layer![mdd, mut current].insert(a.state, a.info);
 
         mdd.unroll_layer(v, Bounds{lb: -1000, ub: 1000});
         assert_eq!(Some(&c.info), layer![mdd, next].get(&1));
@@ -1039,35 +1039,35 @@ mod test_private {
         let c_info = Arc::new(c.info.clone());
 
         let mut config = MockConfig::default();
-        config.domain_of.given((0, v)).will_return(vec![0, 1].into());
-        config.domain_of.given((1, v)).will_return(vec![2, 3].into());
-        config.domain_of.given((2, v)).will_return(vec![4, 5].into());
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
 
         config.branch
             .given((0, a_info.clone(), Decision{variable: v, value: 0}))
             .will_return(d.clone());
         config.branch
-            .given((0, a_info.clone(), Decision{variable: v, value: 1}))
+            .given((0, a_info, Decision{variable: v, value: 1}))
             .will_return(e.clone());
         config.branch
             .given((1, b_info.clone(), Decision{variable: v, value: 2}))
             .will_return(f.clone());
         config.branch
-            .given((1, b_info.clone(), Decision{variable: v, value: 3}))
+            .given((1, b_info, Decision{variable: v, value: 3}))
             .will_return(g.clone());
         config.branch
             .given((2, c_info.clone(), Decision{variable: v, value: 4}))
             .will_return(h.clone());
         config.branch
-            .given((2, c_info.clone(), Decision{variable: v, value: 5}))
+            .given((2, c_info, Decision{variable: v, value: 5}))
             .will_return(i.clone());
 
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
 
-        layer![mdd, mut current].insert(a.state, a.info.clone());
-        layer![mdd, mut current].insert(b.state, b.info.clone());
-        layer![mdd, mut current].insert(c.state, c.info.clone());
+        layer![mdd, mut current].insert(a.state, a.info);
+        layer![mdd, mut current].insert(b.state, b.info);
+        layer![mdd, mut current].insert(c.state, c.info);
 
         mdd.unroll_layer(v, Bounds{lb: -1000, ub: 1000});
         let next = layer![mdd, next];
@@ -1099,42 +1099,42 @@ mod test_private {
         let c_info = Arc::new(c.info.clone());
 
         let mut config = MockConfig::default();
-        config.domain_of.given((0, v)).will_return(vec![0, 1].into());
-        config.domain_of.given((1, v)).will_return(vec![2, 3].into());
-        config.domain_of.given((2, v)).will_return(vec![4, 5].into());
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
 
         config.branch
             .given((0, a_info.clone(), Decision{variable: v, value: 0}))
             .will_return(d.clone());
         config.branch
-            .given((0, a_info.clone(), Decision{variable: v, value: 1}))
+            .given((0, a_info, Decision{variable: v, value: 1}))
             .will_return(e.clone());
         config.branch
             .given((1, b_info.clone(), Decision{variable: v, value: 2}))
             .will_return(f.clone());
         config.branch
-            .given((1, b_info.clone(), Decision{variable: v, value: 3}))
+            .given((1, b_info, Decision{variable: v, value: 3}))
             .will_return(g.clone());
         config.branch
             .given((2, c_info.clone(), Decision{variable: v, value: 4}))
             .will_return(h.clone());
         config.branch
-            .given((2, c_info.clone(), Decision{variable: v, value: 5}))
+            .given((2, c_info, Decision{variable: v, value: 5}))
             .will_return(i.clone());
 
-        config.estimate_ub.given((d.state, d.info.clone())).will_return(-10);
-        config.estimate_ub.given((e.state, e.info.clone())).will_return(-10);
-        config.estimate_ub.given((f.state, f.info.clone())).will_return(-10);
-        config.estimate_ub.given((g.state, g.info.clone())).will_return(  0);
+        config.estimate_ub.given((d.state, d.info        )).will_return(-10);
+        config.estimate_ub.given((e.state, e.info        )).will_return(-10);
+        config.estimate_ub.given((f.state, f.info        )).will_return(-10);
+        config.estimate_ub.given((g.state, g.info        )).will_return(  0);
         config.estimate_ub.given((h.state, h.info.clone())).will_return( 10);
         config.estimate_ub.given((i.state, i.info.clone())).will_return(100);
 
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
 
-        layer![mdd, mut current].insert(a.state, a.info.clone());
-        layer![mdd, mut current].insert(b.state, b.info.clone());
-        layer![mdd, mut current].insert(c.state, c.info.clone());
+        layer![mdd, mut current].insert(a.state, a.info);
+        layer![mdd, mut current].insert(b.state, b.info);
+        layer![mdd, mut current].insert(c.state, c.info);
 
         mdd.unroll_layer(v, Bounds{lb: 0, ub: 1000});
         let next = layer![mdd, next];
@@ -1197,7 +1197,7 @@ mod test_private {
         let mut mdd = FlatMDD::new(config);
 
         let node = Node::new(1, 2, None, true);
-        layer![mdd, mut current].insert(node.state, node.info.clone());
+        layer![mdd, mut current].insert(node.state, node.info);
 
         mdd.move_to_next(true);
         assert!(mdd.layers[0].is_empty());
@@ -1280,10 +1280,10 @@ mod test_private {
         let x = Node::new(7,  10, None, false);
         let y = Node::new(8, 110, None, false);
         let z = Node::new(9,  10, None, false);
-        layer![mdd, mut current].insert(w.state, w.info.clone());
-        layer![mdd, mut current].insert(x.state, x.info.clone());
+        layer![mdd, mut current].insert(w.state, w.info);
+        layer![mdd, mut current].insert(x.state, x.info);
         layer![mdd, mut current].insert(y.state, y.info.clone());
-        layer![mdd, mut current].insert(z.state, z.info.clone());
+        layer![mdd, mut current].insert(z.state, z.info);
         mdd.finalize();
 
         assert_eq!(Some(y.info), mdd.best_node);
@@ -1304,7 +1304,7 @@ mod test_private {
         layer![mdd, mut lel].insert(w.state, w.info.clone());
         layer![mdd, mut lel].insert(x.state, x.info.clone());
         layer![mdd, mut lel].insert(y.state, y.info.clone());
-        layer![mdd, mut current].insert(z.state, z.info.clone());
+        layer![mdd, mut current].insert(z.state, z.info);
         mdd.finalize();
 
         assert_eq!(40, layer![mdd, lel].get(&w.state).unwrap().ub);
@@ -1327,7 +1327,7 @@ mod test_private {
         layer![mdd, mut lel].insert(w.state, w.info.clone());
         layer![mdd, mut lel].insert(x.state, x.info.clone());
         layer![mdd, mut lel].insert(y.state, y.info.clone());
-        layer![mdd, mut current].insert(z.state, z.info.clone());
+        layer![mdd, mut current].insert(z.state, z.info);
         mdd.finalize();
 
         assert_eq!(5, layer![mdd, lel].get(&w.state).unwrap().ub);
@@ -1346,9 +1346,9 @@ mod test_private {
         config.estimate_ub.given((y.state, y.info.clone())).will_return(20);
 
         let mut mdd    = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut lel].insert(w.state, w.info.clone());
-        layer![mdd, mut lel].insert(x.state, x.info.clone());
-        layer![mdd, mut lel].insert(y.state, y.info.clone());
+        layer![mdd, mut lel].insert(w.state, w.info);
+        layer![mdd, mut lel].insert(x.state, x.info);
+        layer![mdd, mut lel].insert(y.state, y.info);
 
         mdd.finalize();
         assert_eq!(true, layer![mdd, lel].is_empty());
@@ -1367,10 +1367,10 @@ mod test_private {
         let x = Node::new(7,  10, None, false);
         let y = Node::new(8, 110, None, false);
         let z = Node::new(9,  10, None, false);
-        layer![mdd, mut current].insert(w.state, w.info.clone());
-        layer![mdd, mut current].insert(x.state, x.info.clone());
+        layer![mdd, mut current].insert(w.state, w.info);
+        layer![mdd, mut current].insert(x.state, x.info);
         layer![mdd, mut current].insert(y.state, y.info.clone());
-        layer![mdd, mut current].insert(z.state, z.info.clone());
+        layer![mdd, mut current].insert(z.state, z.info);
         mdd.find_best_node();
 
         assert_eq!(Some(y.info), mdd.best_node);
@@ -1403,10 +1403,10 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
-        layer![mdd, mut next].insert(y.state, y.info.clone());
-        layer![mdd, mut next].insert(z.state, z.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
+        layer![mdd, mut next].insert(y.state, y.info);
+        layer![mdd, mut next].insert(z.state, z.info);
 
         mdd.maybe_restrict(0, 1);
         assert_eq!(4, layer![mdd, next].len());
@@ -1441,10 +1441,10 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
-        layer![mdd, mut next].insert(y.state, y.info.clone());
-        layer![mdd, mut next].insert(z.state, z.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
+        layer![mdd, mut next].insert(y.state, y.info);
+        layer![mdd, mut next].insert(z.state, z.info);
 
         mdd.maybe_relax(0, 1);
         assert_eq!(4, layer![mdd, next].len());
@@ -1479,8 +1479,8 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
         layer![mdd, mut next].insert(y.state, y.info.clone());
         layer![mdd, mut next].insert(z.state, z.info.clone());
 
@@ -1515,10 +1515,10 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
-        layer![mdd, mut next].insert(y.state, y.info.clone());
-        layer![mdd, mut next].insert(z.state, z.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
+        layer![mdd, mut next].insert(y.state, y.info);
+        layer![mdd, mut next].insert(z.state, z.info);
 
         mdd.maybe_restrict(2, 2);
         assert_eq!(false, mdd.is_exact)
@@ -1598,8 +1598,8 @@ mod test_private {
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
         layer![mdd, mut next].insert(w.state, w.info.clone());
         layer![mdd, mut next].insert(x.state, x.info.clone());
-        layer![mdd, mut next].insert(y.state, y.info.clone());
-        layer![mdd, mut next].insert(z.state, z.info.clone());
+        layer![mdd, mut next].insert(y.state, y.info);
+        layer![mdd, mut next].insert(z.state, z.info);
 
         mdd.maybe_relax(2, 3); // max width of 3
         assert_eq!(Some(&merged.info), layer![mdd, mut next].get(&merged.state));
@@ -1632,13 +1632,13 @@ mod test_private {
 
         // the merge operation will yield a new artificial node
         let merged = Node::new(42, 42, None, false);
-        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
-        layer![mdd, mut next].insert(y.state, y.info.clone());
-        layer![mdd, mut next].insert(z.state, z.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
+        layer![mdd, mut next].insert(y.state, y.info);
+        layer![mdd, mut next].insert(z.state, z.info);
 
         mdd.maybe_relax(2, 3); // max width of 3
         assert_eq!(false, mdd.is_exact());
@@ -1673,8 +1673,8 @@ mod test_private {
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
         layer![mdd, mut next].insert(y.state, y.info.clone());
         layer![mdd, mut next].insert(z.state, z.info.clone());
 
@@ -1716,8 +1716,8 @@ mod test_private {
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
 
         let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
-        layer![mdd, mut next].insert(w.state, w.info.clone());
-        layer![mdd, mut next].insert(x.state, x.info.clone());
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
         layer![mdd, mut next].insert(y.state, y.info.clone());
         layer![mdd, mut next].insert(z.state, z.info.clone());
 
