@@ -1,4 +1,5 @@
 # DDO a generic and efficient framework for MDD-based optimization
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/c2ab3b157a4545608e757fca3d4e5cd4)](https://app.codacy.com/manual/MoiToutSeul/ddo?utm_source=github.com&utm_medium=referral&utm_content=xgillard/ddo&utm_campaign=Badge_Grade_Dashboard)
 [![Crates.io](https://img.shields.io/crates/v/ddo)](https://crates.io/crates/ddo)
 [![Documentation](https://img.shields.io/badge/Docs.rs-Latest-informational)](https://docs.rs/ddo/)
 [![Build Status](https://travis-ci.org/xgillard/ddo.svg?branch=master)](https://travis-ci.org/xgillard/ddo)
