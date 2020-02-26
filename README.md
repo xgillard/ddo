@@ -3,6 +3,7 @@
 [![Documentation](https://img.shields.io/badge/Docs.rs-Latest-informational)](https://docs.rs/ddo/)
 [![Build Status](https://travis-ci.org/xgillard/ddo.svg?branch=master)](https://travis-ci.org/xgillard/ddo)
 [![codecov](https://codecov.io/gh/xgillard/ddo/branch/master/graph/badge.svg)](https://codecov.io/gh/xgillard/ddo)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/11ea2fb04172470c9821b4971b08b042)](https://www.codacy.com/manual/MoiToutSeul/ddo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=xgillard/ddo&amp;utm_campaign=Badge_Grade)
 ![GitHub](https://img.shields.io/github/license/xgillard/ddo)
 
 DDO is a truly generic framework to develop MDD-based combinatorial optimization 
@@ -137,18 +138,18 @@ fn main() {
 The source code of the above (simplistic) example is provided in the examples
 section of this project. Meanwhile, the examples provide an implementation for
 more advanced solvers. Namely, it provides an implementation for: 
-  + [Maximum Independent Set Problem (MISP)](https://www.wikiwand.com/en/Independent_set_(graph_theory))
-  + [Maximum 2 Satisfiability (MAX2SAT)](https://en.wikipedia.org/wiki/Maximum_satisfiability_problem)
-  + [Maximum Cut Problem (MCP)](https://en.wikipedia.org/wiki/Maximum_cut)
-  + Unbounded Knapsack 
++ [Maximum Independent Set Problem (MISP)](https://www.wikiwand.com/en/Independent_set_(graph_theory))
++ [Maximum 2 Satisfiability (MAX2SAT)](https://en.wikipedia.org/wiki/Maximum_satisfiability_problem)
++ [Maximum Cut Problem (MCP)](https://en.wikipedia.org/wiki/Maximum_cut)
++ Unbounded Knapsack 
 
 These are again compiled with cargo with the following command:
 ```cargo build --release --all-targets```. Once the compilation completes, you
 will find the desired binaries at : 
-  + $project/target/release/examples/knapsack
-  + $project/target/release/examples/max2sat
-  + $project/target/release/examples/mcp
-  + $project/target/release/examples/misp
++ $project/target/release/examples/knapsack
++ $project/target/release/examples/max2sat
++ $project/target/release/examples/mcp
++ $project/target/release/examples/misp
  
 If you have any question regarding the use of these programs, just to `<program> -h`
 and it should display an helpful message explaining you how to use it.
@@ -158,7 +159,7 @@ The implementation of MISP, MAX2SAT and MCP correspond to the formulation and
 relaxation proposed by [Bergman et al](https://pubsonline.informs.org/doi/abs/10.1287/ijoc.2015.0648).
 
 ## References
-  + David Bergman, Andre A. Cire, Ashish Sabharwal, Samulowitz Horst, Saraswat Vijay, and Willem-Jan and van Hoeve. [Parallel combinatorial optimization with decision diagrams.](https://link.springer.com/chapter/10.1007/978-3-319-07046-9_25) In Helmut Simonis, editor, Integration of AI and OR Techniques in Constraint Programming, volume 8451, pages 351–367. Springer, 2014.
-  + David Bergman and Andre A. Cire. [Theoretical insights and algorithmic tools for decision diagram-based optimization.](https://link.springer.com/article/10.1007/s10601-016-9239-9) Constraints, 21(4):533–556, 2016.
-  + David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. [Decision Diagrams for Optimization.](https://link.springer.com/book/10.1007%2F978-3-319-42849-9) Springer, 2016.
-  + David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. [Discrete optimization with decision diagrams.](https://pubsonline.informs.org/doi/abs/10.1287/ijoc.2015.0648) INFORMS Journal on Computing, 28(1):47–66, 2016.
++ David Bergman, Andre A. Cire, Ashish Sabharwal, Samulowitz Horst, Saraswat Vijay, and Willem-Jan and van Hoeve. [Parallel combinatorial optimization with decision diagrams.](https://link.springer.com/chapter/10.1007/978-3-319-07046-9_25) In Helmut Simonis, editor, Integration of AI and OR Techniques in Constraint Programming, volume 8451, pages 351–367. Springer, 2014.
++ David Bergman and Andre A. Cire. [Theoretical insights and algorithmic tools for decision diagram-based optimization.](https://link.springer.com/article/10.1007/s10601-016-9239-9) Constraints, 21(4):533–556, 2016.
++ David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. [Decision Diagrams for Optimization.](https://link.springer.com/book/10.1007%2F978-3-319-42849-9) Springer, 2016.
++ David Bergman, Andre A. Cire, Willem-Jan van Hoeve, and J. N. Hooker. [Discrete optimization with decision diagrams.](https://pubsonline.informs.org/doi/abs/10.1287/ijoc.2015.0648) INFORMS Journal on Computing, 28(1):47–66, 2016.
