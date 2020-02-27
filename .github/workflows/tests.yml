@@ -10,7 +10,8 @@ jobs:
       - name: Run all tests
         uses: actions-rs/cargo@v1
         with:
-          command: test --all-targets
+          command: test
+          args: --release --all-targets
 
   coverage:
     runs-on: ubuntu-latest
