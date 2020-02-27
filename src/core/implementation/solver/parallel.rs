@@ -44,6 +44,13 @@ struct Critical<T> {
     /// lower bound is popped.
     fringe   : BinaryHeap<Node<T>, MaxUB>,
     /// This is the number of nodes that are currently being explored.
+    ///
+    /// # Note
+    /// This information may seem innocuous/superfluous, whereas in fact it is
+    /// very important. Indeed, this is the piece of information that lets us
+    /// distinguish between a node-starvation and the completion of the problem
+    /// resolution. The bottom line is, this counter needs to be carefully
+    /// managed to guarantee the termination of all threads.
     ongoing  : usize,
     /// This is a counter that tracks the number of nodes that have effectively
     /// been explored. That is, the number of nodes that have been popped from
