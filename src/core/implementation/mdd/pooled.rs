@@ -751,3 +751,856 @@ mod test_mdd {
         assert!(mdd.best_node().is_none())
     }
 }
+
+#[cfg(test)]
+/// This module tests the private methods of the pooled data structure
+mod test_private {
+    use crate::test_utils::{MockConfig, ProxyMut};
+    use crate::core::implementation::mdd::pooled::PooledMDD;
+    use crate::core::abstraction::mdd::{MDDType, MDD};
+    use crate::core::common::{NodeInfo, Bounds, Node, Variable, Decision};
+    use mock_it::verify;
+    use std::sync::Arc;
+    use std::cmp::Ordering;
+    use crate::core::implementation::heuristics::MinLP;
+    use compare::Compare;
+
+    #[test]
+    fn clear_prepares_the_mdd_for_reuse_hence_mddtype_must_be_exact() {
+        let config = MockConfig::default();
+        let mut mdd = PooledMDD::new(config);
+        let root = mdd.root();
+
+        mdd.restricted(&root, 0);
+        assert_eq!(MDDType::Restricted, mdd.mdd_type());
+
+        mdd.clear();
+        assert_eq!(MDDType::Exact, mdd.mdd_type());
+    }
+
+    #[test]
+    fn clear_prepares_the_mdd_for_reuse_hence_exact_flag_must_be_true() {
+        let config = MockConfig::default();
+        let mut mdd = PooledMDD::new(config);
+
+        mdd.is_exact = false;
+        // resets
+        mdd.clear();
+        assert_eq!(true, mdd.is_exact);
+        // does not screw it if alright
+        mdd.clear();
+        assert_eq!(true, mdd.is_exact);
+    }
+
+    #[test]
+    fn clear_prepares_the_mdd_for_reuse_hence_best_node_must_be_none() {
+        let config = MockConfig::default();
+        let mut mdd = PooledMDD::new(config);
+        mdd.best_node = Some(NodeInfo { lp_len: 1, lp_arc: None, ub: 3, is_exact: false });
+
+        mdd.clear();
+        assert_eq!(None, mdd.best_node);
+    }
+
+    #[test]
+    fn clear_prepares_the_mdd_for_reuse_hence_current_must_be_empty() {
+        let config = MockConfig::default();
+        let mut mdd = PooledMDD::new(config);
+
+        mdd.current.push(Node { state: 42, info: NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false } });
+
+        mdd.clear();
+        assert_eq!(true, mdd.current.is_empty());
+    }
+
+    #[test]
+    fn clear_prepares_the_mdd_for_reuse_hence_pool_must_be_empty() {
+        let config = MockConfig::default();
+        let mut mdd = PooledMDD::new(config);
+
+        mdd.pool.insert(42, NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false });
+
+        mdd.clear();
+        assert_eq!(true, mdd.pool.is_empty());
+    }
+
+    #[test]
+    fn clear_prepares_the_mdd_for_reuse_hence_cutset_must_be_empty() {
+        let config = MockConfig::default();
+        let mut mdd = PooledMDD::new(config);
+
+        mdd.cutset.push(Node { state: 42, info: NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false } });
+
+        mdd.clear();
+        assert_eq!(true, mdd.cutset.is_empty());
+    }
+
+    // -------------------------------------------------------------------------
+    // Tests for the `develop` method are skipped: these would duplicate
+    // the set of tests for exact, restricted, and relaxed.
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn unroll_layer_must_apply_decision_for_all_values_in_the_domain_of_var_to_all_nodes() {
+        let v = Variable(1);
+
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+
+        mdd.current.push(a.clone());
+        mdd.current.push(b.clone());
+        mdd.current.push(c.clone());
+
+        mdd.unroll_layer(v, Bounds { lb: -1000, ub: 1000 });
+
+        assert_eq!(false, mdd.pool.is_empty());
+
+        let a_info = Arc::new(a.info);
+        assert!(verify(config.branch.was_called_with((0, a_info.clone(), Decision { variable: v, value: 0 }))));
+        assert!(verify(config.branch.was_called_with((0, a_info, Decision { variable: v, value: 1 }))));
+
+        let b_info = Arc::new(b.info);
+        assert!(verify(config.branch.was_called_with((1, b_info.clone(), Decision { variable: v, value: 2 }))));
+        assert!(verify(config.branch.was_called_with((1, b_info, Decision { variable: v, value: 3 }))));
+
+        let c_info = Arc::new(c.info);
+        assert!(verify(config.branch.was_called_with((2, c_info.clone(), Decision { variable: v, value: 4 }))));
+        assert!(verify(config.branch.was_called_with((2, c_info, Decision { variable: v, value: 5 }))));
+    }
+
+    #[test]
+    fn when_the_domain_is_empty_next_layer_is_empty_and_problem_becomes_unsat() {
+        let v = Variable(1);
+
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![]);
+        config.domain_of.given((1, v)).will_return(vec![]);
+        config.domain_of.given((2, v)).will_return(vec![]);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+        mdd.current.push(b);
+        mdd.current.push(c);
+
+        mdd.unroll_layer(v, Bounds { lb: -1000, ub: 1000 });
+        assert_eq!(true, mdd.pool.is_empty());
+    }
+
+    #[test]
+    fn when_unroll_generates_two_nodes_with_the_same_state_only_one_is_kept() {
+        let v = Variable(1);
+
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(1, 2, None, false);
+
+        let a_info = Arc::new(a.info.clone());
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.branch.given((0, a_info.clone(), Decision { variable: v, value: 0 })).will_return(b);
+        config.branch.given((0, a_info, Decision { variable: v, value: 1 })).will_return(c);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+
+        mdd.unroll_layer(v, Bounds { lb: -1000, ub: 1000 });
+        assert_eq!(1, mdd.pool.len());
+    }
+
+    #[test]
+    fn when_unroll_generates_two_nodes_with_the_same_state_nodes_are_merged() {
+        let v = Variable(1);
+
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(1, 2, None, false);
+
+        let a_info = Arc::new(a.info.clone());
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.branch.given((0, a_info.clone(), Decision { variable: v, value: 0 })).will_return(b);
+        config.branch.given((0, a_info, Decision { variable: v, value: 1 })).will_return(c.clone());
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+
+        mdd.unroll_layer(v, Bounds { lb: -1000, ub: 1000 });
+        assert_eq!(Some(&c.info), mdd.pool.get(&1));
+    }
+
+    #[test]
+    fn unroll_layer_saves_all_distinct_target_nodes_in_the_next_layer() {
+        let v = Variable(1);
+
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let d = Node::new(0, 0, None, true);
+        let e = Node::new(2, 2, None, true);
+        let f = Node::new(4, 4, None, true);
+        let g = Node::new(8, 8, None, true);
+        let h = Node::new(16, 16, None, true);
+        let i = Node::new(32, 32, None, true);
+
+        let a_info = Arc::new(a.info.clone());
+        let b_info = Arc::new(b.info.clone());
+        let c_info = Arc::new(c.info.clone());
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
+
+        config.branch
+            .given((0, a_info.clone(), Decision { variable: v, value: 0 }))
+            .will_return(d.clone());
+        config.branch
+            .given((0, a_info, Decision { variable: v, value: 1 }))
+            .will_return(e.clone());
+        config.branch
+            .given((1, b_info.clone(), Decision { variable: v, value: 2 }))
+            .will_return(f.clone());
+        config.branch
+            .given((1, b_info, Decision { variable: v, value: 3 }))
+            .will_return(g.clone());
+        config.branch
+            .given((2, c_info.clone(), Decision { variable: v, value: 4 }))
+            .will_return(h.clone());
+        config.branch
+            .given((2, c_info, Decision { variable: v, value: 5 }))
+            .will_return(i.clone());
+
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+        mdd.current.push(b);
+        mdd.current.push(c);
+
+        mdd.unroll_layer(v, Bounds { lb: -1000, ub: 1000 });
+        assert_eq!(6, mdd.pool.len());
+        assert_eq!(Some(&d.info), mdd.pool.get(&d.state));
+        assert_eq!(Some(&e.info), mdd.pool.get(&e.state));
+        assert_eq!(Some(&f.info), mdd.pool.get(&f.state));
+        assert_eq!(Some(&g.info), mdd.pool.get(&g.state));
+        assert_eq!(Some(&h.info), mdd.pool.get(&h.state));
+        assert_eq!(Some(&i.info), mdd.pool.get(&i.state));
+    }
+
+    #[test]
+    fn unroll_layer_saves_a_node_to_next_layer_iff_it_is_relevant() {
+        let v = Variable(1);
+
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let d = Node::new(0, 0, None, true);
+        let e = Node::new(2, 2, None, true);
+        let f = Node::new(4, 4, None, true);
+        let g = Node::new(8, 8, None, true);
+        let h = Node::new(16, 16, None, true);
+        let i = Node::new(32, 32, None, true);
+
+        let a_info = Arc::new(a.info.clone());
+        let b_info = Arc::new(b.info.clone());
+        let c_info = Arc::new(c.info.clone());
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
+
+        config.branch
+            .given((0, a_info.clone(), Decision { variable: v, value: 0 }))
+            .will_return(d.clone());
+        config.branch
+            .given((0, a_info, Decision { variable: v, value: 1 }))
+            .will_return(e.clone());
+        config.branch
+            .given((1, b_info.clone(), Decision { variable: v, value: 2 }))
+            .will_return(f.clone());
+        config.branch
+            .given((1, b_info, Decision { variable: v, value: 3 }))
+            .will_return(g.clone());
+        config.branch
+            .given((2, c_info.clone(), Decision { variable: v, value: 4 }))
+            .will_return(h.clone());
+        config.branch
+            .given((2, c_info, Decision { variable: v, value: 5 }))
+            .will_return(i.clone());
+
+        config.estimate_ub.given((d.state, d.info)).will_return(-10);
+        config.estimate_ub.given((e.state, e.info)).will_return(-10);
+        config.estimate_ub.given((f.state, f.info)).will_return(-10);
+        config.estimate_ub.given((g.state, g.info)).will_return(0);
+        config.estimate_ub.given((h.state, h.info.clone())).will_return(10);
+        config.estimate_ub.given((i.state, i.info.clone())).will_return(100);
+
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+        mdd.current.push(b);
+        mdd.current.push(c);
+
+        mdd.unroll_layer(v, Bounds { lb: 0, ub: 1000 });
+        assert_eq!(2, mdd.pool.len());
+        assert_eq!(Some(&h.info), mdd.pool.get(&h.state));
+        assert_eq!(Some(&i.info), mdd.pool.get(&i.state));
+    }
+
+    #[test]
+    fn unroll_must_add_a_node_that_becomes_inexact_because_old_was_inexact_to_the_mdd_cutset() {
+        let v = Variable(1);
+        // nodes of the current layer
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+        // successors of the nodes of the current layer
+        let d = Node::new(0, 0, None, true);
+        let e = Node::new(2, 2, None, true);
+        let f = Node::new(4, 4, None, true);
+        let g = Node::new(8, 8, None, true);
+        let h = Node::new(16, 16, None, true);
+        let i = Node::new(32, 32, None, true);
+        // node already present in the pool
+        let p = Node::new(32, 65, None, false);
+
+        let a_info = Arc::new(a.info.clone());
+        let b_info = Arc::new(b.info.clone());
+        let c_info = Arc::new(c.info.clone());
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
+
+        config.branch.given((0, a_info.clone(), Decision { variable: v, value: 0 })).will_return(d.clone());
+        config.branch.given((0, a_info, Decision { variable: v, value: 1 })).will_return(e.clone());
+        config.branch.given((1, b_info.clone(), Decision { variable: v, value: 2 })).will_return(f.clone());
+        config.branch.given((1, b_info, Decision { variable: v, value: 3 })).will_return(g.clone());
+        config.branch.given((2, c_info.clone(), Decision { variable: v, value: 4 })).will_return(h.clone());
+        config.branch.given((2, c_info, Decision { variable: v, value: 5 })).will_return(i.clone());
+
+        config.estimate_ub.given((d.state, d.info)).will_return(-10);
+        config.estimate_ub.given((e.state, e.info)).will_return(-10);
+        config.estimate_ub.given((f.state, f.info)).will_return(-10);
+        config.estimate_ub.given((g.state, g.info)).will_return(0);
+        config.estimate_ub.given((h.state, h.info)).will_return(10);
+        config.estimate_ub.given((i.state, i.info.clone())).will_return(100);
+
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+        mdd.current.push(b);
+        mdd.current.push(c);
+        mdd.pool.insert(p.state, p.info);
+
+        mdd.unroll_layer(v, Bounds { lb: 0, ub: 1000 });
+        assert_eq!(1, mdd.cutset.len());
+        assert_eq!(vec![i], mdd.cutset);
+    }
+
+    #[test]
+    fn unroll_must_add_a_node_that_becomes_inexact_because_new_is_inexact_to_the_mdd_cutset() {
+        let v = Variable(1);
+        // nodes of the current layer
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+        // successors of the nodes of the current layer
+        let d = Node::new(0, 0, None, true);
+        let e = Node::new(2, 2, None, true);
+        let f = Node::new(4, 4, None, true);
+        let g = Node::new(8, 8, None, true);
+        let h = Node::new(16, 16, None, true);
+        let i = Node::new(32, 32, None, false);
+        // node already present in the pool
+        let p = Node::new(32, 65, None, true);
+
+        let a_info = Arc::new(a.info.clone());
+        let b_info = Arc::new(b.info.clone());
+        let c_info = Arc::new(c.info.clone());
+
+        let mut config = MockConfig::default();
+        config.domain_of.given((0, v)).will_return(vec![0, 1]);
+        config.domain_of.given((1, v)).will_return(vec![2, 3]);
+        config.domain_of.given((2, v)).will_return(vec![4, 5]);
+
+        config.branch.given((0, a_info.clone(), Decision { variable: v, value: 0 })).will_return(d.clone());
+        config.branch.given((0, a_info, Decision { variable: v, value: 1 })).will_return(e.clone());
+        config.branch.given((1, b_info.clone(), Decision { variable: v, value: 2 })).will_return(f.clone());
+        config.branch.given((1, b_info, Decision { variable: v, value: 3 })).will_return(g.clone());
+        config.branch.given((2, c_info.clone(), Decision { variable: v, value: 4 })).will_return(h.clone());
+        config.branch.given((2, c_info, Decision { variable: v, value: 5 })).will_return(i.clone());
+
+        config.estimate_ub.given((d.state, d.info)).will_return(-10);
+        config.estimate_ub.given((e.state, e.info)).will_return(-10);
+        config.estimate_ub.given((f.state, f.info)).will_return(-10);
+        config.estimate_ub.given((g.state, g.info)).will_return(0);
+        config.estimate_ub.given((h.state, h.info)).will_return(10);
+        config.estimate_ub.given((i.state, i.info)).will_return(100);
+
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(a);
+        mdd.current.push(b);
+        mdd.current.push(c);
+        mdd.pool.insert(p.state, p.info.clone());
+
+        mdd.unroll_layer(v, Bounds { lb: 0, ub: 1000 });
+        assert_eq!(1, mdd.cutset.len());
+        assert_eq!(vec![p], mdd.cutset);
+    }
+
+    #[test]
+    fn pick_nodes_from_pool_only_selects_nodes_that_are_impacted_by_var() {
+        let v = Variable(1);
+        // nodes of the current layer
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let mut config = MockConfig::default();
+        config.impacted_by.given((0, v)).will_return(true);
+        config.impacted_by.given((1, v)).will_return(true);
+        config.impacted_by.given((2, v)).will_return(false);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.pool.insert(a.state, a.info.clone());
+        mdd.pool.insert(b.state, b.info.clone());
+        mdd.pool.insert(c.state, c.info);
+
+        mdd.pick_nodes_from_pool(v);
+        mdd.current.sort_unstable_by_key(|n| n.state);
+        assert_eq!(vec![a, b], mdd.current);
+    }
+    #[test]
+    fn pick_nodes_from_pool_removes_the_selected_nodes_from_pool() {
+        let v = Variable(1);
+        // nodes of the current layer
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let mut config = MockConfig::default();
+        config.impacted_by.given((0, v)).will_return(true);
+        config.impacted_by.given((1, v)).will_return(true);
+        config.impacted_by.given((2, v)).will_return(false);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.pool.insert(a.state, a.info.clone());
+        mdd.pool.insert(b.state, b.info.clone());
+        mdd.pool.insert(c.state, c.info);
+
+        mdd.pick_nodes_from_pool(v);
+        assert_eq!(1, mdd.pool.len());
+        assert_eq!(None, mdd.pool.get(&a.state));
+        assert_eq!(None, mdd.pool.get(&b.state));
+    }
+    #[test]
+    fn pick_nodes_from_pool_leaves_non_selected_nodes_in_the_pool() {
+        let v = Variable(1);
+        // nodes of the current layer
+        let a = Node::new(0, 0, None, true);
+        let b = Node::new(1, 1, None, true);
+        let c = Node::new(2, 2, None, true);
+
+        let mut config = MockConfig::default();
+        config.impacted_by.given((0, v)).will_return(true);
+        config.impacted_by.given((1, v)).will_return(true);
+        config.impacted_by.given((2, v)).will_return(false);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.pool.insert(a.state, a.info);
+        mdd.pool.insert(b.state, b.info);
+        mdd.pool.insert(c.state, c.info.clone());
+
+        mdd.pick_nodes_from_pool(v);
+        assert_eq!(&c.info, mdd.pool.get(&c.state).unwrap());
+    }
+
+    #[test]
+    fn exhausted_iff_pool_is_empty() {
+        let a          = Node::new(0, 0, None, true);
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.pool.insert(a.state, a.info);
+
+        assert_eq!(false, mdd.exhausted());
+
+        mdd.pool.clear();
+        assert_eq!(true, mdd.exhausted());
+    }
+
+    #[test]
+    fn is_relevant_iff_estimate_is_better_than_lower_bound() {
+        let state = 42;
+        let info = NodeInfo { lp_len: 1, lp_arc: None, ub: 3, is_exact: false };
+
+        let config = MockConfig::default();
+        config.estimate_ub
+            .given((state, info.clone()))
+            .will_return(5);
+
+        let mdd = PooledMDD::new(config);
+        let bounds = Bounds { lb: -10, ub: 10 };
+        assert_eq!(true, mdd.is_relevant(bounds, &state, &info));
+
+        let bounds = Bounds { lb: 6, ub: 10 };
+        assert_eq!(false, mdd.is_relevant(bounds, &state, &info));
+
+        let bounds = Bounds { lb: 5, ub: 10 };
+        assert_eq!(false, mdd.is_relevant(bounds, &state, &info));
+    }
+
+    #[test]
+    fn init_clears_stale_data(){
+        let config    = MockConfig::default();
+        let mut mdd   = PooledMDD::new(config);
+        mdd.is_exact  = false;
+        mdd.best_node = Some(Node::new(0, 0, None, true).info);
+        mdd.current.push(Node::new(0, 0, None, true));
+        mdd.cutset .push(Node::new(0, 0, None, true));
+        mdd.pool.insert(0, Node::new(0, 0, None, true).info);
+
+        mdd.init(MDDType::Relaxed, &Node::new(2, 3, None, true));
+
+        assert_eq!(true, mdd.is_exact);
+        assert_eq!(None, mdd.best_node);
+        assert_eq!(true, mdd.current.is_empty());
+        assert_eq!(true, mdd.cutset .is_empty());
+        assert_eq!(1, mdd.pool.len());
+    }
+    #[test]
+    fn init_loads_the_set_of_free_variables_from_the_given_node() {
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+
+        let root = Node::new(2, 3, None, true);
+
+        mdd.init(MDDType::Relaxed, &root);
+
+        assert!(verify(config.load_vars.was_called_with(root)));
+    }
+    #[test]
+    fn init_sets_the_appropriate_mdd_type() {
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+
+        let root = Node::new(2, 3, None, true);
+
+        mdd.init(MDDType::Relaxed, &root);
+        assert_eq!(MDDType::Relaxed, mdd.mdd_type());
+
+        mdd.clear();
+        mdd.init(MDDType::Restricted, &root);
+        assert_eq!(MDDType::Restricted, mdd.mdd_type());
+
+        mdd.clear();
+        mdd.init(MDDType::Exact, &root);
+        assert_eq!(MDDType::Exact, mdd.mdd_type());
+    }
+    #[test]
+    fn init_inserts_the_given_root_node_in_the_pool_of_the_mdd() {
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+
+        let root = Node::new(2, 3, None, true);
+
+        mdd.init(MDDType::Relaxed, &root);
+        assert_eq!(1, mdd.pool.len());
+        assert_eq!(Some(&root.info), mdd.pool.get(&root.state));
+    }
+
+    #[test]
+    fn finalize_finds_the_best_node_if_there_is_one() {
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+
+        // when there is no best node, it finds nothing
+        mdd.finalize();
+        assert_eq!(None, mdd.best_node);
+
+        mdd.clear();
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+        mdd.pool.insert(w.state, w.info        );
+        mdd.pool.insert(x.state, x.info        );
+        mdd.pool.insert(y.state, y.info.clone());
+        mdd.pool.insert(z.state, z.info        );
+        mdd.finalize();
+
+        assert_eq!(Some(y.info), mdd.best_node);
+    }
+    #[test]
+    fn when_there_is_a_best_node_finalize_sets_an_upper_bound_on_the_cutset_nodes() {
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,1000, None, false);
+
+        let mut config = MockConfig::default();
+        config.estimate_ub.given((w.state, w.info.clone())).will_return(40);
+        config.estimate_ub.given((x.state, x.info.clone())).will_return(30);
+        config.estimate_ub.given((y.state, y.info.clone())).will_return(20);
+
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.cutset.push(w);
+        mdd.cutset.push(x);
+        mdd.cutset.push(y);
+        mdd.pool.insert(z.state, z.info);
+        mdd.finalize();
+
+        mdd.cutset.sort_unstable_by_key(|n| n.state);
+        assert_eq!(40, mdd.cutset[0 /* w */].info.ub);
+        assert_eq!(30, mdd.cutset[1 /* x */].info.ub);
+        assert_eq!(20, mdd.cutset[2 /* y */].info.ub);
+    }
+    #[test]
+    fn when_there_is_a_best_node_finalize_sets_an_upper_bound_on_the_cutset_nodes_and_the_bound_is_constrained_by_lp_len_of_mdd() {
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,   5, None, false);
+
+        let mut config = MockConfig::default();
+        config.estimate_ub.given((w.state, w.info.clone())).will_return(40);
+        config.estimate_ub.given((x.state, x.info.clone())).will_return(30);
+        config.estimate_ub.given((y.state, y.info.clone())).will_return(20);
+
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.cutset.push(w);
+        mdd.cutset.push(x);
+        mdd.cutset.push(y);
+        mdd.pool.insert(z.state, z.info);
+        mdd.finalize();
+
+        mdd.cutset.sort_unstable_by_key(|n| n.state);
+        assert_eq!(5, mdd.cutset[0 /* w */].info.ub);
+        assert_eq!(5, mdd.cutset[1 /* x */].info.ub);
+        assert_eq!(5, mdd.cutset[2 /* y */].info.ub);
+    }
+    #[test]
+    fn when_there_is_no_best_node_finalize_clears_the_cutset() {
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+
+        let mut config = MockConfig::default();
+        config.estimate_ub.given((w.state, w.info.clone())).will_return(40);
+        config.estimate_ub.given((x.state, x.info.clone())).will_return(30);
+        config.estimate_ub.given((y.state, y.info.clone())).will_return(20);
+
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.cutset.push(w);
+        mdd.cutset.push(x);
+        mdd.cutset.push(y);
+        mdd.finalize();
+
+        assert_eq!(true, mdd.cutset.is_empty());
+    }
+
+    #[test]
+    fn find_best_node_identifies_the_terminal_node_with_maximum_longest_path() {
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+
+        // when there is no best node, it finds nothing
+        mdd.find_best_node();
+        assert_eq!(None, mdd.best_node);
+
+        mdd.clear();
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+        mdd.pool.insert(w.state, w.info);
+        mdd.pool.insert(x.state, x.info);
+        mdd.pool.insert(y.state, y.info.clone());
+        mdd.pool.insert(z.state, z.info);
+        mdd.find_best_node();
+
+        assert_eq!(Some(y.info), mdd.best_node);
+    }
+
+    #[test]
+    fn no_restriction_may_occur_for_first_layer() {
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(w);
+        mdd.current.push(x);
+        mdd.current.push(y);
+        mdd.current.push(z);
+
+        mdd.maybe_restrict(0, 1);
+        assert_eq!(4, mdd.current.len());
+
+        mdd.maybe_restrict(1, 1);
+        assert_eq!(4, mdd.current.len());
+        assert_eq!(true, mdd.is_exact);
+    }
+    #[test]
+    fn restriction_only_keeps_the_w_best_nodes() {
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(w);
+        mdd.current.push(x);
+        mdd.current.push(y.clone());
+        mdd.current.push(z.clone());
+
+        mdd.maybe_restrict(2, 2);
+        assert_eq!(2, mdd.current.len());
+        assert_eq!(z, mdd.current[0]);
+        assert_eq!(y, mdd.current[1]);
+    }
+    #[test]
+    fn restriction_makes_the_mdd_inexact() {
+        let w = Node::new(5, 100, None, false);
+        let x = Node::new(7,  10, None, false);
+        let y = Node::new(8, 110, None, false);
+        let z = Node::new(9,  10, None, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(w);
+        mdd.current.push(x);
+        mdd.current.push(y);
+        mdd.current.push(z);
+
+        mdd.maybe_restrict(2, 2);
+        assert_eq!(false, mdd.is_exact)
+    }
+
+    // TODO --------------------------------------------------------------------
+    // TODO: no_relaxation_may_occur_for_first_layer
+    // TODO: relaxation_keeps_the_w_min_1_best_nodes
+    // TODO: relaxation_merges_the_worst_nodes
+    // TODO: relaxation_overdue_nodes_adds_all_exact_nodes_to_cutset
+    // TODO: relaxation_makes_the_mdd_inexact
+    // TODO: when_the_merged_node_has_the_same_state_as_one_of_the_best_the_two_are_merged
+    // TODO: when_the_merged_node_is_distinct_from_all_others_it_is_added_to_the_set_of_candidate_nodes
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    // TODO: when_the_merged_node_clashes_with_an_exact_one_the_exact_must_be_added_to_cutset
+    // #########################################################################
+    // TODO: merge_overdue_nodes_keeps_the_w_min_1_best_nodes
+    // TODO: merge_overdue_nodes_merges_the_worst_nodes
+    // TODO: merge_overdue_nodes_adds_all_exact_nodes_to_cutset
+    // #########################################################################
+    // TODO: find_same_state_finds_a_clash_if_there_is_one
+    // TODO --------------------------------------------------------------------
+
+    #[test]
+    fn it_current_allows_iteration_on_all_nodes_from_current_layer(){
+        let w = Node::new(5, 200, None, false);
+        let x = Node::new(7, 150, None, false);
+        let y = Node::new(8, 100, None, true);
+        let z = Node::new(9,  90, None, false);
+
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(w.clone());
+        mdd.current.push(x.clone());
+        mdd.current.push(y.clone());
+        mdd.current.push(z.clone());
+
+        let mut res = mdd.it_current().map(|(s, i)| Node{state: *s, info: i.clone()}).collect::<Vec<Node<usize>>>();
+        res.sort_unstable_by(|a, b| MinLP.compare(a, b).reverse());
+        assert_eq!(vec![w, x, y, z], res);
+    }
+    #[test]
+    fn it_next_allows_iteration_on_all_nodes_from_pool() {
+        let w = Node::new(5, 200, None, false);
+        let x = Node::new(7, 150, None, false);
+        let y = Node::new(8, 100, None, true);
+        let z = Node::new(9,  90, None, false);
+
+        let mut config = MockConfig::default();
+        let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.pool.insert(w.state, w.info.clone());
+        mdd.pool.insert(x.state, x.info.clone());
+        mdd.pool.insert(y.state, y.info.clone());
+        mdd.pool.insert(z.state, z.info.clone());
+
+        let mut res = mdd.it_next().map(|(s, i)| Node{state: *s, info: i.clone()}).collect::<Vec<Node<usize>>>();
+        res.sort_unstable_by(|a, b| MinLP.compare(a, b).reverse());
+        assert_eq!(vec![w, x, y, z], res);
+    }
+}

@@ -287,35 +287,6 @@ impl <'a, T> Proxy<'a, T> {
         Proxy { target }
     }
 }
-impl <X, T: Problem<X>> Problem<X> for Proxy<'_, T> {
-    fn nb_vars(&self)       -> usize { self.target.nb_vars() }
-    fn initial_state(&self) -> X     { self.target.initial_state() }
-    fn initial_value(&self) -> i32   { self.target.initial_value() }
-
-    fn domain_of<'a>(&self, state: &'a X, var: Variable) -> Domain<'a> {
-        self.target.domain_of(state, var)
-    }
-
-    fn transition(&self, state: &X, vars: &VarSet, d: Decision) -> X {
-        self.target.transition(state, vars, d)
-    }
-
-    fn transition_cost(&self, state: &X, vars: &VarSet, d: Decision) -> i32 {
-        self.target.transition_cost(state, vars, d)
-    }
-
-    fn impacted_by(&self, state: &X, variable: Variable) -> bool {
-        self.target.impacted_by(state, variable)
-    }
-
-    fn root_node(&self) -> Node<X> {
-        self.target.root_node()
-    }
-
-    fn all_vars(&self) -> VarSet {
-        self.target.all_vars()
-    }
-}
 impl <X, T: Relaxation<X>> Relaxation<X> for Proxy<'_, T> {
     fn merge_nodes(&self, nodes: &[Node<X>]) -> Node<X> {
         self.target.merge_nodes(nodes)
