@@ -1,0 +1,25 @@
+name: Tests
+on: [push]
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@master
+      - name: Run all tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test --all-targets
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Compute Coverage Results
+        uses: actions-rs/tarpaulin@v0.1
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v1.0.2
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}

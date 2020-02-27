@@ -1,8 +1,10 @@
 # DDO a generic and efficient framework for MDD-based optimization
 [![Crates.io](https://img.shields.io/crates/v/ddo)](https://crates.io/crates/ddo)
 [![Documentation](https://img.shields.io/badge/Docs.rs-Latest-informational)](https://docs.rs/ddo/)
-[![Rust Quality Assurance](https://github.com/xgillard/ddo/workflows/Rust%20Quality%20Assurance/badge.svg)](https://github.com/xgillard/ddo/actions?query=workflow%3A%22Rust+Quality+Assurance%22)
+[![Build](https://github.com/xgillard/ddo/workflows/Build/badge.svg)](https://github.com/xgillard/ddo/actions?query=workflow%3A%22Build%22)
+[![Tests](https://github.com/xgillard/ddo/workflows/Tests/badge.svg)](https://github.com/xgillard/ddo/actions?query=workflow%3A%22Tests%22)
 [![codecov](https://codecov.io/gh/xgillard/ddo/branch/master/graph/badge.svg)](https://codecov.io/gh/xgillard/ddo)
+[![Quality](https://github.com/xgillard/ddo/workflows/Quality%20Assurance/badge.svg)](https://github.com/xgillard/ddo/actions?query=workflow%3A%22Quality+Assurance%22)
 ![GitHub](https://img.shields.io/github/license/xgillard/ddo)
 
 DDO is a truly generic framework to develop MDD-based combinatorial optimization

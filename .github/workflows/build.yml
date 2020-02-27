@@ -1,0 +1,13 @@
+name: Build
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@master
+      - name: Build the library
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
