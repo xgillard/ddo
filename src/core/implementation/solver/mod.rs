@@ -17,5 +17,10 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+//! This module and its sub modules provide the actual implementations of the
+//! mdd solvers. The `sequential` module provides the `SequentialSolver` which
+//! (obviously) processes the problem on one single thread. The `parallel`
+//! sub module provides the `ParallelSolver` structure. Both structures implement
+//! the `Solver` trait, but `ParallelSolver` is able to exploit multiple threads.
 pub mod parallel;
 pub mod sequential;
