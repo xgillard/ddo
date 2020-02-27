@@ -58,7 +58,7 @@ pub struct SequentialSolver<T, DD>
     /// If set, this keeps the info about the best solution (the solution that
     /// yielded the `best_lb`, and from which `best_sol` derives).
     best_node: Option<NodeInfo>,
-    /// This is the materialization of the best solution that has been idenditied.
+    /// This is the materialization of the best solution that has been identified.
     best_sol : Option<Vec<Decision>>,
     /// This is just a configuration parameter to tune the amount of information
     /// logged when solving the problem.
