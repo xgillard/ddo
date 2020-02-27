@@ -29,6 +29,45 @@ use crate::core::common::{Decision, Node, NodeInfo};
 use crate::core::implementation::heuristics::MaxUB;
 
 /// This is the structure implementing an single-threaded MDD solver.
+///
+/// # Example Usage
+/// ```
+/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::core::implementation::heuristics::FixedWidth;
+/// # use ddo::core::abstraction::dp::{Problem, Relaxation};
+/// # use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
+/// # use ddo::core::implementation::solver::sequential::SequentialSolver;
+/// # use ddo::core::abstraction::solver::Solver;
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> i32   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         unimplemented!()
+/// #     }
+/// #     fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         unimplemented!()
+/// #     }
+/// #     fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> i32 {
+/// #         unimplemented!()
+/// #     }
+/// # }
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
+/// #         unimplemented!()
+/// #     }
+/// # }
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// let mdd        = mdd_builder(&problem, relaxation).build();
+/// // the solver is created using an mdd.
+/// let mut solver = SequentialSolver::new(mdd);
+/// // val is the optimal value of the objective function,
+/// // sol is the sequence of decision yielding that optimal value (if sol exists, `sol != None`)
+/// let (val, sol) = solver.maximize();
+/// ```
 pub struct SequentialSolver<T, DD>
     where T: Hash + Eq + Clone, DD: MDD<T> {
     /// This is the MDD which will be used to expand the restricted and relaxed

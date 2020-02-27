@@ -63,8 +63,8 @@ use crate::core::implementation::mdd::config::Config;
 /// ```
 /// # use ddo::core::implementation::mdd::builder::mdd_builder;
 /// # use ddo::core::implementation::heuristics::FixedWidth;
-/// use ddo::core::abstraction::dp::{Problem, Relaxation};
-/// use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
+/// # use ddo::core::abstraction::dp::{Problem, Relaxation};
+/// # use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {
 /// #     fn nb_vars(&self)       -> usize {  5 }
