@@ -11,12 +11,6 @@ keywords      = ["optimization", "solver", "decision-diagrams", "combinatorial",
 categories    = ["science", "mathematics", "algorithms", "concurrency"]
 exclude       = ["examples/tests/resources/*" ]
 
-[badges]
-travis-ci = { repository = "https://github.com/xgillard/ddo", branch = "master" }
-codecov   = { repository = "https://github.com/xgillard/ddo", branch = "master", service = "github" }
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 bitset-fixed     = "0.1.0"
 binary-heap-plus = "0.2.0"
