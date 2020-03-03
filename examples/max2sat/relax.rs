@@ -82,10 +82,11 @@ impl Relaxation<State> for Max2SatRelax<'_> {
 
         let merged_state  = State {substates: benefits};
         let merged_infos  = NodeInfo {
-            is_exact: false,
-            lp_len  : longest,
-            lp_arc  : nodes[best].info.lp_arc.clone(),
-            ub      : nodes[best].info.ub
+            is_exact   : false,
+            lp_len     : longest,
+            lp_arc     : nodes[best].info.lp_arc.clone(),
+            ub         : nodes[best].info.ub,
+            is_relaxed : true
         };
 
         Node{state: merged_state, info: merged_infos}

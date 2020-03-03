@@ -325,10 +325,11 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
         let cost  = self.transition_cost (state, d);
 
         let path  = NodeInfo {
-            is_exact: info.is_exact,
-            lp_len  : info.lp_len + cost,
-            ub      : info.ub,
-            lp_arc  : Some(Edge{src: info, decision: d}),
+            is_exact  : info.is_exact,
+            is_relaxed: false,
+            lp_len    : info.lp_len + cost,
+            ub        : info.ub,
+            lp_arc    : Some(Edge{src: info, decision: d}),
         };
 
         Node { state: next, info: path}
@@ -458,11 +459,11 @@ mod test_config_builder {
         let lv     = MockLoadVars::default();
 
         let mut config  = mdd_builder(&prob, relax).with_load_vars(Proxy::new(&lv)).config();
-        let node = Node::new(0, 0, None, true);
+        let node = Node::new(0, 0, None, true, false);
         config.load_vars(&node);
         assert!(verify(lv.variables.was_called_with(node.clone())));
 
-        let node = Node::new(10, 1000, Some(Edge{ src: Arc::new(node.info),  decision: Decision{variable: Variable(7), value: 12}}), true);
+        let node = Node::new(10, 1000, Some(Edge{ src: Arc::new(node.info),  decision: Decision{variable: Variable(7), value: 12}}), true, false);
         config.load_vars(&node);
         assert!(verify(lv.variables.was_called_with(node)));
     }
@@ -548,7 +549,7 @@ mod test_config_builder {
         let varset  = VarSet::all(5);
         let state   = 0;
         let decision= Decision {variable: Variable(4), value: 7};
-        let info    = NodeInfo {is_exact: true, lp_len: 10, lp_arc: None, ub: 100};
+        let info    = NodeInfo {is_exact: true, lp_len: 10, lp_arc: None, ub: 100, is_relaxed: false};
         let info    = Arc::new(info);
 
         prob.transition.given((state, varset.clone(), decision)).will_return(10);
@@ -560,6 +561,7 @@ mod test_config_builder {
               state: 10,
               info: NodeInfo {
                   is_exact: true,
+                  is_relaxed: false,
                   lp_len  : 676,
                   lp_arc  : Some(Edge {
                       src: info,
@@ -580,7 +582,7 @@ mod test_config_builder {
         let varset  = VarSet::all(5);
         let state   = 0;
         let decision= Decision {variable: Variable(4), value: 7};
-        let info    = NodeInfo {is_exact: false, lp_len: 10, lp_arc: None, ub: 100};
+        let info    = NodeInfo {is_exact: false, lp_len: 10, lp_arc: None, ub: 100, is_relaxed: true};
         let info    = Arc::new(info);
 
         prob.transition.given((state, varset.clone(), decision)).will_return(10);
@@ -592,6 +594,7 @@ mod test_config_builder {
               state: 10,
               info: NodeInfo {
                   is_exact: false,
+                  is_relaxed: true,
                   lp_len  : 676,
                   lp_arc  : Some(Edge {
                       src: info,
@@ -610,7 +613,7 @@ mod test_config_builder {
         let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
 
         let state   = 12;
-        let info    = NodeInfo {is_exact: false, lp_len: 28, lp_arc: None, ub: 40};
+        let info    = NodeInfo {is_exact: false, lp_len: 28, lp_arc: None, ub: 40, is_relaxed: true};
         config.estimate_ub(&state, &info);
 
         assert!(verify(relax.estimate_ub.was_called_with((state, info))));
@@ -632,7 +635,7 @@ mod test_config_builder {
         let relax   = MockRelax::default();
         let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
 
-        let nodes = vec![Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65}}];
+        let nodes = vec![Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65, is_relaxed: true}}];
         config.merge_nodes(&nodes);
 
         assert!(verify(relax.merge_nodes.was_called_with(nodes)));
@@ -645,17 +648,17 @@ mod test_config_builder {
         let heu     = MockNodeSelectionHeuristic::default();
         let config  = mdd_builder(&prob, Proxy::new(&relax)).with_nodes_selection_heuristic(Proxy::new(&heu)).config();
 
-        let node_a  = Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65}};
-        let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99}};
+        let node_a  = Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65, is_relaxed: false}};
+        let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99, is_relaxed: false}};
         config.compare(&node_a, &node_b);
         assert!(verify(heu.compare.was_called_with((node_a, node_b))));
 
-        let node_a  = Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65}};
-        let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99}};
+        let node_a  = Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65, is_relaxed: false}};
+        let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99, is_relaxed: false}};
         config.compare(&node_b, &node_a);
         assert!(verify(heu.compare.was_called_with((node_b, node_a))));
 
-        let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99}};
+        let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99, is_relaxed: false}};
         config.compare(&node_b, &node_b);
         assert!(verify(heu.compare.was_called_with((node_b.clone(), node_b))));
     }
@@ -675,8 +678,8 @@ mod test_config_builder {
         assert!(verify(heu.next_var.was_called_with((prob.all_vars(), vec![], vec![]))));
 
         // non-empty
-        let data1 = vec![Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65}}];
-        let data2 = vec![Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99}}];
+        let data1 = vec![Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65, is_relaxed: false}}];
+        let data2 = vec![Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99, is_relaxed: false}}];
         let curr = Layer::Plain(data1.iter());
         let next = Layer::Plain(data2.iter());
         config.select_var(curr, next);

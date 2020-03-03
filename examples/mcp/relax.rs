@@ -39,10 +39,11 @@ impl Relaxation<McpState> for McpRelax<'_> {
         Node {
             state: relaxed_state,
             info : NodeInfo {
-                is_exact: false,
-                lp_len  : lp,
-                lp_arc  : via_node.info.lp_arc.clone(),
-                ub      : via_node.info.ub
+                is_exact  : false,
+                is_relaxed: true,
+                lp_len    : lp,
+                lp_arc    : via_node.info.lp_arc.clone(),
+                ub        : via_node.info.ub
             }
         }
     }

@@ -144,6 +144,7 @@ impl <T, C> MDD<T> for PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> 
     }
     fn is_exact(&self) -> bool {
         self.is_exact
+            || (self.mddtype == Relaxed && self.best_node.as_ref().map_or(false, |n| n.has_exact_best()))
     }
     fn best_value(&self) -> i32 {
         if self.best_node.is_none() {
@@ -492,7 +493,7 @@ mod test_mdd {
     struct DummyRelax;
     impl Relaxation<usize> for DummyRelax {
         fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
-            Node{ state: 100, info: NodeInfo { is_exact: false, lp_len: 20, lp_arc: None, ub: 50}}
+            Node{ state: 100, info: NodeInfo { is_exact: false, lp_len: 20, lp_arc: None, ub: 50, is_relaxed: true}}
         }
         fn estimate_ub(&self, _state: &usize, _info: &NodeInfo) -> i32 {
             50
@@ -796,7 +797,7 @@ mod test_private {
     fn clear_prepares_the_mdd_for_reuse_hence_best_node_must_be_none() {
         let config = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
-        mdd.best_node = Some(NodeInfo { lp_len: 1, lp_arc: None, ub: 3, is_exact: false });
+        mdd.best_node = Some(NodeInfo { lp_len: 1, lp_arc: None, ub: 3, is_exact: false, is_relaxed: false});
 
         mdd.clear();
         assert_eq!(None, mdd.best_node);
@@ -807,7 +808,7 @@ mod test_private {
         let config = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
 
-        mdd.current.push(Node { state: 42, info: NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false } });
+        mdd.current.push(Node { state: 42, info: NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false, is_relaxed: false} });
 
         mdd.clear();
         assert_eq!(true, mdd.current.is_empty());
@@ -818,7 +819,7 @@ mod test_private {
         let config = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
 
-        mdd.pool.insert(42, NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false });
+        mdd.pool.insert(42, NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false, is_relaxed: false });
 
         mdd.clear();
         assert_eq!(true, mdd.pool.is_empty());
@@ -829,7 +830,7 @@ mod test_private {
         let config = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
 
-        mdd.cutset.push(Node { state: 42, info: NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false } });
+        mdd.cutset.push(Node { state: 42, info: NodeInfo { lp_len: 12, lp_arc: None, ub: 32, is_exact: false, is_relaxed: false } });
 
         mdd.clear();
         assert_eq!(true, mdd.cutset.is_empty());
@@ -844,9 +845,9 @@ mod test_private {
     fn unroll_layer_must_apply_decision_for_all_values_in_the_domain_of_var_to_all_nodes() {
         let v = Variable(1);
 
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
         let mut config = MockConfig::default();
         config.domain_of.given((0, v)).will_return(vec![0, 1]);
@@ -880,9 +881,9 @@ mod test_private {
     fn when_the_domain_is_empty_next_layer_is_empty_and_problem_becomes_unsat() {
         let v = Variable(1);
 
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
         let mut config = MockConfig::default();
         config.domain_of.given((0, v)).will_return(vec![]);
@@ -902,9 +903,9 @@ mod test_private {
     fn when_unroll_generates_two_nodes_with_the_same_state_only_one_is_kept() {
         let v = Variable(1);
 
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(1, 2, None, false);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(1, 2, None, false, false);
 
         let a_info = Arc::new(a.info.clone());
 
@@ -924,9 +925,9 @@ mod test_private {
     fn when_unroll_generates_two_nodes_with_the_same_state_nodes_are_merged() {
         let v = Variable(1);
 
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(1, 2, None, false);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(1, 2, None, false, false);
 
         let a_info = Arc::new(a.info.clone());
 
@@ -946,16 +947,16 @@ mod test_private {
     fn unroll_layer_saves_all_distinct_target_nodes_in_the_next_layer() {
         let v = Variable(1);
 
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
-        let d = Node::new(0, 0, None, true);
-        let e = Node::new(2, 2, None, true);
-        let f = Node::new(4, 4, None, true);
-        let g = Node::new(8, 8, None, true);
-        let h = Node::new(16, 16, None, true);
-        let i = Node::new(32, 32, None, true);
+        let d = Node::new(0, 0, None, true, false);
+        let e = Node::new(2, 2, None, true, false);
+        let f = Node::new(4, 4, None, true, false);
+        let g = Node::new(8, 8, None, true, false);
+        let h = Node::new(16, 16, None, true, false);
+        let i = Node::new(32, 32, None, true, false);
 
         let a_info = Arc::new(a.info.clone());
         let b_info = Arc::new(b.info.clone());
@@ -1005,16 +1006,16 @@ mod test_private {
     fn unroll_layer_saves_a_node_to_next_layer_iff_it_is_relevant() {
         let v = Variable(1);
 
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
-        let d = Node::new(0, 0, None, true);
-        let e = Node::new(2, 2, None, true);
-        let f = Node::new(4, 4, None, true);
-        let g = Node::new(8, 8, None, true);
-        let h = Node::new(16, 16, None, true);
-        let i = Node::new(32, 32, None, true);
+        let d = Node::new(0, 0, None, true, false);
+        let e = Node::new(2, 2, None, true, false);
+        let f = Node::new(4, 4, None, true, false);
+        let g = Node::new(8, 8, None, true, false);
+        let h = Node::new(16, 16, None, true, false);
+        let i = Node::new(32, 32, None, true, false);
 
         let a_info = Arc::new(a.info.clone());
         let b_info = Arc::new(b.info.clone());
@@ -1067,18 +1068,18 @@ mod test_private {
     fn unroll_must_add_a_node_that_becomes_inexact_because_old_was_inexact_to_the_mdd_cutset() {
         let v = Variable(1);
         // nodes of the current layer
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
         // successors of the nodes of the current layer
-        let d = Node::new(0, 0, None, true);
-        let e = Node::new(2, 2, None, true);
-        let f = Node::new(4, 4, None, true);
-        let g = Node::new(8, 8, None, true);
-        let h = Node::new(16, 16, None, true);
-        let i = Node::new(32, 32, None, true);
+        let d = Node::new(0, 0, None, true, false);
+        let e = Node::new(2, 2, None, true, false);
+        let f = Node::new(4, 4, None, true, false);
+        let g = Node::new(8, 8, None, true, false);
+        let h = Node::new(16, 16, None, true, false);
+        let i = Node::new(32, 32, None, true, false);
         // node already present in the pool
-        let p = Node::new(32, 65, None, false);
+        let p = Node::new(32, 65, None, false, false);
 
         let a_info = Arc::new(a.info.clone());
         let b_info = Arc::new(b.info.clone());
@@ -1119,18 +1120,18 @@ mod test_private {
     fn unroll_must_add_a_node_that_becomes_inexact_because_new_is_inexact_to_the_mdd_cutset() {
         let v = Variable(1);
         // nodes of the current layer
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
         // successors of the nodes of the current layer
-        let d = Node::new(0, 0, None, true);
-        let e = Node::new(2, 2, None, true);
-        let f = Node::new(4, 4, None, true);
-        let g = Node::new(8, 8, None, true);
-        let h = Node::new(16, 16, None, true);
-        let i = Node::new(32, 32, None, false);
+        let d = Node::new(0, 0, None, true, false);
+        let e = Node::new(2, 2, None, true, false);
+        let f = Node::new(4, 4, None, true, false);
+        let g = Node::new(8, 8, None, true, false);
+        let h = Node::new(16, 16, None, true, false);
+        let i = Node::new(32, 32, None, false, false);
         // node already present in the pool
-        let p = Node::new(32, 65, None, true);
+        let p = Node::new(32, 65, None, true, false);
 
         let a_info = Arc::new(a.info.clone());
         let b_info = Arc::new(b.info.clone());
@@ -1171,9 +1172,9 @@ mod test_private {
     fn pick_nodes_from_pool_only_selects_nodes_that_are_impacted_by_var() {
         let v = Variable(1);
         // nodes of the current layer
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
         let mut config = MockConfig::default();
         config.impacted_by.given((0, v)).will_return(true);
@@ -1193,9 +1194,9 @@ mod test_private {
     fn pick_nodes_from_pool_removes_the_selected_nodes_from_pool() {
         let v = Variable(1);
         // nodes of the current layer
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
         let mut config = MockConfig::default();
         config.impacted_by.given((0, v)).will_return(true);
@@ -1216,9 +1217,9 @@ mod test_private {
     fn pick_nodes_from_pool_leaves_non_selected_nodes_in_the_pool() {
         let v = Variable(1);
         // nodes of the current layer
-        let a = Node::new(0, 0, None, true);
-        let b = Node::new(1, 1, None, true);
-        let c = Node::new(2, 2, None, true);
+        let a = Node::new(0, 0, None, true, false);
+        let b = Node::new(1, 1, None, true, false);
+        let c = Node::new(2, 2, None, true, false);
 
         let mut config = MockConfig::default();
         config.impacted_by.given((0, v)).will_return(true);
@@ -1236,7 +1237,7 @@ mod test_private {
 
     #[test]
     fn exhausted_iff_pool_is_empty() {
-        let a          = Node::new(0, 0, None, true);
+        let a          = Node::new(0, 0, None, true, false);
         let mut config = MockConfig::default();
         let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
         mdd.pool.insert(a.state, a.info);
@@ -1250,7 +1251,7 @@ mod test_private {
     #[test]
     fn is_relevant_iff_estimate_is_better_than_lower_bound() {
         let state = 42;
-        let info = NodeInfo { lp_len: 1, lp_arc: None, ub: 3, is_exact: false };
+        let info = NodeInfo { lp_len: 1, lp_arc: None, ub: 3, is_exact: false, is_relaxed: false };
 
         let config = MockConfig::default();
         config.estimate_ub
@@ -1273,12 +1274,12 @@ mod test_private {
         let config    = MockConfig::default();
         let mut mdd   = PooledMDD::new(config);
         mdd.is_exact  = false;
-        mdd.best_node = Some(Node::new(0, 0, None, true).info);
-        mdd.current.push(Node::new(0, 0, None, true));
-        mdd.cutset .push(Node::new(0, 0, None, true));
-        mdd.pool.insert(0, Node::new(0, 0, None, true).info);
+        mdd.best_node = Some(Node::new(0, 0, None, true, false).info);
+        mdd.current.push(Node::new(0, 0, None, true, false));
+        mdd.cutset .push(Node::new(0, 0, None, true, false));
+        mdd.pool.insert(0, Node::new(0, 0, None, true, false).info);
 
-        mdd.init(MDDType::Relaxed, &Node::new(2, 3, None, true));
+        mdd.init(MDDType::Relaxed, &Node::new(2, 3, None, true, false));
 
         assert_eq!(true, mdd.is_exact);
         assert_eq!(None, mdd.best_node);
@@ -1291,7 +1292,7 @@ mod test_private {
         let mut config = MockConfig::default();
         let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
 
-        let root = Node::new(2, 3, None, true);
+        let root = Node::new(2, 3, None, true, false);
 
         mdd.init(MDDType::Relaxed, &root);
 
@@ -1302,7 +1303,7 @@ mod test_private {
         let mut config = MockConfig::default();
         let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
 
-        let root = Node::new(2, 3, None, true);
+        let root = Node::new(2, 3, None, true, false);
 
         mdd.init(MDDType::Relaxed, &root);
         assert_eq!(MDDType::Relaxed, mdd.mdd_type());
@@ -1320,7 +1321,7 @@ mod test_private {
         let mut config = MockConfig::default();
         let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
 
-        let root = Node::new(2, 3, None, true);
+        let root = Node::new(2, 3, None, true, false);
 
         mdd.init(MDDType::Relaxed, &root);
         assert_eq!(1, mdd.pool.len());
@@ -1337,10 +1338,10 @@ mod test_private {
         assert_eq!(None, mdd.best_node);
 
         mdd.clear();
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
         mdd.pool.insert(w.state, w.info        );
         mdd.pool.insert(x.state, x.info        );
         mdd.pool.insert(y.state, y.info.clone());
@@ -1351,10 +1352,10 @@ mod test_private {
     }
     #[test]
     fn when_there_is_a_best_node_finalize_sets_an_upper_bound_on_the_cutset_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,1000, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,1000, None, false, false);
 
         let mut config = MockConfig::default();
         config.estimate_ub.given((w.state, w.info.clone())).will_return(40);
@@ -1375,10 +1376,10 @@ mod test_private {
     }
     #[test]
     fn when_there_is_a_best_node_finalize_sets_an_upper_bound_on_the_cutset_nodes_and_the_bound_is_constrained_by_lp_len_of_mdd() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,   5, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,   5, None, false, false);
 
         let mut config = MockConfig::default();
         config.estimate_ub.given((w.state, w.info.clone())).will_return(40);
@@ -1399,9 +1400,9 @@ mod test_private {
     }
     #[test]
     fn when_there_is_no_best_node_finalize_clears_the_cutset() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
 
         let mut config = MockConfig::default();
         config.estimate_ub.given((w.state, w.info.clone())).will_return(40);
@@ -1427,10 +1428,10 @@ mod test_private {
         assert_eq!(None, mdd.best_node);
 
         mdd.clear();
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
         mdd.pool.insert(w.state, w.info);
         mdd.pool.insert(x.state, x.info);
         mdd.pool.insert(y.state, y.info.clone());
@@ -1442,10 +1443,10 @@ mod test_private {
 
     #[test]
     fn no_restriction_may_occur_for_first_layer() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1480,10 +1481,10 @@ mod test_private {
     }
     #[test]
     fn restriction_only_keeps_the_w_best_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1516,10 +1517,10 @@ mod test_private {
     }
     #[test]
     fn restriction_makes_the_mdd_inexact() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1551,10 +1552,10 @@ mod test_private {
 
     #[test]
     fn no_relaxation_may_occur_for_first_layer() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1589,10 +1590,10 @@ mod test_private {
     }
     #[test]
     fn relaxation_keeps_the_w_min_1_best_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1613,7 +1614,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1632,10 +1633,10 @@ mod test_private {
     }
     #[test]
     fn relaxation_merges_the_worst_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1656,7 +1657,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1673,10 +1674,10 @@ mod test_private {
     fn relaxation_adds_all_exact_nodes_to_cutset() {
         // w, x are the worst nodes, these are the ones that will be merged.
         // among these, x is exact and must therefore be added to the cutset.
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1697,7 +1698,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1711,10 +1712,10 @@ mod test_private {
     }
     #[test]
     fn relaxation_makes_the_mdd_inexact() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1735,7 +1736,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1750,10 +1751,10 @@ mod test_private {
 
     #[test]
     fn when_the_merged_node_has_the_same_state_as_one_of_the_best_the_two_are_merged() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let y = Node::new(8, 110, None, true);
-        let z = Node::new(9,  10, None, true);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, true, false);
+        let z = Node::new(9,  10, None, true, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1774,7 +1775,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(8, 42, None, false);
+        let merged = Node::new(8, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1797,10 +1798,10 @@ mod test_private {
 
     #[test]
     fn when_relax_merges_the_relaxed_node_with_an_other_exact_node_that_node_must_be_added_to_the_cutset() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let y = Node::new(8, 110, None, true);
-        let z = Node::new(9,  10, None, true);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, true, false);
+        let z = Node::new(9,  10, None, true, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1821,7 +1822,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(8, 42, None, false);
+        let merged = Node::new(8, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1835,10 +1836,10 @@ mod test_private {
     }
     #[test]
     fn when_the_merged_node_is_distinct_from_all_others_it_is_added_to_the_set_of_candidate_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let y = Node::new(8, 110, None, true);
-        let z = Node::new(9,  10, None, true);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, true, false);
+        let z = Node::new(9,  10, None, true, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1859,7 +1860,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1874,10 +1875,10 @@ mod test_private {
 
     #[test]
     fn merge_overdue_nodes_keeps_the_w_min_1_best_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1898,7 +1899,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1914,10 +1915,10 @@ mod test_private {
     }
     #[test]
     fn merge_overdue_nodes_merges_the_worst_nodes() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, false);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1938,7 +1939,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1955,10 +1956,10 @@ mod test_private {
     fn merge_overdue_nodes_adds_all_exact_nodes_to_cutset() {
         // w, x are the worst nodes, these are the ones that will be merged.
         // among these, x is exact and must therefore be added to the cutset.
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut config = MockConfig::default();
         // ordered alphabetically by identifier: w < x < y < z
@@ -1979,7 +1980,7 @@ mod test_private {
         config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
 
         // the merge operation will yield a new artificial node
-        let merged = Node::new(42, 42, None, false);
+        let merged = Node::new(42, 42, None, false, false);
         config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
@@ -1994,10 +1995,10 @@ mod test_private {
 
     #[test]
     fn find_same_state_finds_a_clash_if_there_is_one() {
-        let w = Node::new(5, 100, None, false);
-        let x = Node::new(7,  10, None, true);
-        let mut y = Node::new(8, 110, None, false);
-        let z = Node::new(9,  10, None, false);
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let mut y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
 
         let mut haystack = vec![w, x, y.clone(), z];
 
@@ -2007,10 +2008,10 @@ mod test_private {
 
     #[test]
     fn it_current_allows_iteration_on_all_nodes_from_current_layer(){
-        let w = Node::new(5, 200, None, false);
-        let x = Node::new(7, 150, None, false);
-        let y = Node::new(8, 100, None, true);
-        let z = Node::new(9,  90, None, false);
+        let w = Node::new(5, 200, None, false, false);
+        let x = Node::new(7, 150, None, false, false);
+        let y = Node::new(8, 100, None, true, false);
+        let z = Node::new(9,  90, None, false, false);
 
         let mut config = MockConfig::default();
         let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));
@@ -2025,10 +2026,10 @@ mod test_private {
     }
     #[test]
     fn it_next_allows_iteration_on_all_nodes_from_pool() {
-        let w = Node::new(5, 200, None, false);
-        let x = Node::new(7, 150, None, false);
-        let y = Node::new(8, 100, None, true);
-        let z = Node::new(9,  90, None, false);
+        let w = Node::new(5, 200, None, false, false);
+        let x = Node::new(7, 150, None, false, false);
+        let y = Node::new(8, 100, None, true, false);
+        let z = Node::new(9,  90, None, false, false);
 
         let mut config = MockConfig::default();
         let mut mdd    = PooledMDD::new(ProxyMut::new(&mut config));

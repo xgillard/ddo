@@ -323,8 +323,12 @@ pub struct Edge  {
 /// and forget about paths that are no longer relevant.
 #[derive(Debug, Clone, Eq)]
 pub struct NodeInfo {
-    /// This flag is true iff the node owning this node info is exact
+    /// This flag is true iff the node owning this node-info is exact
     pub is_exact: bool,
+    /// This flag is true iff the node owning this node-info was created
+    /// as the result of a node-merger during a relaxation step
+    /// (see `Relaxation.merge_nodes()`).
+    pub is_relaxed: bool,
     /// The _length_ of the longest path from the root node of the problem
     /// to the node owner of this `NodeInfo`.
     pub lp_len: i32,
@@ -346,8 +350,8 @@ impl NodeInfo {
     /// (`lp_len` and `lp_arc`) along with a flag indicating if this denotes an
     /// exaxct node or not.  The upper bound is set to a default value
     /// (the greatest i32)
-    pub fn new (lp_len: i32, lp_arc: Option<Edge>, is_exact: bool) -> NodeInfo {
-        NodeInfo { is_exact, lp_len, lp_arc, ub: i32::max_value() }
+    pub fn new (lp_len: i32, lp_arc: Option<Edge>, is_exact: bool, is_relaxed: bool) -> NodeInfo {
+        NodeInfo { is_exact, is_relaxed, lp_len, lp_arc, ub: i32::max_value() }
     }
 
     /// Merge other into this node. That is to say, it combines the information
@@ -380,6 +384,13 @@ impl NodeInfo {
         }
 
         ret
+    }
+
+    /// Returns true iff the parent of this node is either non existent or not
+    /// a relaxed node.
+    pub fn has_exact_best(&self) -> bool {
+        (!self.is_relaxed)
+            && (self.lp_arc.is_none() || self.lp_arc.as_ref().unwrap().src.has_exact_best())
     }
 }
 /// Two `NodeInfo` are (partially) equivalent if they are both exact, have the
@@ -428,15 +439,15 @@ impl <T> Node<T> {
     /// (`lp_len` and `lp_arc`) and a flag indicating if this denotes an
     /// exaxct node or not.  The upper bound is set to a default value
     /// (the greatest i32)
-    pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge>, is_exact: bool) -> Node<T> {
-        Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact)}
+    pub fn new(state: T, lp_len: i32, lp_arc: Option<Edge>, is_exact: bool, is_relaxed: bool) -> Node<T> {
+        Node{state, info: NodeInfo::new(lp_len, lp_arc, is_exact, is_relaxed)}
     }
     /// Alt-Constructor
     ///
     /// This constructor explicitly creates a merged node. That is, a node
     /// which is going to be marked as 'not exact'.
     pub fn merged(state: T, lp_len: i32, lp_arc: Option<Edge>) -> Node<T> {
-        Node{state, info: NodeInfo::new(lp_len, lp_arc, false)}
+        Node{state, info: NodeInfo::new(lp_len, lp_arc, false, true)}
     }
 }
 
@@ -814,7 +825,7 @@ mod test_nodeinfo {
 
     #[test]
     fn constructor_root() {
-        let x = NodeInfo::new(42, None, true); // root
+        let x = NodeInfo::new(42, None, true, false); // root
 
         assert_eq!(42,   x.lp_len);
         assert_eq!(None, x.lp_arc);
@@ -822,15 +833,15 @@ mod test_nodeinfo {
     }
     #[test]
     fn constructor_default_ub_value() {
-        let x = NodeInfo::new(42, None, true);
+        let x = NodeInfo::new(42, None, true, false);
 
         assert_eq!(i32::max_value(), x.ub);
     }
     #[test]
     fn constructor_parent() {
-        let x   = NodeInfo::new(42, None, true);
+        let x   = NodeInfo::new(42, None, true, false);
         let edge= Edge {src: Arc::new(x), decision: Decision{variable: Variable(0), value: 4}};
-        let y   = NodeInfo::new(64, Some(edge), true);
+        let y   = NodeInfo::new(64, Some(edge), true, false);
 
         assert_eq!(64,   y.lp_len);
         assert_eq!(true, y.is_exact);
@@ -842,11 +853,11 @@ mod test_nodeinfo {
     }
     #[test]
     fn longest_path() {
-        let x   = NodeInfo::new(42, None, true);
+        let x   = NodeInfo::new(42, None, true, false);
         let edge= Edge {src: Arc::new(x), decision: Decision{variable: Variable(0), value: 4}};
-        let y   = NodeInfo::new(64, Some(edge), true);
+        let y   = NodeInfo::new(64, Some(edge), true, false);
         let edge= Edge {src: Arc::new(y), decision: Decision{variable: Variable(1), value: 2}};
-        let z   = NodeInfo::new(66, Some(edge), true);
+        let z   = NodeInfo::new(66, Some(edge), true, false);
 
         assert_eq!(
             vec![Decision{variable: Variable(1), value: 2},
@@ -856,17 +867,17 @@ mod test_nodeinfo {
     }
     #[test]
     fn merge_keeps_longest_path_other_is_best() {
-        let a     = NodeInfo::new(10, None, true);
+        let a     = NodeInfo::new(10, None, true, false);
         let edge  = Edge {src: Arc::new(a), decision: Decision{variable: Variable(0), value: 0}};
-        let b     = NodeInfo::new(20, Some(edge), true);
+        let b     = NodeInfo::new(20, Some(edge), true, false);
         let edge  = Edge {src: Arc::new(b), decision: Decision{variable: Variable(1), value: 45}};
-        let mut c = NodeInfo::new(30, Some(edge), true);
+        let mut c = NodeInfo::new(30, Some(edge), true, false);
 
-        let x     = NodeInfo::new(42, None, true);
+        let x     = NodeInfo::new(42, None, true, false);
         let edge  = Edge {src: Arc::new(x), decision: Decision{variable: Variable(0), value: 4}};
-        let y     = NodeInfo::new(64, Some(edge), true);
+        let y     = NodeInfo::new(64, Some(edge), true, false);
         let edge  = Edge {src: Arc::new(y), decision: Decision{variable: Variable(1), value: 2}};
-        let z     = NodeInfo::new(66, Some(edge), true);
+        let z     = NodeInfo::new(66, Some(edge), true, false);
 
         c.merge(z);
         assert_eq!(66, c.lp_len);
@@ -877,17 +888,17 @@ mod test_nodeinfo {
     }
     #[test]
     fn merge_keeps_longest_path_i_am_best() {
-        let a     = NodeInfo::new(10, None, true);
+        let a     = NodeInfo::new(10, None, true, false);
         let edge  = Edge {src: Arc::new(a), decision: Decision{variable: Variable(0), value: 0}};
-        let b     = NodeInfo::new(20, Some(edge), true);
+        let b     = NodeInfo::new(20, Some(edge), true, false);
         let edge  = Edge {src: Arc::new(b), decision: Decision{variable: Variable(1), value: 45}};
-        let mut c = NodeInfo::new(70, Some(edge), true);
+        let mut c = NodeInfo::new(70, Some(edge), true, false);
 
-        let x     = NodeInfo::new(42, None, true);
+        let x     = NodeInfo::new(42, None, true, false);
         let edge  = Edge {src: Arc::new(x), decision: Decision{variable: Variable(0), value: 4}};
-        let y     = NodeInfo::new(64, Some(edge), true);
+        let y     = NodeInfo::new(64, Some(edge), true, false);
         let edge  = Edge {src: Arc::new(y), decision: Decision{variable: Variable(1), value: 2}};
-        let z     = NodeInfo::new(66, Some(edge), true);
+        let z     = NodeInfo::new(66, Some(edge), true, false);
 
         c.merge(z);
         assert_eq!(70, c.lp_len);
@@ -898,8 +909,8 @@ mod test_nodeinfo {
     }
     #[test]
     fn merge_keeps_tightest_bound_other_is_best() {
-        let mut a = NodeInfo::new(10, None, true);
-        let mut b = NodeInfo::new(42, None, true);
+        let mut a = NodeInfo::new(10, None, true, false);
+        let mut b = NodeInfo::new(42, None, true, false);
 
         a.ub = 10;
         b.ub = 5;
@@ -909,8 +920,8 @@ mod test_nodeinfo {
     }
     #[test]
     fn merge_keeps_tightest_bound_i_am_best() {
-        let mut a = NodeInfo::new(10, None, true);
-        let mut b = NodeInfo::new(42, None, true);
+        let mut a = NodeInfo::new(10, None, true, false);
+        let mut b = NodeInfo::new(42, None, true, false);
 
         a.ub = 5;
         b.ub = 10;
@@ -920,106 +931,106 @@ mod test_nodeinfo {
     }
     #[test]
     fn merge_tracks_exactitude_both_true() {
-        let mut a = NodeInfo::new(10, None, true);
-        let b     = NodeInfo::new(42, None, true);
+        let mut a = NodeInfo::new(10, None, true, false);
+        let b     = NodeInfo::new(42, None, true, false);
 
         a.merge(b);
         assert_eq!(true, a.is_exact);
     }
     #[test]
     fn merge_tracks_exactitude_both_false() {
-        let mut a = NodeInfo::new(10, None, false);
-        let b     = NodeInfo::new(42, None, false);
+        let mut a = NodeInfo::new(10, None, false, false);
+        let b     = NodeInfo::new(42, None, false, false);
 
         a.merge(b);
         assert_eq!(false, a.is_exact);
     }
     #[test]
     fn merge_tracks_exactitude_me_true_she_false() {
-        let mut a = NodeInfo::new(10, None, true);
-        let b     = NodeInfo::new(42, None, false);
+        let mut a = NodeInfo::new(10, None, true, false);
+        let b     = NodeInfo::new(42, None, false, false);
 
         a.merge(b);
         assert_eq!(false, a.is_exact);
     }
     #[test]
     fn merge_tracks_exactitude_me_false_she_true() {
-        let mut a = NodeInfo::new(10, None, false);
-        let b     = NodeInfo::new(42, None, true);
+        let mut a = NodeInfo::new(10, None, false, false);
+        let b     = NodeInfo::new(42, None, true, false);
 
         a.merge(b);
         assert_eq!(false, a.is_exact);
     }
     #[test]
     fn partial_equiv_not_equal_if_not_same_exactitude() {
-        let a = NodeInfo::new(10, None, false);
-        let b = NodeInfo::new(10, None, true);
+        let a = NodeInfo::new(10, None, false, false);
+        let b = NodeInfo::new(10, None, true, false);
         assert_ne!(a, b);
 
-        let a = NodeInfo::new(10, None, true);
-        let b = NodeInfo::new(10, None, false);
+        let a = NodeInfo::new(10, None, true, false);
+        let b = NodeInfo::new(10, None, false, false);
         assert_ne!(a, b);
     }
     #[test]
     fn partial_equiv_not_equal_if_different_lp_len() {
-        let a = NodeInfo::new(10, None, true);
-        let b = NodeInfo::new(12, None, true);
+        let a = NodeInfo::new(10, None, true, false);
+        let b = NodeInfo::new(12, None, true, false);
         assert_ne!(a, b);
     }
     #[test]
     fn partial_equiv_not_equal_if_different_ub() {
-        let mut a = NodeInfo::new(12, None, true);
-        let mut b = NodeInfo::new(12, None, true);
+        let mut a = NodeInfo::new(12, None, true, false);
+        let mut b = NodeInfo::new(12, None, true, false);
         a.ub = 15;
         b.ub = 20;
         assert_ne!(a, b);
     }
     #[test]
     fn partial_equiv_not_equal_if_different_parent() {
-        let a = NodeInfo::new(10, None, true);
+        let a = NodeInfo::new(10, None, true, false);
         let e = Edge{src: Arc::new(a), decision: Decision{variable: Variable(0), value: 0}};
-        let b = NodeInfo::new(12, Some(e), true);
+        let b = NodeInfo::new(12, Some(e), true, false);
 
-        let x = NodeInfo::new(12, None, true);
+        let x = NodeInfo::new(12, None, true, false);
         let e = Edge{src: Arc::new(x), decision: Decision{variable: Variable(0), value: 0}};
-        let y = NodeInfo::new(12, Some(e), true);
+        let y = NodeInfo::new(12, Some(e), true, false);
         assert_ne!(b, y);
     }
     #[test]
     fn partial_equiv_not_equal_if_different_decision_value() {
-        let a = Arc::new(NodeInfo::new(10, None, true));
+        let a = Arc::new(NodeInfo::new(10, None, true, false));
         let e = Edge{src: Arc::clone(&a), decision: Decision{variable: Variable(0), value: 1}};
-        let b = NodeInfo::new(12, Some(e), true);
+        let b = NodeInfo::new(12, Some(e), true, false);
 
         let e = Edge{src: Arc::clone(&a), decision: Decision{variable: Variable(0), value: 0}};
-        let y = NodeInfo::new(12, Some(e), true);
+        let y = NodeInfo::new(12, Some(e), true, false);
         assert_ne!(b, y);
     }
     #[test]
     fn partial_equiv_not_equal_if_different_decision_variable() {
-        let a = Arc::new(NodeInfo::new(10, None, true));
+        let a = Arc::new(NodeInfo::new(10, None, true, false));
         let e = Edge{src: Arc::clone(&a), decision: Decision{variable: Variable(1), value: 0}};
-        let b = NodeInfo::new(12, Some(e), true);
+        let b = NodeInfo::new(12, Some(e), true, false);
 
         let e = Edge{src: Arc::clone(&a), decision: Decision{variable: Variable(0), value: 0}};
-        let y = NodeInfo::new(12, Some(e), true);
+        let y = NodeInfo::new(12, Some(e), true, false);
         assert_ne!(b, y);
     }
     #[test]
     fn partial_equiv() {
-        let a = Arc::new(NodeInfo::new(10, None, true));
+        let a = Arc::new(NodeInfo::new(10, None, true, false));
         let e = Edge{src: Arc::clone(&a), decision: Decision{variable: Variable(1), value: 0}};
-        let b = NodeInfo::new(12, Some(e), true);
+        let b = NodeInfo::new(12, Some(e), true, false);
 
         let e = Edge{src: Arc::clone(&a), decision: Decision{variable: Variable(1), value: 0}};
-        let y = NodeInfo::new(12, Some(e), true);
+        let y = NodeInfo::new(12, Some(e), true, false);
         assert_eq!(b, y);
     }
 
     #[test]
     fn cmp_less_if_lower_bound() {
-        let mut a = NodeInfo::new(12, None, true);
-        let mut b = NodeInfo::new(12, None, true);
+        let mut a = NodeInfo::new(12, None, true, false);
+        let mut b = NodeInfo::new(12, None, true, false);
         a.ub = 15;
         b.ub = 20;
         assert!(a <  b);
@@ -1029,8 +1040,8 @@ mod test_nodeinfo {
     }
     #[test]
     fn cmp_less_if_shorter_lp() {
-        let a = NodeInfo::new(10, None, true);
-        let b = NodeInfo::new(12, None, true);
+        let a = NodeInfo::new(10, None, true, false);
+        let b = NodeInfo::new(12, None, true, false);
 
         assert!(a <  b);
         assert!(a <= b);
@@ -1039,8 +1050,8 @@ mod test_nodeinfo {
     }
     #[test]
     fn cmp_less_if_inexact() {
-        let a = NodeInfo::new(12, None, false);
-        let b = NodeInfo::new(12, None, true);
+        let a = NodeInfo::new(12, None, false, false);
+        let b = NodeInfo::new(12, None, true, false);
 
         assert!(a <  b);
         assert!(a <= b);
@@ -1059,7 +1070,7 @@ mod test_node {
 
     #[test]
     fn constructor_new_root() {
-        let x = Node::new(64, 42, None, true); // root
+        let x = Node::new(64, 42, None, true, false); // root
 
         assert_eq!(64,   x.state);
         assert_eq!(42,   x.info.lp_len);
@@ -1068,15 +1079,15 @@ mod test_node {
     }
     #[test]
     fn constructor_new_default_ub_value() {
-        let x = Node::new(64, 42, None, true);
+        let x = Node::new(64, 42, None, true, false);
 
         assert_eq!(i32::max_value(), x.info.ub);
     }
     #[test]
     fn constructor_new_parent() {
-        let x   = Node::new(64, 42, None, true);
+        let x   = Node::new(64, 42, None, true, false);
         let edge= Edge {src: Arc::new(x.info), decision: Decision{variable: Variable(0), value: 4}};
-        let y   = Node::new(32, 64, Some(edge), true);
+        let y   = Node::new(32, 64, Some(edge), true, false);
 
         assert_eq!(32,   y.state);
         assert_eq!(64,   y.info.lp_len);
@@ -1089,11 +1100,11 @@ mod test_node {
     }
     #[test]
     fn constructor_new_longest_path() {
-        let x   = Node::new(30, 42, None, true);
+        let x   = Node::new(30, 42, None, true, false);
         let edge= Edge {src: Arc::new(x.info), decision: Decision{variable: Variable(0), value: 4}};
-        let y   = Node::new(20, 64, Some(edge), true);
+        let y   = Node::new(20, 64, Some(edge), true, false);
         let edge= Edge {src: Arc::new(y.info), decision: Decision{variable: Variable(1), value: 2}};
-        let z   = Node::new(10, 66, Some(edge), true);
+        let z   = Node::new(10, 66, Some(edge), true, false);
 
         assert_eq!(
             vec![Decision{variable: Variable(1), value: 2},
@@ -1114,7 +1125,7 @@ mod test_node {
     }
     #[test]
     fn constructor_merged_parent() {
-        let x   = Node::new(64, 42, None, true);
+        let x   = Node::new(64, 42, None, true, false);
         let edge= Edge {src: Arc::new(x.info), decision: Decision{variable: Variable(0), value: 4}};
         let y   = Node::merged(32, 64, Some(edge));
 
@@ -1133,7 +1144,7 @@ mod test_node {
         let mut n_hasher = MetroHash64::with_seed(42);
         let mut s_hasher = MetroHash64::with_seed(42);
 
-        let x = Node::new(42, 128, None, true);
+        let x = Node::new(42, 128, None, true, false);
         x.hash(&mut n_hasher);
         42.hash(&mut s_hasher);
 
@@ -1144,7 +1155,7 @@ mod test_node {
         let mut n_hasher = MetroHash64::with_seed(42);
         let mut s_hasher = MetroHash64::with_seed(42);
 
-        let x = Node::new("coucou", 128, None, true);
+        let x = Node::new("coucou", 128, None, true, false);
         x.hash(&mut n_hasher);
         "coucou".hash(&mut s_hasher);
 
@@ -1159,7 +1170,7 @@ mod test_node {
         state.set(3, true);
         state.set(4, true);
 
-        let x = Node::new(state.clone(), 128, None, true);
+        let x = Node::new(state.clone(), 128, None, true, false);
         x.hash(&mut n_hasher);
         state.hash(&mut s_hasher);
 
@@ -1168,15 +1179,15 @@ mod test_node {
     #[test]
     fn node_equality_depends_on_state_only_integer() {
         // integers
-        let x = Node::new(42, 12, None, true);
-        let y = Node::new(42, 64, None, false);
+        let x = Node::new(42, 12, None, true, false);
+        let y = Node::new(42, 64, None, false, false);
         assert_eq!(x, y);
     }
     #[test]
     fn node_equality_depends_on_state_only_string() {
         // strings
-        let x = Node::new("coucou", 12, None, true);
-        let y = Node::new("coucou", 64, None, false);
+        let x = Node::new("coucou", 12, None, true, false);
+        let y = Node::new("coucou", 64, None, false, false);
         assert_eq!(x, y);
     }
     #[test]
@@ -1185,8 +1196,8 @@ mod test_node {
         let mut state = BitSet::new(5);
         state.set(3, true);
         state.set(4, true);
-        let x = Node::new(state.clone(), 12, None, true);
-        let y = Node::new(state        , 64, None, false);
+        let x = Node::new(state.clone(), 12, None, true, false);
+        let y = Node::new(state        , 64, None, false, false);
         assert_eq!(x, y);
     }
 }
@@ -1205,7 +1216,7 @@ mod test_layer {
     }
     #[test]
     fn plain_non_empty() {
-        let x = Node::new(12, 12, None, true);
+        let x = Node::new(12, 12, None, true, false);
         let nodes : Vec<Node<usize>> = vec![x.clone()];
         let layer = Layer::Plain(nodes.iter());
 
@@ -1213,7 +1224,7 @@ mod test_layer {
     }
     #[test]
     fn plain_next() {
-        let x = Node::new(12, 12, None, true);
+        let x = Node::new(12, 12, None, true, false);
         let nodes : Vec<Node<usize>> = vec![x.clone()];
         let mut layer = Layer::Plain(nodes.iter());
 
@@ -1222,7 +1233,7 @@ mod test_layer {
     }
     #[test]
     fn plain_next_exhausted() {
-        let x = Node::new(12, 12, None, true);
+        let x = Node::new(12, 12, None, true, false);
         let nodes : Vec<Node<usize>> = vec![x.clone()];
         let mut layer = Layer::Plain(nodes.iter());
 
@@ -1241,7 +1252,7 @@ mod test_layer {
     }
     #[test]
     fn mapped_non_empty() {
-        let x = Node::new(12, 12, None, true);
+        let x = Node::new(12, 12, None, true, false);
         let mut nodes : HashMap<usize, NodeInfo> = HashMap::new();
         nodes.insert(x.state.clone(), x.info.clone());
         let layer = Layer::Mapped(nodes.iter());
@@ -1250,7 +1261,7 @@ mod test_layer {
     }
     #[test]
     fn mapped_next() {
-        let x = Node::new(12, 12, None, true);
+        let x = Node::new(12, 12, None, true, false);
         let mut nodes : HashMap<usize, NodeInfo> = HashMap::new();
         nodes.insert(x.state.clone(), x.info.clone());
         let mut layer = Layer::Mapped(nodes.iter());
@@ -1260,7 +1271,7 @@ mod test_layer {
     }
     #[test]
     fn mapped_next_exhausted() {
-        let x = Node::new(12, 12, None, true);
+        let x = Node::new(12, 12, None, true, false);
         let mut nodes : HashMap<usize, NodeInfo> = HashMap::new();
         nodes.insert(x.state.clone(), x.info.clone());
         let mut layer = Layer::Mapped(nodes.iter());

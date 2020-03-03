@@ -57,7 +57,7 @@ impl Default for MockProblem {
             transition:      Mock::new(0),
             transition_cost: Mock::new(0),
             impacted_by:     Mock::new(true),
-            root_node:       Mock::new(Node::new(0, 0, None, true)),
+            root_node:       Mock::new(Node::new(0, 0, None, true, false)),
             all_vars:        Mock::new(VarSet::all(5))
         }
     }
@@ -206,7 +206,7 @@ pub struct MockConfig {
 impl Default for MockConfig {
     fn default() -> Self {
         MockConfig {
-            root_node:    Mock::new(Node::new(0, 0, None, true)),
+            root_node:    Mock::new(Node::new(0, 0, None, true, false)),
             impacted_by:  Mock::new(true),
             load_vars:    Mock::new(Nothing),
             nb_free_vars: Mock::new(0),
@@ -214,10 +214,10 @@ impl Default for MockConfig {
             remove_var:   Mock::new(Nothing),
             domain_of:    Mock::new(vec![0, 1]),
             max_width:    Mock::new(2),
-            branch:       Mock::new(Node::new(0, 0, None, true)),
+            branch:       Mock::new(Node::new(0, 0, None, true, false)),
             estimate_ub:  Mock::new(76),
             compare:      Mock::new(Ordering::Equal),
-            merge_nodes:  Mock::new(Node::new(0, 0, None, true))
+            merge_nodes:  Mock::new(Node::new(0, 0, None, true, false))
         }
     }
 }

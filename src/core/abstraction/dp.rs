@@ -68,7 +68,7 @@ pub trait Problem<T> {
     /// This method is (trivially) auto-implemented, but re-implementing it
     /// does not make much sense.
     fn root_node(&self) -> Node<T> {
-        Node::new(self.initial_state(), self.initial_value(), None, true)
+        Node::new(self.initial_state(), self.initial_value(), None, true, false)
     }
     /// Returns a var set with all the variables of this problem.
     ///
@@ -141,13 +141,13 @@ mod test_problem_defaults {
 
     #[test]
     fn by_default_the_root_node_consitsts_of_the_initial_state_and_value() {
-        let node = Node::new(MockProblem.initial_state(), MockProblem.initial_value(), None, true);
+        let node = Node::new(MockProblem.initial_state(), MockProblem.initial_value(), None, true, false);
         assert_eq!(node, MockProblem.root_node());
     }
 
     #[test]
     fn the_default_rough_upper_bound_is_infinity() {
-        let info = NodeInfo::new(12, None, true);
+        let info = NodeInfo::new(12, None, true, false);
         assert_eq!(i32::max_value(), MockRelax.estimate_ub(&12, &info));
     }
 }

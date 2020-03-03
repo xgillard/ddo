@@ -48,7 +48,8 @@ impl <'a> Relaxation<BitSet> for MispRelax<'a> {
         }
 
         let mut info = best.clone();
-        info.is_exact = false;
+        info.is_exact   = false;
+        info.is_relaxed = true;
         Node {state, info}
     }
     fn estimate_ub(&self, state: &BitSet, info: &NodeInfo) -> i32 {

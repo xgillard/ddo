@@ -161,12 +161,12 @@ impl <T> VariableHeuristic<T> for NaturalOrder {
 /// # use ddo::core::common::{Node, NodeInfo};
 /// # use ddo::core::implementation::heuristics::MinLP;
 ///
-/// let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
-/// let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
-/// let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 100, is_exact: true}};
-/// let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub: 100, is_exact: true}};
-/// let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 100, is_exact: true}};
-/// let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true}};
+/// let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+/// let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+/// let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+/// let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+/// let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+/// let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 ///
 /// let mut nodes = vec![&a, &b, &c, &d, &e, &f];
 /// nodes.sort_by(|x, y| MinLP.compare(x, y).reverse());
@@ -201,12 +201,12 @@ impl <T> Compare<Node<T>> for MinLP {
 /// # use ddo::core::common::{Node, NodeInfo};
 /// # use ddo::core::implementation::heuristics::MaxUB;
 ///
-/// let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-/// let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
-/// let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 150, is_exact: true}};
-/// let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub:  60, is_exact: true}};
-/// let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 700, is_exact: true}};
-/// let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true}};
+/// let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+/// let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+/// let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 150, is_exact: true, is_relaxed: false}};
+/// let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub:  60, is_exact: true, is_relaxed: false}};
+/// let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 700, is_exact: true, is_relaxed: false}};
+/// let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 ///
 /// let nodes = vec![a.clone(), b.clone(), c.clone(), d.clone(), e.clone(), f.clone()];
 /// let mut priority_q = BinaryHeap::from_vec_cmp(nodes, MaxUB);
@@ -366,12 +366,12 @@ mod test_minlp {
 
     #[test]
     fn example() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
-        let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 100, is_exact: true}};
-        let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub: 100, is_exact: true}};
-        let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 100, is_exact: true}};
-        let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         let mut nodes = vec![&a, &b, &c, &d, &e, &f];
         nodes.sort_by(|x, y| MinLP.compare(x, y).reverse());
@@ -380,29 +380,29 @@ mod test_minlp {
 
     #[test]
     fn gt_because_of_lplen() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Greater, MinLP.compare(&a, &b));
     }
     #[test]
     fn lt_because_of_lplen() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Less, MinLP.compare(&b, &a));
     }
 
     #[test]
     fn eq_if_all_match() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Equal, MinLP.compare(&a, &b));
     }
     #[test]
     fn eq_self() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Equal, MinLP.compare(&a, &a));
     }
@@ -418,12 +418,12 @@ mod test_maxub {
 
     #[test]
     fn example() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true}};
-        let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 150, is_exact: true}};
-        let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub:  60, is_exact: true}};
-        let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 700, is_exact: true}};
-        let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
+        let c = Node {state: 'c', info: NodeInfo{lp_len: 24, lp_arc: None, ub: 150, is_exact: true, is_relaxed: false}};
+        let d = Node {state: 'd', info: NodeInfo{lp_len: 13, lp_arc: None, ub:  60, is_exact: true, is_relaxed: false}};
+        let e = Node {state: 'e', info: NodeInfo{lp_len: 65, lp_arc: None, ub: 700, is_exact: true, is_relaxed: false}};
+        let f = Node {state: 'f', info: NodeInfo{lp_len: 19, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         let nodes = vec![a.clone(), b.clone(), c.clone(), d.clone(), e.clone(), f.clone()];
         let mut priority_q = BinaryHeap::from_vec_cmp(nodes, MaxUB);
@@ -438,42 +438,42 @@ mod test_maxub {
 
     #[test]
     fn gt_because_ub() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Greater, MaxUB.compare(&a, &b));
     }
     #[test]
     fn gt_because_lplen() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 300, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Greater, MaxUB.compare(&a, &b));
     }
     #[test]
     fn lt_because_ub() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 100, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Less, MaxUB.compare(&b, &a));
     }
     #[test]
     fn lt_because_lplen() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 300, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len:  2, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Less, MaxUB.compare(&b, &a));
     }
     #[test]
     fn eq_because_all_match() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
-        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
+        let b = Node {state: 'b', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
 
         assert_eq!(Ordering::Equal, MaxUB.compare(&a, &b));
     }
     #[test]
     fn eq_self() {
-        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true}};
+        let a = Node {state: 'a', info: NodeInfo{lp_len: 42, lp_arc: None, ub: 300, is_exact: true, is_relaxed: false}};
         assert_eq!(Ordering::Equal, MaxUB.compare(&a, &a));
     }
 }
@@ -516,9 +516,9 @@ mod test_fromlongestpath {
         let pb  = Dummy;
         let heu = FromLongestPath::new(&pb);
         let root= pb.root_node();
-        let node= Node::new(12, 15, Some(Edge{src: Arc::new(root.info), decision: Decision{variable: Variable(0), value: 1}}), true);
-        let node= Node::new(10, 20, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(1), value: 0}}), true);
-        let node= Node::new( 7, 30, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(3), value: 0}}), true);
+        let node= Node::new(12, 15, Some(Edge{src: Arc::new(root.info), decision: Decision{variable: Variable(0), value: 1}}), true, false);
+        let node= Node::new(10, 20, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(1), value: 0}}), true, false);
+        let node= Node::new( 7, 30, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(3), value: 0}}), true, false);
 
         let vars= heu.variables(&node);
 
@@ -533,11 +533,11 @@ mod test_fromlongestpath {
         let pb  = Dummy;
         let heu = FromLongestPath::new(&pb);
         let root= pb.root_node();
-        let node= Node::new(12, 15, Some(Edge{src: Arc::new(root.info), decision: Decision{variable: Variable(0), value: 1}}), true);
-        let node= Node::new(10, 20, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(1), value: 0}}), true);
-        let node= Node::new( 7, 30, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(2), value: 0}}), true);
-        let node= Node::new( 3, 40, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(3), value: 0}}), true);
-        let node= Node::new( 0, 50, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(4), value: 0}}), true);
+        let node= Node::new(12, 15, Some(Edge{src: Arc::new(root.info), decision: Decision{variable: Variable(0), value: 1}}), true, false);
+        let node= Node::new(10, 20, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(1), value: 0}}), true, false);
+        let node= Node::new( 7, 30, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(2), value: 0}}), true, false);
+        let node= Node::new( 3, 40, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(3), value: 0}}), true, false);
+        let node= Node::new( 0, 50, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(4), value: 0}}), true, false);
 
         let vars= heu.variables(&node);
 
