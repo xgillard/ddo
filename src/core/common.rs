@@ -368,7 +368,8 @@ impl NodeInfo {
             self.lp_arc = other.lp_arc;
         }
         self.ub = self.ub.min(other.ub);
-        self.is_exact &= other.is_exact;
+        self.is_exact   &= other.is_exact;
+        self.is_relaxed &= other.is_relaxed;
     }
 
     /// Returns the longest path (sequence of decisions) from the root of the

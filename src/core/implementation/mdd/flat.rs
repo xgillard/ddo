@@ -435,7 +435,9 @@ impl <T, C> FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
                 self.is_exact = false;
 
                 // actually squash the layer
-                let merged = self.config.merge_nodes(squash);
+                let mut merged = self.config.merge_nodes(squash);
+                merged.info.is_exact   = false;
+                merged.info.is_relaxed = true;
 
                 for n in keep.to_vec().drain(..) {
                     next.insert(n.state, n.info);
@@ -1643,6 +1645,45 @@ mod test_private {
 
         mdd.maybe_relax(2, 3); // max width of 3
         assert_eq!(false, mdd.is_exact());
+    }
+    #[test]
+    fn relaxation_forces_the_flags_is_exact_and_is_relaxed() {
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, false, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(42, 42, None, false, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged.clone());
+
+        let mut mdd = FlatMDD::new(ProxyMut::new(&mut config));
+        layer![mdd, mut next].insert(w.state, w.info);
+        layer![mdd, mut next].insert(x.state, x.info);
+        layer![mdd, mut next].insert(y.state, y.info);
+        layer![mdd, mut next].insert(z.state, z.info);
+
+        mdd.maybe_relax(2, 3); // max width of 3
+        assert_eq!(false, layer![mdd, mut next].get(&merged.state).as_ref().unwrap().is_exact);
+        assert_eq!(true , layer![mdd, mut next].get(&merged.state).as_ref().unwrap().is_relaxed);
     }
     #[test]
     fn when_the_merged_node_has_the_same_state_as_one_of_the_best_the_two_are_merged() {

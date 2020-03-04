@@ -396,7 +396,9 @@ impl <T, C> PooledMDD<T, C> where T: Eq + Hash + Clone, C: Config<T> {
         let (_keep, squash) = self.current.split_at(w-1);
 
         // 2. merge the nodes
-        let merged = self.config.merge_nodes(squash);
+        let mut merged = self.config.merge_nodes(squash);
+        merged.info.is_exact   = false;
+        merged.info.is_relaxed = true;
 
         // 3. make sure to keep the cutset complete
         for n in squash {
@@ -1991,6 +1993,48 @@ mod test_private {
 
         let _ = mdd.merge_overdue_nodes(3);
         assert_eq!(true, mdd.cutset.contains(&x));
+    }
+
+    #[test]
+    fn merge_overdue_nodes_sets_flags_is_exact_and_is_restricted() {
+        // w, x are the worst nodes, these are the ones that will be merged.
+        // among these, x is exact and must therefore be added to the cutset.
+        let w = Node::new(5, 100, None, false, false);
+        let x = Node::new(7,  10, None, true, false);
+        let y = Node::new(8, 110, None, false, false);
+        let z = Node::new(9,  10, None, false, false);
+
+        let mut config = MockConfig::default();
+        // ordered alphabetically by identifier: w < x < y < z
+        config.compare.given((w.clone(), x.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((w.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((x.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((x.clone(), y.clone())).will_return(Ordering::Less);
+        config.compare.given((x.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((y.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((y.clone(), z.clone())).will_return(Ordering::Less);
+
+        config.compare.given((z.clone(), w.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), x.clone())).will_return(Ordering::Greater);
+        config.compare.given((z.clone(), y.clone())).will_return(Ordering::Greater);
+
+        // the merge operation will yield a new artificial node
+        let merged = Node::new(42, 42, None, false, false);
+        config.merge_nodes.given(vec![x.clone(), w.clone()]).will_return(merged);
+
+        let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
+        mdd.current.push(w);
+        mdd.current.push(x.clone());
+        mdd.current.push(y);
+        mdd.current.push(z);
+
+        let merged = mdd.merge_overdue_nodes(3);
+        assert_eq!(false, merged.info.is_exact);
+        assert_eq!(true , merged.info.is_relaxed);
     }
 
     #[test]
