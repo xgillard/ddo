@@ -78,4 +78,29 @@ pub trait Config<T> {
     /// node to use as a replacement for the selected `nodes`. It is the MDD
     /// implementation 's responsibility to take care of maintaining a cutset.
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T>;
+    /// This method is just a shortcut to get the next state by applying the
+    /// transition (as described per the problem) from `state` and taking the
+    /// given `decision`.
+    ///
+    /// # Visually
+    /// Calling this method returns (new state).
+    ///
+    /// ```plain
+    /// (state) --- [decision] ---> (new_state)
+    /// ```
+    fn transition_state(&self, state: &T, d: Decision) -> T;
+    /// This method is just a shortcut to get the cost of going to next state by
+    /// applying the transition cost function (as described per the problem);
+    /// starting from `state` and taking the given `decision`.
+    ///
+    /// # Visually
+    /// Calling this method returns the cost of taking decision.
+    ///
+    /// ```plain
+    /// (state) --- [decision] ---> (new_state)
+    ///                 ^
+    ///                 |
+    ///       cost of taking decision
+    /// ```
+    fn transition_cost(&self, state: &T, d: Decision) -> i32;
 }

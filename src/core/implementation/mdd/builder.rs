@@ -219,10 +219,8 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
     pub fn into_flat(self) -> FlatMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
         FlatMDD::new(self.config())
     }
-    /// This is how you instantiate a _flat_ MDD from using your desired
-    /// configuration. Note: Unless you really want to emphasize that you use
-    /// a flat MDD, it would probably be cleaner to just use the usual `build`
-    /// method to create your MDD.
+    /// This is how you instantiate a _pooled_ MDD from using your desired
+    /// configuration.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
     pub fn into_pooled(self) -> PooledMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
         PooledMDD::new(self.config())
@@ -365,27 +363,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
     fn merge_nodes(&self, nodes: &[Node<T>]) -> Node<T> {
         self.relax.merge_nodes(nodes)
     }
-}
 
-/// `MDDConfig` methods that do not belong to any trait
-impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
-    where T    : Eq + Hash + Clone,
-          PB   : Problem<T>,
-          RLX  : Relaxation<T>,
-          LV   : LoadVars<T>,
-          VS   : VariableHeuristic<T>,
-          WIDTH: WidthHeuristic,
-          NS   : Compare<Node<T>> {
-    /// Constructor: uses all the given parameters to build a new configuration
-    /// object. Using this method is advised against (would make your code
-    /// cumbersome). This is why it was made private. Anything you can do using
-    /// this constructor, you can achieve by using the much clearer `mdd_builder`.
-    /// This is the recommended approach and involves *no* perfromance penalty
-    /// at runtime.
-    fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
-        let vars = VarSet::all(pb.nb_vars());
-        MDDConfig { pb, relax, lv, vs, width, ns, vars, _t: PhantomData }
-    }
     /// This method is just a shortcut to get the next state by applying the
     /// transition (as described per the problem) from `state` and taking the
     /// given `decision`.
@@ -414,6 +392,27 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH
     /// ```
     fn transition_cost(&self, state: &T, d: Decision) -> i32 {
         self.pb.transition_cost(state, &self.vars, d)
+    }
+}
+
+/// `MDDConfig` methods that do not belong to any trait
+impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
+    where T    : Eq + Hash + Clone,
+          PB   : Problem<T>,
+          RLX  : Relaxation<T>,
+          LV   : LoadVars<T>,
+          VS   : VariableHeuristic<T>,
+          WIDTH: WidthHeuristic,
+          NS   : Compare<Node<T>> {
+    /// Constructor: uses all the given parameters to build a new configuration
+    /// object. Using this method is advised against (would make your code
+    /// cumbersome). This is why it was made private. Anything you can do using
+    /// this constructor, you can achieve by using the much clearer `mdd_builder`.
+    /// This is the recommended approach and involves *no* perfromance penalty
+    /// at runtime.
+    fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
+        let vars = VarSet::all(pb.nb_vars());
+        MDDConfig { pb, relax, lv, vs, width, ns, vars, _t: PhantomData }
     }
 }
 
