@@ -37,6 +37,64 @@ use compare::Compare;
 
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use crate::core::common::{Layer, Node, Variable, VarSet};
+use std::ops::{Index, IndexMut};
+
+/// This structure implements a 2D matrix of size [ n X m ].
+///
+///
+/// # Example
+/// ```
+/// # use ddo::core::utils::Matrix;
+///
+/// let mut adjacency = Matrix::new_default(5, 5, None);
+///
+/// adjacency[(2, 2)] = Some(-5);
+/// assert_eq!(Some(-5), adjacency[(2, 2)]);
+/// ```
+#[derive(Clone)]
+pub struct Matrix<T> {
+    /// The number of rows
+    pub n: usize,
+    /// The number of columns
+    pub m: usize,
+    /// The items of the matrix
+    pub data : Vec<T>
+}
+impl <T : Default + Clone> Matrix<T> {
+    /// Allows the creation of a matrix initialized with the default element
+    pub fn new(m: usize, n: usize) -> Self {
+        Matrix { m, n, data: vec![Default::default(); m * n] }
+    }
+}
+impl <T : Clone> Matrix<T> {
+    /// Allows the creation of a matrix initialized with the default element
+    pub fn new_default(m: usize, n: usize, item: T) -> Self {
+        Matrix { m, n, data: vec![item; m * n] }
+    }
+}
+impl <T> Matrix<T> {
+    /// Returns the position (offset in the data) of the given index
+    fn pos(&self, idx: (usize, usize)) -> usize {
+        self.m * idx.0 + idx.1
+    }
+}
+/// A matrix is typically an item you'll want to adress using 2D position
+impl <T> Index<(usize, usize)> for Matrix<T> {
+    type Output = T;
+    /// It returns a reference to some item from the matrix at the given 2D index
+    fn index(&self, idx: (usize, usize)) -> &Self::Output {
+        let position = self.pos(idx);
+        &self.data[position]
+    }
+}
+impl <T> IndexMut<(usize, usize)> for Matrix<T> {
+    /// It returns a mutable reference to some item from the matrix at the given 2D index
+    fn index_mut(&mut self, idx: (usize, usize)) -> &mut Self::Output {
+        let position = self.pos(idx);
+        &mut self.data[position]
+    }
+}
+
 
 /// This structure defines an iterator capable of iterating over the 1-bits of
 /// a fixed bitset. It uses word representation of the items in the set, so it
@@ -376,5 +434,37 @@ mod tests_lexbitset {
         b.set(150, true);
         assert!(LexBitSet(&a) <= LexBitSet(&b));
         assert!(LexBitSet(&a) <  LexBitSet(&b));
+    }
+}
+
+#[cfg(test)]
+mod test_matrix {
+    use crate::core::utils::Matrix;
+    #[test]
+    fn it_is_initialized_with_default_elem() {
+        let mat : Matrix<Option<usize>> = Matrix::new(5, 5);
+
+        for i in 0..5 {
+            for j in 0..5 {
+                assert_eq!(None, mat[(i, j)]);
+            }
+        }
+    }
+    #[test]
+    fn it_is_initialized_with_given_elem() {
+        let mat = Matrix::new_default(5, 5, Some(0));
+
+        for i in 0..5 {
+            for j in 0..5 {
+                assert_eq!(Some(0), mat[(i, j)]);
+            }
+        }
+    }
+    #[test]
+    fn it_can_be_accessed_and_mutated_with_2d_position() {
+        let mut mat = Matrix::new(5, 5);
+        mat[(2, 2)] = Some(-5);
+
+        assert_eq!(Some(-5), mat[(2, 2)]);
     }
 }
