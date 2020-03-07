@@ -100,25 +100,27 @@ enum WorkLoad<T> {
 /// # use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
 /// # use ddo::core::implementation::solver::parallel::ParallelSolver;
 /// # use ddo::core::abstraction::solver::Solver;
+/// # #[derive(Clone)]
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {
 /// #     fn nb_vars(&self)       -> usize {  5 }
 /// #     fn initial_state(&self) -> usize { 42 }
 /// #     fn initial_value(&self) -> i32   { 84 }
 /// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
-/// #         unimplemented!()
+/// #         (0..=1).into()
 /// #     }
-/// #     fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
-/// #         unimplemented!()
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
 /// #     }
-/// #     fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> i32 {
-/// #         unimplemented!()
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> i32 {
+/// #         42
 /// #     }
 /// # }
+/// # #[derive(Clone)]
 /// # struct MockRelax;
 /// # impl Relaxation<usize> for MockRelax {
-/// #     fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
-/// #         unimplemented!()
+/// #     fn merge_nodes(&self, n: &[Node<usize>]) -> Node<usize> {
+/// #         n[0].clone()
 /// #     }
 /// # }
 /// let problem    = MockProblem;

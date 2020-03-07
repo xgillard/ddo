@@ -44,19 +44,19 @@ use crate::core::implementation::heuristics::MaxUB;
 /// #     fn initial_state(&self) -> usize { 42 }
 /// #     fn initial_value(&self) -> i32   { 84 }
 /// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
-/// #         unimplemented!()
+/// #         (0..=1).into()
 /// #     }
-/// #     fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
-/// #         unimplemented!()
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
 /// #     }
-/// #     fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> i32 {
-/// #         unimplemented!()
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> i32 {
+/// #         42
 /// #     }
 /// # }
 /// # struct MockRelax;
 /// # impl Relaxation<usize> for MockRelax {
-/// #     fn merge_nodes(&self, _: &[Node<usize>]) -> Node<usize> {
-/// #         unimplemented!()
+/// #     fn merge_nodes(&self, n: &[Node<usize>]) -> Node<usize> {
+/// #         n[0].clone()
 /// #     }
 /// # }
 /// let problem    = MockProblem;
