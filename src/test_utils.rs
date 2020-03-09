@@ -202,6 +202,8 @@ pub struct MockConfig {
     pub estimate_ub:  Mock<(usize, NodeInfo), i32>,
     pub compare:      Mock<(Node<usize>, Node<usize>), Ordering>,
     pub merge_nodes:  Mock<Vec<Node<usize>>, Node<usize>>,
+    pub transition_state: Mock<(usize, Decision), usize>,
+    pub transition_cost : Mock<(usize, Decision), i32>
 }
 impl Default for MockConfig {
     fn default() -> Self {
@@ -217,7 +219,9 @@ impl Default for MockConfig {
             branch:       Mock::new(Node::new(0, 0, None, true, false)),
             estimate_ub:  Mock::new(76),
             compare:      Mock::new(Ordering::Equal),
-            merge_nodes:  Mock::new(Node::new(0, 0, None, true, false))
+            merge_nodes:  Mock::new(Node::new(0, 0, None, true, false)),
+            transition_state: Mock::new(0),
+            transition_cost: Mock::new(0)
         }
     }
 }
@@ -276,6 +280,14 @@ impl Config<usize> for MockConfig {
 
     fn merge_nodes(&self, nodes: &[Node<usize>]) -> Node<usize> {
         self.merge_nodes.called(nodes.to_vec())
+    }
+
+    fn transition_state(&self, state: &usize, d: Decision) -> usize {
+        self.transition_state.called((*state, d))
+    }
+
+    fn transition_cost(&self, state: &usize, d: Decision) -> i32 {
+        self.transition_cost.called((*state, d))
     }
 }
 
@@ -363,5 +375,13 @@ impl <X, T: Config<X>> Config<X> for ProxyMut<'_, T> {
     }
     fn merge_nodes(&self, nodes: &[Node<X>]) -> Node<X> {
         self.target.merge_nodes(nodes)
+    }
+
+    fn transition_state(&self, state: &X, d: Decision) -> X {
+        self.target.transition_state(state, d)
+    }
+
+    fn transition_cost(&self, state: &X, d: Decision) -> i32 {
+        self.target.transition_cost(state, d)
     }
 }

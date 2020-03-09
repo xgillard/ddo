@@ -2028,7 +2028,7 @@ mod test_private {
 
         let mut mdd = PooledMDD::new(ProxyMut::new(&mut config));
         mdd.current.push(w);
-        mdd.current.push(x.clone());
+        mdd.current.push(x);
         mdd.current.push(y);
         mdd.current.push(z);
 
