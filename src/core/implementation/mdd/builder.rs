@@ -24,7 +24,6 @@
 //! behavior of MDDs in an intelligible way.
 use std::cmp::Ordering;
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use compare::Compare;
@@ -36,6 +35,7 @@ use crate::core::implementation::heuristics::{FromLongestPath, MinLP, NaturalOrd
 use crate::core::implementation::mdd::config::Config;
 use crate::core::implementation::mdd::flat::FlatMDD;
 use crate::core::implementation::mdd::pooled::PooledMDD;
+use std::marker::PhantomData;
 
 /// This is the structure used to build an MDD configuration. There is very little
 /// logic to it: it only uses the type system to adapt to its configurations and
@@ -82,19 +82,19 @@ use crate::core::implementation::mdd::pooled::PooledMDD;
 ///                  .with_max_width(FixedWidth(100))
 ///                  .build();
 /// ```
-pub struct MDDBuilder<'a, T, PB, RLX,
-    LV   = FromLongestPath<'a, PB>,
+pub struct MDDBuilder<T, PB, RLX,
+    LV   = FromLongestPath,
     VS   = NaturalOrder,
     WIDTH= NbUnassigned,
     NS   = MinLP> {
 
-    pb : &'a PB,
+    pb : PB,
     rlx: RLX,
     lv : LV,
     vs : VS,
     w  : WIDTH,
     ns : NS,
-    _t : PhantomData<T>
+    _phantom: PhantomData<T>
 }
 
 /// This is the function you should use to instantiate a new MDD builder with
@@ -128,19 +128,19 @@ pub struct MDDBuilder<'a, T, PB, RLX,
 ///                  .with_max_width(FixedWidth(100))
 ///                  .build();
 /// ```
-pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PB, RLX> {
+pub fn mdd_builder<T, PB: Problem<T>, RLX: Relaxation<T>>(pb: PB, rlx: RLX) -> MDDBuilder<T, PB, RLX> {
+    let lv = FromLongestPath::new(pb.all_vars());
     MDDBuilder {
-        pb, rlx,
-        lv: FromLongestPath::new(pb),
+        pb, rlx, lv,
         vs: NaturalOrder,
         w : NbUnassigned,
         ns: MinLP,
-        _t: PhantomData
+        _phantom: PhantomData
     }
 }
 
 /// The following methods define the behavior of an mdd builder.
-impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDTH, NS>
+impl <T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<T, PB, RLX, LV, VS, WIDTH, NS>
     where T    : Eq + Hash + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -150,7 +150,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
           NS   : Compare<Node<T>> {
 
     /// This is how you specify the load variable heuristic to use.
-    pub fn with_load_vars<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, H, VS, WIDTH, NS> {
+    pub fn with_load_vars<H>(self, h: H) -> MDDBuilder<T, PB, RLX, H, VS, WIDTH, NS> {
         MDDBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -158,11 +158,11 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : self.vs,
             w  : self.w,
             ns : self.ns,
-            _t : PhantomData
+            _phantom: PhantomData
         }
     }
     /// This is how you specify the branch heuristic to use (the variable selection heuristic).
-    pub fn with_branch_heuristic<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, LV, H, WIDTH, NS> {
+    pub fn with_branch_heuristic<H>(self, h: H) -> MDDBuilder<T, PB, RLX, LV, H, WIDTH, NS> {
         MDDBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -170,12 +170,12 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : h,
             w  : self.w,
             ns : self.ns,
-            _t : PhantomData
+            _phantom: PhantomData
         }
     }
     /// This is how you specify the maximum width heuristic to use (to constrain
     /// the max width of MDD layers).
-    pub fn with_max_width<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, LV, VS, H, NS> {
+    pub fn with_max_width<H>(self, h: H) -> MDDBuilder<T, PB, RLX, LV, VS, H, NS> {
         MDDBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -183,12 +183,12 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : self.vs,
             w  : h,
             ns : self.ns,
-            _t : PhantomData
+            _phantom: PhantomData
         }
     }
     /// This is how you specify the nodes selection heuristic to use (to decide
     /// what nodes to merge/drop in case the layer width is too large).
-    pub fn with_nodes_selection_heuristic<H>(self, h: H) -> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDTH, H> {
+    pub fn with_nodes_selection_heuristic<H>(self, h: H) -> MDDBuilder<T, PB, RLX, LV, VS, WIDTH, H> {
         MDDBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -196,19 +196,19 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
             vs : self.vs,
             w  : self.w,
             ns : h,
-            _t : PhantomData
+            _phantom: PhantomData
         }
     }
     /// This is how you instantiate a configuration object. This is not really
     /// useful per-se, unless you decide to implement your own kind of MDD and
     /// want to be able to reuse a single configuration object.
-    pub fn config(self) -> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS> {
+    pub fn config(self) -> MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS> {
         MDDConfig::new(self.pb, self.rlx, self.lv, self.vs, self.w, self.ns)
     }
     /// This is how you instantiate an MDD (using the default MDD implementation)
     /// configured with the parameters you specified.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn build(self) -> FlatMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
+    pub fn build(self) -> FlatMDD<T, MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS>> {
         self.into_flat()
     }
     /// This is how you instantiate a _pooled_ MDD from using your desired
@@ -216,13 +216,13 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
     /// MDD, you are probably better off using the default implem (flat mdd).
     /// Chances are high that it will perform better.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn into_flat(self) -> FlatMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
+    pub fn into_flat(self) -> FlatMDD<T, MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS>> {
         FlatMDD::new(self.config())
     }
     /// This is how you instantiate a _pooled_ MDD from using your desired
     /// configuration.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn into_pooled(self) -> PooledMDD<T, MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>> {
+    pub fn into_pooled(self) -> PooledMDD<T, MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS>> {
         PooledMDD::new(self.config())
     }
 }
@@ -231,19 +231,19 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<'a, T, PB, RLX, LV, VS, WIDT
 /// This is the structure implementing the configuration of an MDD. It is
 /// basically a structure holding all the heuristics together.
 #[derive(Clone)]
-pub struct MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS> {
-    pb               : &'a PB,
+pub struct MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS> {
+    pb               : PB,
     relax            : RLX,
     lv               : LV,
     vs               : VS,
     width            : WIDTH,
     ns               : NS,
     vars             : VarSet,
-    _t               : PhantomData<T>
+    _phantom: PhantomData<T>
 }
 
 /// This is how an `MDDConfig` object implements the the `Config` trait.
-impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
+impl <T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS>
     where T    : Eq + Hash + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -396,7 +396,7 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> Config<T> for MDDConfig<'a, T, PB, RLX,
 }
 
 /// `MDDConfig` methods that do not belong to any trait
-impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH, NS>
+impl <T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS>
     where T    : Eq + Hash + Clone,
           PB   : Problem<T>,
           RLX  : Relaxation<T>,
@@ -410,9 +410,9 @@ impl <'a, T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<'a, T, PB, RLX, LV, VS, WIDTH
     /// this constructor, you can achieve by using the much clearer `mdd_builder`.
     /// This is the recommended approach and involves *no* perfromance penalty
     /// at runtime.
-    fn new(pb: &'a PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
+    fn new(pb: PB, relax: RLX, lv: LV, vs: VS, width: WIDTH, ns: NS) -> Self {
         let vars = VarSet::all(pb.nb_vars());
-        MDDConfig { pb, relax, lv, vs, width, ns, vars, _t: PhantomData }
+        MDDConfig { pb, relax, lv, vs, width, ns, vars, _phantom: PhantomData }
     }
 }
 

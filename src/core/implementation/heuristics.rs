@@ -23,7 +23,6 @@ use std::cmp::Ordering;
 
 use compare::Compare;
 
-use crate::core::abstraction::dp::Problem;
 use crate::core::abstraction::heuristics::{LoadVars, VariableHeuristic, WidthHeuristic};
 use crate::core::common::{Layer, Node, Variable, VarSet};
 
@@ -236,22 +235,22 @@ impl <T> Compare<Node<T>> for MaxUB {
 /// iteratively removes the variables that have been assigned a value on the
 /// longest path.
 #[derive(Debug, Clone)]
-pub struct FromLongestPath<'a, P> {
-    /// This is a (private) reference to the problem being solved.
-    pb: &'a P
+pub struct FromLongestPath {
+    /// All the variables from the problem
+    all_vars: VarSet
 }
-impl <'a, P> FromLongestPath<'a, P> {
+impl FromLongestPath {
     /// This function creates a `FromLongestPath` heuristic from a reference
     /// to the problem being solved.
-    pub fn new(pb: &'a P) -> FromLongestPath<'a, P>{
-        FromLongestPath {pb}
+    pub fn new(all_vars: VarSet) -> FromLongestPath {
+        FromLongestPath { all_vars }
     }
 }
-impl <'a, T, P> LoadVars<T> for FromLongestPath<'a, P> where P: Problem<T> {
+impl <T> LoadVars<T> for FromLongestPath {
     /// Returns the set of variables having no assigned value along the longest
     /// path to `node`.
     fn variables(&self, node: &Node<T>) -> VarSet {
-        let mut vars = self.pb.all_vars();
+        let mut vars = self.all_vars.clone();
         for d in node.info.longest_path() {
             vars.remove(d.variable);
         }
@@ -505,7 +504,7 @@ mod test_fromlongestpath {
     #[test]
     fn at_root() {
         let pb  = Dummy;
-        let heu = FromLongestPath::new(&pb);
+        let heu = FromLongestPath::new(pb.all_vars());
         let root= pb.root_node();
 
         let vars= heu.variables(&root);
@@ -514,7 +513,7 @@ mod test_fromlongestpath {
     #[test]
     fn some_vars_assigned() {
         let pb  = Dummy;
-        let heu = FromLongestPath::new(&pb);
+        let heu = FromLongestPath::new(pb.all_vars());
         let root= pb.root_node();
         let node= Node::new(12, 15, Some(Edge{src: Arc::new(root.info), decision: Decision{variable: Variable(0), value: 1}}), true, false);
         let node= Node::new(10, 20, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(1), value: 0}}), true, false);
@@ -531,7 +530,7 @@ mod test_fromlongestpath {
     #[test]
     fn all_vars_assigned() {
         let pb  = Dummy;
-        let heu = FromLongestPath::new(&pb);
+        let heu = FromLongestPath::new(pb.all_vars());
         let root= pb.root_node();
         let node= Node::new(12, 15, Some(Edge{src: Arc::new(root.info), decision: Decision{variable: Variable(0), value: 1}}), true, false);
         let node= Node::new(10, 20, Some(Edge{src: Arc::new(node.info), decision: Decision{variable: Variable(1), value: 0}}), true, false);
