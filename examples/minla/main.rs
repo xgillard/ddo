@@ -3,7 +3,7 @@ mod relax;
 
 use model::Minla;
 use relax::MinlaRelax;
-use ddo::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::implementation::heuristics::{NaturalOrder, FixedWidth};
 use std::fs::File;
@@ -32,6 +32,7 @@ fn main() {
     let opt = Opt::from_args();
 
     let minla = read_gra(&opt.fname).unwrap();
+    let relax = MinlaRelax::new(&minla);
     let width = match opt.width {
         Some(x) => x,
         None => 1000
@@ -41,7 +42,7 @@ fn main() {
         None => num_cpus::get()
     };
 
-    let mdd = mdd_builder(&minla, MinlaRelax::new(&minla))
+    let mdd = mdd_builder_ref(&minla, relax)
         .with_max_width(FixedWidth(width))
         .with_branch_heuristic(NaturalOrder)
         .into_flat();
