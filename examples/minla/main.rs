@@ -18,7 +18,7 @@ struct Opt {
     /// Path to the instance (*.gra)
     fname: String,
     /// Log the progression
-    #[structopt(name="verbose", short, long)]
+    #[structopt(name="verbose", short, long, default_value = "1")]
     verbose: u8,
     /// The number of threads to use (default: number of physical threads on this machine)
     #[structopt(name="threads", short, long)]

@@ -50,11 +50,11 @@ impl Problem<State> for Minla {
 
     fn domain_of<'a>(&self, state: &'a State, var: Variable) -> Domain<'a> {
         if var.0 == 0 {
-            (0..(self.nb_vars()-1)).into()
+            Domain::from(0..((self.nb_vars()-1) as i32))
         } else if state.free.count_ones() == 0 { // relaxed node with empty free vertices intersection
-            vec![self.no_vertex()].into()
+            Domain::from(vec![self.no_vertex() as i32])
         } else {
-            state.free.into()
+            Domain::from(&state.free)
         }
     }
 
