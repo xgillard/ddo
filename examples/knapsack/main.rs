@@ -23,7 +23,7 @@ use ddo::core::abstraction::mdd::MDD;
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::common::Decision;
 use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 use ddo::core::implementation::solver::parallel::ParallelSolver;
 use std::fs::File;
 use std::time::SystemTime;
@@ -94,11 +94,11 @@ fn main() {
 fn knapsack(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) {
     let problem = File::open(fname).expect("File not found").into();
     match width {
-        Some(max_width) => solve(mdd_builder(&problem, KnapsackRelax::new(&problem))
+        Some(max_width) => solve(mdd_builder_ref(&problem, KnapsackRelax::new(&problem))
                            .with_branch_heuristic(KnapsackOrder::new(&problem))
                            .with_max_width(FixedWidth(max_width))
                            .into_flat(), verbose, threads),
-        None => solve(mdd_builder(&problem, KnapsackRelax::new(&problem))
+        None => solve(mdd_builder_ref(&problem, KnapsackRelax::new(&problem))
                           .with_branch_heuristic(KnapsackOrder::new(&problem))
                           .into_flat(), verbose, threads)
     }

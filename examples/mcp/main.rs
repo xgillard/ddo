@@ -25,7 +25,7 @@ use ddo::core::abstraction::mdd::MDD;
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::implementation::solver::parallel::ParallelSolver;
 use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 use std::time::SystemTime;
 use structopt::StructOpt;
 
@@ -67,10 +67,10 @@ fn main() {
 pub fn mcp(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) {
     let problem = File::open(fname).expect("File not found").into();
     match width {
-        Some(max_width) => solve(mdd_builder(&problem, McpRelax::new(&problem))
+        Some(max_width) => solve(mdd_builder_ref(&problem, McpRelax::new(&problem))
                            .with_max_width(FixedWidth(max_width))
                            .into_flat(), verbose, threads),
-        None => solve(mdd_builder(&problem, McpRelax::new(&problem))
+        None => solve(mdd_builder_ref(&problem, McpRelax::new(&problem))
                           .into_flat(), verbose, threads)
     }
 }

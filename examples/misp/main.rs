@@ -24,7 +24,7 @@ use ddo::core::abstraction::mdd::MDD;
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::common::Decision;
 use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 use ddo::core::implementation::solver::parallel::ParallelSolver;
 use ddo::core::utils::Func;
 use std::fs::File;
@@ -71,13 +71,13 @@ fn main() {
 pub fn misp(fname: &str, verbose: u8, threads: Option<usize>, width:Option<usize>) -> i32 {
     let misp = File::open(fname).expect("File not found").into();
     match width {
-        Some(max_size) => solve(mdd_builder(&misp, MispRelax::new(&misp))
+        Some(max_size) => solve(mdd_builder_ref(&misp, MispRelax::new(&misp))
             .with_load_vars(Func(vars_from_misp_state))
             .with_max_width(FixedWidth(max_size))
             .with_branch_heuristic(MispVarHeu::new(&misp))
             .into_pooled(), verbose, threads),
 
-        None => solve(mdd_builder(&misp, MispRelax::new(&misp))
+        None => solve(mdd_builder_ref(&misp, MispRelax::new(&misp))
             .with_load_vars(Func(vars_from_misp_state))
             .with_branch_heuristic(MispVarHeu::new(&misp))
             .into_pooled(), verbose, threads)

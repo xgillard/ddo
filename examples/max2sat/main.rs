@@ -25,7 +25,7 @@ use ddo::core::abstraction::mdd::MDD;
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::implementation::solver::parallel::ParallelSolver;
 use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder;
+use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 use std::time::SystemTime;
 use structopt::StructOpt;
 
@@ -71,12 +71,12 @@ fn main() {
 fn max2sat(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) -> i32 {
     let problem = File::open(fname).expect("File not found").into();
     match width {
-        Some(max_width) => solve(mdd_builder(&problem, Max2SatRelax::new(&problem))
+        Some(max_width) => solve(mdd_builder_ref(&problem, Max2SatRelax::new(&problem))
                           .with_branch_heuristic(Max2SatOrder::new(&problem))
                           .with_nodes_selection_heuristic(MinRank)
                           .with_max_width(FixedWidth(max_width))
                           .into_flat(), verbose, threads),
-        None => solve(mdd_builder(&problem, Max2SatRelax::new(&problem))
+        None => solve(mdd_builder_ref(&problem, Max2SatRelax::new(&problem))
                           .with_branch_heuristic(Max2SatOrder::new(&problem))
                           .with_nodes_selection_heuristic(MinRank)
                           .into_flat(), verbose, threads)

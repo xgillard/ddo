@@ -166,7 +166,7 @@ mod test_minimize {
         // If we were to maximize this problem, the optimal would be 7,
         // and we would obtain it by taking decision x_i = 3 everytime.
         let pb = DummyPb;
-        let mdd= mdd_builder(&pb, MockRelax::default()).build();
+        let mdd= mdd_builder(pb, MockRelax::default()).build();
         let mut slv= ParallelSolver::new(mdd);
 
         let (opt, sln) = slv.maximize();
@@ -179,7 +179,7 @@ mod test_minimize {
         // ..but we are minimizing the problem, so the minimal value is 3
         // and we get it by deciding x_i = 1 at for every i.
         let pb = Minimize(DummyPb);
-        let mdd= mdd_builder(&pb, MockRelax::default()).build();
+        let mdd= mdd_builder(pb, MockRelax::default()).build();
         let mut slv= ParallelSolver::new(mdd);
 
         let (opt, sln) = slv.maximize();

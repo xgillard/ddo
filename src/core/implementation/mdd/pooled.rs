@@ -79,14 +79,14 @@ use crate::core::implementation::mdd::config::Config;
 /// let problem    = MockProblem;
 /// let relaxation = MockRelax;
 /// // Following line configure and builds a pooled mdd.
-/// let pooled_mdd = mdd_builder(&problem, relaxation).into_pooled();
+/// let pooled_mdd = mdd_builder(problem, relaxation).into_pooled();
 ///
 /// // Naturally, you can also provide configuration parameters to customize
 /// // the behavior of your MDD. For instance, you can use a custom max width
 /// // heuristic as follows (below, a fixed width)
 /// let problem    = MockProblem;
 /// let relaxation = MockRelax;
-/// let pooled_mdd = mdd_builder(&problem, relaxation)
+/// let pooled_mdd = mdd_builder(problem, relaxation)
 ///                 .with_max_width(FixedWidth(100))
 ///                 .into_pooled();
 /// ```
@@ -439,7 +439,7 @@ mod test_mdd {
     use crate::core::abstraction::dp::{Problem, Relaxation};
     use crate::core::abstraction::mdd::{MDD, MDDType};
     use crate::core::common::{Decision, Domain, Node, NodeInfo, Variable, VarSet};
-    use crate::core::implementation::mdd::builder::mdd_builder;
+    use crate::core::implementation::mdd::builder::mdd_builder_ref;
     use crate::core::implementation::mdd::pooled::PooledMDD;
     use crate::test_utils::{MockConfig, Nothing, ProxyMut};
     use crate::core::implementation::heuristics::FixedWidth;
@@ -507,7 +507,7 @@ mod test_mdd {
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.exact(&root, 0);
@@ -526,7 +526,7 @@ mod test_mdd {
     fn restricted_drops_the_less_interesting_nodes() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.restricted(&root, 0);
@@ -544,7 +544,7 @@ mod test_mdd {
     fn relaxed_merges_the_less_interesting_nodes() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.relaxed(&root, 0);
@@ -563,7 +563,7 @@ mod test_mdd {
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.relaxed(&root, 0);
@@ -577,7 +577,7 @@ mod test_mdd {
     fn foreach_cutset_node_iterates_over_cutset() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.relaxed(&root, 0);
@@ -610,7 +610,7 @@ mod test_mdd {
     fn consume_cutset_clears_the_cutset() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.relaxed(&root, 0);
@@ -629,7 +629,7 @@ mod test_mdd {
     fn an_exact_mdd_must_be_exact() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.exact(&root, 0);
@@ -639,7 +639,7 @@ mod test_mdd {
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(10)).into_pooled();
         let root = mdd.root();
 
         mdd.relaxed(&root, 0);
@@ -649,7 +649,7 @@ mod test_mdd {
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.relaxed(&root, 0);
@@ -659,7 +659,7 @@ mod test_mdd {
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(10)).into_pooled();
         let root = mdd.root();
 
         mdd.restricted(&root, 0);
@@ -670,7 +670,7 @@ mod test_mdd {
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
         let pb = DummyProblem;
         let rlx= DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.root();
 
         mdd.restricted(&root, 0);
@@ -696,7 +696,7 @@ mod test_mdd {
     fn when_the_problem_is_infeasible_there_is_no_best_node() {
         let pb      = DummyInfeasibleProblem;
         let rlx     = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).into_pooled();
         let root    = mdd.root();
 
         mdd.exact(&root, 0);
@@ -706,7 +706,7 @@ mod test_mdd {
     fn when_the_problem_is_infeasible_the_best_value_is_min_infinity() {
         let pb      = DummyInfeasibleProblem;
         let rlx     = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).into_pooled();
         let root    = mdd.root();
 
         mdd.exact(&root, 0);
@@ -716,7 +716,7 @@ mod test_mdd {
     fn when_the_problem_is_infeasible_the_longest_path_is_empty() {
         let pb      = DummyInfeasibleProblem;
         let rlx     = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).into_pooled();
         let root    = mdd.root();
 
         mdd.exact(&root, 0);
@@ -727,7 +727,7 @@ mod test_mdd {
     fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).into_pooled();
         let root    = mdd.root();
 
         mdd.exact(&root, 100);
@@ -737,7 +737,7 @@ mod test_mdd {
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).into_pooled();
         let root    = mdd.root();
 
         mdd.relaxed(&root, 100);
@@ -747,7 +747,7 @@ mod test_mdd {
     fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let mut mdd = mdd_builder(&pb, rlx).into_pooled();
+        let mut mdd = mdd_builder_ref(&pb, rlx).into_pooled();
         let root    = mdd.root();
 
         mdd.restricted(&root, 100);

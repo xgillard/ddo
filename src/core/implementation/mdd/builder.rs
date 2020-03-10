@@ -36,13 +36,14 @@ use crate::core::implementation::mdd::config::Config;
 use crate::core::implementation::mdd::flat::FlatMDD;
 use crate::core::implementation::mdd::pooled::PooledMDD;
 use std::marker::PhantomData;
+use std::borrow::Borrow;
 
 /// This is the structure used to build an MDD configuration. There is very little
 /// logic to it: it only uses the type system to adapt to its configurations and
 /// return a config which may be used efficiently (and stack allocated).
 /// Concretely, an MDD builder lets you specify all the parameters of a candidate
 /// configuration to build. Namely:
-///  + a reference to the problem (mandatory)
+///  + a problem (mandatory)
 ///  + a relaxation (mandatory)
 ///  + a load variable heuristic (Defaults to `FromLongestPath`)
 ///  + a variable selection heuristic (select the next var to branch on. Defaults to `NaturalOrder`.)
@@ -78,7 +79,7 @@ use std::marker::PhantomData;
 /// # }
 /// let problem = MockProblem;
 /// let relax   = MockRelax;
-/// let mdd     = mdd_builder(&problem, relax)
+/// let mdd     = mdd_builder(problem, relax)
 ///                  .with_max_width(FixedWidth(100))
 ///                  .build();
 /// ```
@@ -124,11 +125,12 @@ pub struct MDDBuilder<T, PB, RLX,
 /// # }
 /// let problem = MockProblem;
 /// let relax   = MockRelax;
-/// let mdd     = mdd_builder(&problem, relax)
+/// let mdd     = mdd_builder(problem, relax)
 ///                  .with_max_width(FixedWidth(100))
 ///                  .build();
 /// ```
-pub fn mdd_builder<T, PB: Problem<T>, RLX: Relaxation<T>>(pb: PB, rlx: RLX) -> MDDBuilder<T, PB, RLX> {
+pub fn mdd_builder<T, PB, RLX>(pb: PB, rlx: RLX) -> MDDBuilder<T, PB, RLX>
+    where PB: Problem<T>, RLX: Relaxation<T> {
     let lv = FromLongestPath::new(pb.all_vars());
     MDDBuilder {
         pb, rlx, lv,
@@ -138,6 +140,12 @@ pub fn mdd_builder<T, PB: Problem<T>, RLX: Relaxation<T>>(pb: PB, rlx: RLX) -> M
         _phantom: PhantomData
     }
 }
+
+pub fn mdd_builder_ref<T, PB, RLX>(pb: &PB, rlx: RLX) -> MDDBuilder<T, PbRef<&PB, PB>, RLX>
+    where PB: Problem<T>, RLX: Relaxation<T> {
+    mdd_builder(PbRef::new(pb), rlx)
+}
+
 
 /// The following methods define the behavior of an mdd builder.
 impl <T, PB, RLX, LV, VS, WIDTH, NS> MDDBuilder<T, PB, RLX, LV, VS, WIDTH, NS>
@@ -416,6 +424,94 @@ impl <T, PB, RLX, LV, VS, WIDTH, NS> MDDConfig<T, PB, RLX, LV, VS, WIDTH, NS>
     }
 }
 
+/// This structure provides typesafewrapper to turn a reference (a borrow) to
+/// some problem into something that actually implements the `Problem` trait.
+///
+/// Such a pbref may be created directly with a call to new  But these instances
+/// are typically built using a call to `mdd_builder_ref`.
+///
+/// # Example
+/// ```
+/// # use ddo::core::implementation::mdd::builder::mdd_builder_ref;
+/// # use ddo::core::abstraction::dp::{Problem, Relaxation};
+/// # use ddo::core::common::{Variable, VarSet, Domain, Decision, Node};
+/// # use ddo::core::implementation::heuristics::FixedWidth;
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #   fn nb_vars(&self)       -> usize { 0 }
+/// #   fn initial_state(&self) -> usize { 0 }
+/// #   fn initial_value(&self) -> i32   { 0 }
+/// #   fn domain_of<'a>(&self,state: &'a usize,var: Variable) -> Domain<'a> {
+/// #       (0..1).into()
+/// #   }
+/// #   fn transition(&self,state: &usize,vars: &VarSet,d: Decision)      -> usize { 0 }
+/// #   fn transition_cost(&self,state: &usize,vars: &VarSet,d: Decision) -> i32   { 0 }
+/// # }
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #    fn merge_nodes(&self, nodes: &[Node<usize>]) -> Node<usize> { nodes[0].clone() }
+/// # }
+/// let problem = MockProblem;
+/// let relax   = MockRelax;
+/// // This call creates an mdd configured with a configuration object that
+/// // holds a copy of PbRef to the actual problem object.
+/// let mdd     = mdd_builder_ref(&problem, relax)
+///                  .with_max_width(FixedWidth(100))
+///                  .build();
+/// // thus, the problem can still be used here.
+/// assert_eq!(0, problem.nb_vars());
+/// ```
+#[derive(Clone)]
+pub struct PbRef<X, P> {
+    reference: X,
+    _phantom : PhantomData<P>
+}
+impl <X, P> PbRef<X, P> {
+    /// This creates a new problem wrapper for the given reference.
+    pub fn new(x: X) -> Self {
+        PbRef {reference: x, _phantom: PhantomData}
+    }
+}
+impl <T, P, X> Problem<T> for PbRef<X, P>
+    where P: Problem<T>,
+          X: Borrow<P> {
+    fn nb_vars(&self) -> usize {
+        self.reference.borrow().nb_vars()
+    }
+
+    fn initial_state(&self) -> T {
+        self.reference.borrow().initial_state()
+    }
+
+    fn initial_value(&self) -> i32 {
+        self.reference.borrow().initial_value()
+    }
+
+    fn domain_of<'a>(&self, state: &'a T, var: Variable) -> Domain<'a> {
+        self.reference.borrow().domain_of(state, var)
+    }
+
+    fn transition(&self, state: &T, vars: &VarSet, d: Decision) -> T {
+        self.reference.borrow().transition(state, vars, d)
+    }
+
+    fn transition_cost(&self, state: &T, vars: &VarSet, d: Decision) -> i32 {
+        self.reference.borrow().transition_cost(state, vars, d)
+    }
+
+    fn impacted_by(&self, state: &T, variable: Variable) -> bool {
+        self.reference.borrow().impacted_by(state, variable)
+    }
+
+    fn root_node(&self) -> Node<T> {
+        self.reference.borrow().root_node()
+    }
+
+    fn all_vars(&self) -> VarSet {
+        self.reference.borrow().all_vars()
+    }
+}
+
 #[cfg(test)]
 mod test_config_builder {
     use std::sync::Arc;
@@ -425,7 +521,7 @@ mod test_config_builder {
     use crate::core::abstraction::dp::Problem;
     use crate::core::abstraction::mdd::MDD;
     use crate::core::common::{Decision, Edge, Layer, Node, NodeInfo, Variable, VarSet};
-    use crate::core::implementation::mdd::builder::mdd_builder;
+    use crate::core::implementation::mdd::builder::mdd_builder_ref;
     use crate::core::implementation::mdd::config::Config;
     use crate::test_utils::{MockLoadVars, MockMaxWidth, MockNodeSelectionHeuristic, MockProblem, MockRelax, MockVariableHeuristic, Nothing, Proxy};
 
@@ -434,7 +530,7 @@ mod test_config_builder {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
 
-        let config  = mdd_builder(&prob, relax).config();
+        let config  = mdd_builder_ref(&prob, relax).config();
         let _ = config.root_node();
         assert!(verify(prob.root_node.was_called_with(Nothing)));
     }
@@ -443,7 +539,7 @@ mod test_config_builder {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
 
-        let config  = mdd_builder(&prob, relax).config();
+        let config  = mdd_builder_ref(&prob, relax).config();
         let _ = config.impacted_by(&0, Variable(0));
         assert!(verify(prob.impacted_by.was_called_with((0, Variable(0)))));
 
@@ -457,7 +553,7 @@ mod test_config_builder {
 
         let lv     = MockLoadVars::default();
 
-        let mut config  = mdd_builder(&prob, relax).with_load_vars(Proxy::new(&lv)).config();
+        let mut config  = mdd_builder_ref(&prob, relax).with_load_vars(Proxy::new(&lv)).config();
         let node = Node::new(0, 0, None, true, false);
         config.load_vars(&node);
         assert!(verify(lv.variables.was_called_with(node.clone())));
@@ -471,7 +567,7 @@ mod test_config_builder {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
 
-        let config = mdd_builder(&prob, relax).config();
+        let config = mdd_builder_ref(&prob, relax).config();
         let _ = config.domain_of(&0, Variable(2));
         assert!(verify(prob.domain_of.was_called_with((0, Variable(2)))));
 
@@ -483,7 +579,7 @@ mod test_config_builder {
     fn nb_free_vars_defaults_to_all_vars() {
         let prob = MockProblem::default();
         let relax = MockRelax::default();
-        let config = mdd_builder(&prob, relax).config();
+        let config = mdd_builder_ref(&prob, relax).config();
 
         assert_eq!(5, config.nb_free_vars());
     }
@@ -491,7 +587,7 @@ mod test_config_builder {
     fn nb_free_vars_decreases_upon_remove() {
         let prob        = MockProblem::default();
         let relax       = MockRelax::default();
-        let mut config  = mdd_builder(&prob, relax).config();
+        let mut config  = mdd_builder_ref(&prob, relax).config();
 
         config.remove_var(Variable(3));
         assert_eq!(4, config.nb_free_vars());
@@ -500,7 +596,7 @@ mod test_config_builder {
     fn removed_var_cannot_be_selected_anymore() {
         let prob        = MockProblem::default();
         let relax       = MockRelax::default();
-        let mut config  = mdd_builder(&prob, relax).config();
+        let mut config  = mdd_builder_ref(&prob, relax).config();
 
         let data = vec![];
         let mut layer1 = Layer::Plain(data.iter());
@@ -524,7 +620,7 @@ mod test_config_builder {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
         let heu    = MockMaxWidth::default();
-        let mut config = mdd_builder(&prob, relax).with_max_width(Proxy::new(&heu)).config();
+        let mut config = mdd_builder_ref(&prob, relax).with_max_width(Proxy::new(&heu)).config();
 
         let mut vs = prob.all_vars();
         while ! vs.is_empty() {
@@ -543,7 +639,7 @@ mod test_config_builder {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
 
-        let config = mdd_builder(&prob, relax).config();
+        let config = mdd_builder_ref(&prob, relax).config();
 
         let varset  = VarSet::all(5);
         let state   = 0;
@@ -576,7 +672,7 @@ mod test_config_builder {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
 
-        let config = mdd_builder(&prob, relax).config();
+        let config = mdd_builder_ref(&prob, relax).config();
 
         let varset  = VarSet::all(5);
         let state   = 0;
@@ -609,7 +705,7 @@ mod test_config_builder {
     fn estimate_ub_is_a_pass_through_for_relaxation() {
         let prob    = MockProblem::default();
         let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let config  = mdd_builder_ref(&prob, Proxy::new(&relax)).config();
 
         let state   = 12;
         let info    = NodeInfo {is_exact: false, lp_len: 28, lp_arc: None, ub: 40, is_relaxed: true};
@@ -621,7 +717,7 @@ mod test_config_builder {
     fn merge_nodes_is_a_pass_through_for_relaxation_empty() {
         let prob    = MockProblem::default();
         let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let config  = mdd_builder_ref(&prob, Proxy::new(&relax)).config();
 
         let nodes = vec![];
         config.merge_nodes(&nodes);
@@ -632,7 +728,7 @@ mod test_config_builder {
     fn merge_nodes_is_a_pass_through_for_relaxation_nonempty() {
         let prob    = MockProblem::default();
         let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let config  = mdd_builder_ref(&prob, Proxy::new(&relax)).config();
 
         let nodes = vec![Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65, is_relaxed: true}}];
         config.merge_nodes(&nodes);
@@ -645,7 +741,7 @@ mod test_config_builder {
         let prob    = MockProblem::default();
         let relax   = MockRelax::default();
         let heu     = MockNodeSelectionHeuristic::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).with_nodes_selection_heuristic(Proxy::new(&heu)).config();
+        let config  = mdd_builder_ref(&prob, Proxy::new(&relax)).with_nodes_selection_heuristic(Proxy::new(&heu)).config();
 
         let node_a  = Node {state: 129, info: NodeInfo{is_exact: false, lp_len: 27, lp_arc: None, ub: 65, is_relaxed: false}};
         let node_b  = Node {state: 123, info: NodeInfo{is_exact: true,  lp_len: 24, lp_arc: None, ub: 99, is_relaxed: false}};
@@ -667,7 +763,7 @@ mod test_config_builder {
         let prob    = MockProblem::default();
         let relax   = MockRelax::default();
         let heu     = MockVariableHeuristic::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).with_branch_heuristic(Proxy::new(&heu)).config();
+        let config  = mdd_builder_ref(&prob, Proxy::new(&relax)).with_branch_heuristic(Proxy::new(&heu)).config();
 
         // empty
         let data = vec![];
@@ -690,7 +786,7 @@ mod test_config_builder {
     fn it_can_build_an_mdd() {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
-        let mdd    = mdd_builder(&prob, Proxy::new(&relax)).build();
+        let mdd    = mdd_builder_ref(&prob, Proxy::new(&relax)).build();
 
         assert_eq!(prob.root_node(), mdd.root())
     }
@@ -698,7 +794,7 @@ mod test_config_builder {
     fn it_can_build_a_flat_mdd() {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
-        let mdd    = mdd_builder(&prob, Proxy::new(&relax)).into_flat();
+        let mdd    = mdd_builder_ref(&prob, Proxy::new(&relax)).into_flat();
 
         assert_eq!(prob.root_node(), mdd.root())
     }
@@ -706,7 +802,15 @@ mod test_config_builder {
     fn it_can_build_a_pooled_mdd() {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
-        let mdd    = mdd_builder(&prob, Proxy::new(&relax)).into_pooled();
+        let mdd    = mdd_builder_ref(&prob, Proxy::new(&relax)).into_pooled();
+
+        assert_eq!(prob.root_node(), mdd.root())
+    }
+    #[test]
+    fn it_can_build_an_mdd_from_ref() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let mdd    = mdd_builder_ref(&prob, Proxy::new(&relax)).build();
 
         assert_eq!(prob.root_node(), mdd.root())
     }
