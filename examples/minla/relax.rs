@@ -83,10 +83,8 @@ impl <'a> Relaxation<State> for MinlaRelax<'a> {
 
         // cut weights in optimistic order
         let mut cut_lb = 0;
-        let mut dist = 0;
-        for cut in cuts {
-            cut_lb += dist * cut;
-            dist += 1;
+        for (dist, cut) in cuts.into_iter().enumerate() {
+            cut_lb += dist as i32 * cut;
         }
 
         info.lp_len - free_lb as i32 - cut_lb

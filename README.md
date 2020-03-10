@@ -121,7 +121,7 @@ fn main() {
         profit  : vec![60, 100, 120],
         weight  : vec![10,  20,  30]
     };
-    let mdd = mdd_builder(&problem, KPRelax).build();
+    let mdd = mdd_builder(problem, KPRelax).build();
     let mut solver = ParallelSolver::new(mdd);
     let (optimal, solution) = solver.maximize();
 

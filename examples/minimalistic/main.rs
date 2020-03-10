@@ -20,7 +20,7 @@
 use ddo::core::abstraction::dp::{Problem, Relaxation};
 use ddo::core::abstraction::solver::Solver;
 use ddo::core::common::{Decision, Domain, Node, Variable, VarSet};
-use ddo::core::implementation::mdd::builder::mdd_builder_ref;
+use ddo::core::implementation::mdd::builder::mdd_builder;
 use ddo::core::implementation::solver::parallel::ParallelSolver;
 
 /// Describe the binary knapsack problem in terms of a dynamic program.
@@ -80,7 +80,7 @@ fn main() {
         profit  : vec![60, 100, 120],
         weight  : vec![10,  20,  30]
     };
-    let mdd = mdd_builder_ref(&problem, KPRelax).build();
+    let mdd = mdd_builder(problem, KPRelax).build();
     let mut solver = ParallelSolver::new(mdd);
     let (optimal, solution) = solver.maximize();
 
