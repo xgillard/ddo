@@ -38,7 +38,10 @@ impl Problem<State> for Minla {
     }
 
     fn initial_state(&self) -> State {
-        State { free: BitSet::new(self.nb_vars()).not(), cut: vec![0; self.nb_vars()] }
+        State {
+            free: BitSet::new(self.nb_vars()).not(),
+            cut: vec![0; self.nb_vars()]
+        }
     }
 
     fn initial_value(&self) -> i32 {
@@ -47,11 +50,11 @@ impl Problem<State> for Minla {
 
     fn domain_of<'a>(&self, state: &'a State, var: Variable) -> Domain<'a> {
         if var.0 == 0 {
-            Domain::from(0..((self.nb_vars()-1) as i32))
+            (0..(self.nb_vars()-1)).into()
         } else if state.free.count_ones() == 0 { // relaxed node with empty free vertices intersection
-            Domain::from(vec![self.no_vertex() as i32])
+            vec![self.no_vertex()].into()
         } else {
-            Domain::from(&state.free)
+            state.free.into()
         }
     }
 
