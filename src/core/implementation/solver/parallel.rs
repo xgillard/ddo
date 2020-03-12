@@ -60,7 +60,15 @@ struct Critical<T> {
     best_lb  : i32,
     /// If set, this keeps the info about the best solution (the solution that
     /// yielded the `best_lb`, and from which `best_sol` derives).
-    best_node: Option<NodeInfo>
+    best_node: Option<NodeInfo>,
+    /// This vector is used to store the upper bound on the node which is
+    /// currently processed by each thread.
+    ///
+    /// # Note
+    /// When a thread is idle (or more generally when it is done with processing
+    /// it node), it should place the value i32::min_value() in its corresponding
+    /// cell.
+    upper_bounds: Vec<i32>
 }
 /// The state which is shared among the many running threads: it provides an
 /// access to the critical data (protected by a mutex) as well as a monitor
@@ -83,10 +91,11 @@ enum WorkLoad<T> {
     Starvation,
     /// The item to process
     WorkItem {
-        explored : usize,
-        fringe_sz: usize,
-        best_lb  : i32,
-        node     : Node<T>
+        explored   : usize,
+        fringe_sz  : usize,
+        best_lb    : i32,
+        current_ub : i32,
+        node       : Node<T>
     }
 }
 
@@ -224,11 +233,12 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
             shared: Arc::new(Shared {
                 monitor : Condvar::new(),
                 critical: Mutex::new(Critical {
-                    best_node: None,
-                    best_lb  : i32::min_value(),
-                    ongoing  : 0,
-                    explored : 0,
-                    fringe   : BinaryHeap::from_vec_cmp(vec![], MaxUB)
+                    best_node   : None,
+                    best_lb     : i32::min_value(),
+                    ongoing     : 0,
+                    explored    : 0,
+                    fringe      : BinaryHeap::from_vec_cmp(vec![], MaxUB),
+                    upper_bounds: vec![i32::min_value(); nb_threads]
                 })
             }),
             best_sol: None,
@@ -249,14 +259,14 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
     /// best lower bound from the critical data. Then it expands a restricted
     /// and possibly a relaxed mdd rooted in `node`. If that is necessary,
     /// it stores cutset nodes onto the fringe for further parallel processing.
-    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T>>, node: Node<T>) {
+    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T>>, node: Node<T>, thread_id: usize) {
         let mut best_lb = {shared.critical.lock().best_lb};
 
         // 1. RESTRICTION
         mdd.restricted(&node, best_lb);
         Self::maybe_update_best(mdd, shared);
         if mdd.is_exact() {
-            Self::notify_node_finished(shared);
+            Self::notify_node_finished(shared, thread_id);
             return;
         }
 
@@ -269,7 +279,7 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
             Self::enqueue_cutset(mdd, shared, node.info.ub);
         }
 
-        Self::notify_node_finished(shared);
+        Self::notify_node_finished(shared, thread_id);
     }
     /// This private method updates the shared best known node and lower bound in
     /// case the best value of the current `mdd` expansion improves the current
@@ -295,8 +305,10 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
         });
     }
     /// Acknowledges that a thread finished processing its node.
-    fn notify_node_finished(shared: &Arc<Shared<T>>) {
-        shared.critical.lock().ongoing -= 1;
+    fn notify_node_finished(shared: &Arc<Shared<T>>, thread_id: usize) {
+        let mut critical = shared.critical.lock();
+        critical.ongoing -= 1;
+        critical.upper_bounds[thread_id] = i32::min_value();
         shared.monitor.notify_all();
     }
     /// Consults the shared state to fetch a workload. Depending on the current
@@ -308,7 +320,7 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
     ///     and thus the problem cannot be considered solved).
     ///   + WorkItem, when the thread successfully obtained a subproblem to
     ///     process.
-    fn get_workload(shared: &Arc<Shared<T>>) -> WorkLoad<T> {
+    fn get_workload(shared: &Arc<Shared<T>>, thread_id: usize) -> WorkLoad<T> {
         let mut critical = shared.critical.lock();
         // Are we done ?
         if critical.ongoing == 0 && critical.fringe.is_empty() {
@@ -329,20 +341,22 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
         // Consume the current node and process it
         critical.ongoing += 1;
         critical.explored+= 1;
+        critical.upper_bounds[thread_id] = nn.info.ub;
 
         WorkLoad::WorkItem {
-            explored : critical.explored,
-            fringe_sz: critical.fringe.len(),
-            best_lb  : critical.best_lb,
-            node     : nn
+            explored  : critical.explored,
+            fringe_sz : critical.fringe.len(),
+            best_lb   : critical.best_lb,
+            current_ub: critical.upper_bounds.iter().cloned().max().unwrap(),
+            node      : nn
         }
     }
     /// Depending on the verbosity configuration and the number of nodes that
     /// have been processed, prints a message showing the current progress of
     /// the problem resolution.
-    fn maybe_log(verbosity: u8, explored: usize, fringe_sz: usize, lb: i32) {
+    fn maybe_log(verbosity: u8, explored: usize, fringe_sz: usize, lb: i32, ub: i32) {
         if verbosity >= 2 && explored % 100 == 0 {
-            println!("Explored {}, LB {}, Fringe sz {}", explored, lb, fringe_sz);
+            println!("Explored {}, LB {}, UB {}, Fringe sz {}", explored, lb, ub, fringe_sz);
         }
     }
 }
@@ -356,19 +370,19 @@ impl <T, DD> Solver for ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone 
         self.initialize();
 
         crossbeam::thread::scope(|s|{
-            for _i in 0..self.nb_threads {
+            for i in 0..self.nb_threads {
                 let shared    = Arc::clone(&self.shared);
                 let mut mdd   = self.mdd.clone();
                 let verbosity = self.verbosity;
 
                 s.spawn(move |_| {
                     loop {
-                        match Self::get_workload(&shared) {
+                        match Self::get_workload(&shared, i) {
                             WorkLoad::Complete   => break,
                             WorkLoad::Starvation => continue,
-                            WorkLoad::WorkItem {explored, fringe_sz, best_lb, node} => {
-                                Self::maybe_log(verbosity, explored, fringe_sz, best_lb);
-                                Self::process_one_node(&mut mdd, &shared, node);
+                            WorkLoad::WorkItem {explored, fringe_sz, best_lb, current_ub, node} => {
+                                Self::maybe_log(verbosity, explored, fringe_sz, best_lb, current_ub);
+                                Self::process_one_node(&mut mdd, &shared, node, i);
                             }
                         }
                     }
