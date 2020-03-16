@@ -333,7 +333,7 @@ impl <T, DD> ParallelSolver<T, DD> where T: Send, DD: MDD<T> + Clone + Send {
         }
         // Nothing relevant ? =>  Wait for someone to post jobs
         let nn = critical.fringe.pop().unwrap();
-        if nn.info.ub < critical.best_lb {
+        if nn.info.ub <= critical.best_lb {
             critical.fringe.clear();
             return WorkLoad::Starvation;
         }
