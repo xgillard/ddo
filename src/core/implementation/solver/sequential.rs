@@ -32,7 +32,7 @@ use crate::core::implementation::heuristics::MaxUB;
 ///
 /// # Example Usage
 /// ```
-/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 /// # use ddo::core::implementation::heuristics::FixedWidth;
 /// # use ddo::core::abstraction::dp::{Problem, Relaxation};
 /// # use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
@@ -61,7 +61,7 @@ use crate::core::implementation::heuristics::MaxUB;
 /// # }
 /// let problem    = MockProblem;
 /// let relaxation = MockRelax;
-/// let mdd        = mdd_builder(&problem, relaxation).build();
+/// let mdd        = mdd_builder_ref(&problem, relaxation).build();
 /// // the solver is created using an mdd.
 /// let mut solver = SequentialSolver::new(mdd);
 /// // val is the optimal value of the objective function,

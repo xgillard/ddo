@@ -38,7 +38,7 @@ use crate::core::common::{Variable, VarSet, Domain, Decision};
 ///
 /// # Example Usage
 /// ```
-/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 /// # use ddo::core::implementation::heuristics::FixedWidth;
 /// # use ddo::core::abstraction::dp::{Problem, Relaxation};
 /// # use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
@@ -70,7 +70,7 @@ use crate::core::common::{Variable, VarSet, Domain, Decision};
 /// # }
 /// let problem    = Minimize(MockProblem);
 /// let relaxation = MockRelax;
-/// let mdd        = mdd_builder(&problem, relaxation).build();
+/// let mdd        = mdd_builder_ref(&problem, relaxation).build();
 /// let mut solver = ParallelSolver::new(mdd);
 /// // val is the optimal value of the objective function. However, because
 /// // the signs of all transition costs and initial values have been flipped,

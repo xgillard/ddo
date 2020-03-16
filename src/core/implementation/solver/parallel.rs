@@ -103,7 +103,7 @@ enum WorkLoad<T> {
 ///
 /// # Example Usage
 /// ```
-/// # use ddo::core::implementation::mdd::builder::mdd_builder;
+/// # use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 /// # use ddo::core::implementation::heuristics::FixedWidth;
 /// # use ddo::core::abstraction::dp::{Problem, Relaxation};
 /// # use ddo::core::common::{Variable, Domain, VarSet, Decision, Node};
@@ -134,7 +134,7 @@ enum WorkLoad<T> {
 /// # }
 /// let problem    = MockProblem;
 /// let relaxation = MockRelax;
-/// let mdd        = mdd_builder(&problem, relaxation).build();
+/// let mdd        = mdd_builder_ref(&problem, relaxation).build();
 /// // the solver is created using an mdd. By default, it uses as many threads
 /// // as there are hardware threads on the machine.
 /// let mut solver = ParallelSolver::new(mdd);
