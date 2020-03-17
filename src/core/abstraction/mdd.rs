@@ -53,10 +53,6 @@ pub trait MDD<T> {
     /// version of the exact MDD.
     fn relaxed(&mut self, root: &Node<T>, best_lb : i32);
 
-    /// Iterates over the nodes from the cutset and applies the given function
-    /// `f` to each pair of `(state, node_info)` present in the cutset of this
-    /// MDD.
-    fn for_each_cutset_node<F>(&mut self, f: F) where F: FnMut(&T, &mut NodeInfo);
     /// Consumes (removes) all nodes from the cutset of this mdd ands applies
     /// the given function `f` to each pair of `(state, node_info)` present in
     /// this mdd.

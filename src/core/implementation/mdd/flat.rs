@@ -183,9 +183,6 @@ impl <T, C> MDD<T> for FlatMDD<T, C> where T: Hash + Eq + Clone, C: Config<T> {
         self.develop(Relaxed, root, best_lb);
     }
 
-    fn for_each_cutset_node<F>(&mut self, mut f: F) where F: FnMut(&T, &mut NodeInfo) {
-        layer![self, mut lel].iter_mut().for_each(|(k, v)| (f)(k, v))
-    }
     fn consume_cutset<F>(&mut self, mut f: F) where F: FnMut(T, NodeInfo) {
         layer![self, mut lel].drain().for_each(|(k, v)| (f)(k, v))
     }
@@ -594,39 +591,6 @@ mod test_mdd {
         mdd.consume_cutset(|s, i| cutset.push(Node { state: s, info: i }));
         assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
         assert!(cutset.iter().all(|n| n.info.is_exact));
-    }
-    #[test]
-    fn foreach_cutset_node_iterates_over_cutset() {
-        let pb = DummyProblem;
-        let rlx = DummyRelax;
-        let mut mdd = mdd_builder_ref(&pb, rlx).with_max_width(FixedWidth(1)).build();
-        let root = mdd.root();
-
-        mdd.relaxed(&root, 0);
-
-        let mut cutset = vec![];
-        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
-        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
-
-        cutset.clear();
-        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
-        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
-
-        cutset.clear();
-        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
-        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
-
-        cutset.clear();
-        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
-        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
-
-        cutset.clear();
-        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
-        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
-
-        cutset.clear();
-        mdd.for_each_cutset_node(|s, i| cutset.push(Node { state: *s, info: i.clone() }));
-        assert_eq!(cutset.len(), 5); // because both 1,1 and (0,2) yield same state
     }
     #[test]
     fn consume_cutset_clears_the_cutset() {
