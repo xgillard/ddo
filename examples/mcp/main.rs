@@ -64,7 +64,7 @@ fn main() {
 ///           description of the instance to solve
 /// width is the maximum allowed width of a layer.
 ///
-pub fn mcp(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) {
+pub fn mcp(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) -> i32 {
     let problem = File::open(fname).expect("File not found").into();
     match width {
         Some(max_width) => solve(mdd_builder_ref(&problem, McpRelax::new(&problem))
@@ -74,7 +74,7 @@ pub fn mcp(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize
                           .into_flat(), verbose, threads)
     }
 }
-fn solve<DD: MDD<McpState> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) {
+fn solve<DD: MDD<McpState> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) -> i32 {
     let threads    = threads.unwrap_or_else(num_cpus::get);
     let mut solver = ParallelSolver::customized(mdd, verbose, threads);
 
@@ -85,7 +85,8 @@ fn solve<DD: MDD<McpState> + Clone + Send>(mdd: DD, verbose: u8, threads: Option
     if verbose >= 1 {
         println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
     }
-    maybe_print_solution(verbose, sln)
+    maybe_print_solution(verbose, sln);
+    opt
 }
 fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
     if verbose >= 2 {
@@ -101,5 +102,65 @@ fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
     }
     if verbose >= 1 && sln.is_none() {
         println!("No solution !");
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use crate::mcp;
+
+    fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/tests/resources/mcp/")
+            .join(id)
+    }
+
+    fn solve_id(id: &str) -> i32 {
+        let fname = locate(id);
+        mcp(fname.to_str().unwrap(), 2, Some(1), Some(3))
+    }
+
+    #[test]
+    fn mcp_n30_p01_000() {
+        assert_eq!(solve_id("mcp_n30_p0.1_000.mcp"), 13);
+    }
+    #[test]
+    fn mcp_n30_p01_001() {
+        assert_eq!(solve_id("mcp_n30_p0.1_001.mcp"), 18);
+    }
+    #[test]
+    fn mcp_n30_p01_002() {
+        assert_eq!(solve_id("mcp_n30_p0.1_002.mcp"), 15);
+    }
+    #[test]
+    fn mcp_n30_p01_003() {
+        assert_eq!(solve_id("mcp_n30_p0.1_003.mcp"), 19);
+    }
+    #[test]
+    fn mcp_n30_p01_004() {
+        assert_eq!(solve_id("mcp_n30_p0.1_004.mcp"), 16);
+    }
+    #[test]
+    fn mcp_n30_p01_005() {
+        assert_eq!(solve_id("mcp_n30_p0.1_005.mcp"), 19);
+    }
+    #[test]
+    fn mcp_n30_p01_006() {
+        assert_eq!(solve_id("mcp_n30_p0.1_006.mcp"), 12);
+    }
+    #[test]
+    fn mcp_n30_p01_007() {
+        assert_eq!(solve_id("mcp_n30_p0.1_007.mcp"), 18);
+    }
+    #[test]
+    fn mcp_n30_p01_008() {
+        assert_eq!(solve_id("mcp_n30_p0.1_008.mcp"), 20);
+    }
+    #[test]
+    fn mcp_n30_p01_009() {
+        assert_eq!(solve_id("mcp_n30_p0.1_009.mcp"), 22);
     }
 }

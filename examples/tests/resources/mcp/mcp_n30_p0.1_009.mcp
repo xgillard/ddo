@@ -1,0 +1,50 @@
+c Pseudo-random Erdos-Renyi graph G(30, 0.1)
+c it was generated to NOT allow self loops
+c This graph has 30 vertices and 44 edges
+c 
+c Generated w/ graph_gen: https://github.com/xgillard/graph_gen
+30 44
+25 19 -1
+13 25 1
+10 22 1
+27 22 -1
+3 13 1
+7 18 1
+15 23 1
+12 4 1
+21 1 -1
+22 1 -1
+7 29 1
+4 25 -1
+5 13 1
+16 15 -1
+7 20 -1
+22 24 1
+26 12 1
+9 11 1
+18 9 1
+21 23 1
+26 19 1
+18 15 -1
+2 27 -1
+28 13 -1
+8 20 -1
+3 28 -1
+27 10 1
+2 15 1
+6 26 1
+13 19 1
+14 15 1
+7 9 -1
+20 11 -1
+19 18 -1
+28 10 1
+18 3 1
+9 1 1
+2 25 1
+30 17 1
+10 13 1
+18 17 1
+25 22 -1
+4 8 1
+30 8 -1

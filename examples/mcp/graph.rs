@@ -57,6 +57,9 @@ impl Graph {
             if line.is_empty() {
                 continue;
             }
+            if line.starts_with("c ") {
+                continue;
+            }
 
             if let Some(caps) = graph.captures(&line) {
                 result = Graph::new(caps["vars"].to_string().parse::<usize>().unwrap());

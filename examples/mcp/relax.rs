@@ -54,6 +54,7 @@ impl McpRelax<'_> {
 
     const POSITIVE: u8 = 1;
     const NEGATIVE: u8 = 2;
+    const BOTH    : u8 = McpRelax::POSITIVE + McpRelax::NEGATIVE;
 
     fn merge_states(&self, nodes: &[Node<McpState>]) -> McpState {
         let mut data = vec![0; self.pb.nb_vars()];
@@ -104,7 +105,7 @@ impl McpRelax<'_> {
             }
 
             // short circuit
-            if signs > 0 { return signs; }
+            if signs == McpRelax::BOTH { return signs; }
         }
         signs
     }
