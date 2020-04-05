@@ -89,7 +89,7 @@ impl McpRelax<'_> {
     fn merge_substates(&self, v: Variable, nodes: &[Node<McpState>]) -> i32 {
         match self.substate_signs(v, nodes) {
             McpRelax::POSITIVE =>  self.minimum_substate(v, nodes),              // min( u_l )
-            McpRelax::NEGATIVE => -self.minimum_abs_value_of_substate(v, nodes), // min(|u_l|)
+            McpRelax::NEGATIVE => -self.minimum_abs_value_of_substate(v, nodes), //-min(|u_l|)
             _ => 0 // otherwise
         }
     }

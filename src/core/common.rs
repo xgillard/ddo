@@ -366,10 +366,21 @@ impl NodeInfo {
         if  self.lp_len < other.lp_len {
             self.lp_len = other.lp_len;
             self.lp_arc = other.lp_arc;
+            // This is a more aggressive approach:
+            // it is the node having the *best* path that imposes its relaxedness
+            // to the other.
+            // This is safe and correct to do, because if the best path is exact
+            // and the node having that best path is exact too, we are sure that
+            // the longest path belongs to the exact mdd.
+            self.is_relaxed = other.is_relaxed;
         }
         self.ub = self.ub.min(other.ub);
-        self.is_exact   &= other.is_exact;
-        self.is_relaxed &= other.is_relaxed;
+        self.is_exact &= other.is_exact;
+
+        // This is the conservative option:
+        // if either of the two nodes is relaxed, then the merged one is also
+        // considered to be a relaxed node.
+        //self.is_relaxed |= other.is_relaxed;
     }
 
     /// Returns the longest path (sequence of decisions) from the root of the

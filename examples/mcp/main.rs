@@ -120,7 +120,12 @@ mod tests {
 
     fn solve_id(id: &str) -> i32 {
         let fname = locate(id);
-        mcp(fname.to_str().unwrap(), 2, Some(1), Some(3))
+        mcp(fname.to_str().unwrap(), 2, Some(1), Some(30_000_000))
+        //mcp(fname.to_str().unwrap(), 2, Some(1), Some(1_000))
+        //mcp(fname.to_str().unwrap(), 2, Some(1), Some(500))
+        //mcp(fname.to_str().unwrap(), 2, Some(1), Some(30))
+        //mcp(fname.to_str().unwrap(), 2, Some(1), Some(3))
+        //mcp(fname.to_str().unwrap(), 2, Some(1), Some(2))
     }
 
     #[test]
