@@ -1,6 +1,6 @@
 [package]
 name          = "ddo"
-version       = "0.2.0"
+version       = "0.2.1"
 authors       = ["Xavier Gillard <xavier.gillard@uclouvain.be>"]
 edition       = "2018"
 description   = "DDO a generic and efficient framework for MDD-based  optimization."
