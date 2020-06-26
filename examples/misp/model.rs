@@ -23,8 +23,8 @@ use std::ops::Not;
 
 use bitset_fixed::BitSet;
 
-use ddo::core::abstraction::dp::Problem;
-use ddo::core::common::{Decision, Variable, VarSet, Domain};
+use ddo::abstraction::dp::Problem;
+use ddo::common::{Decision, Domain, Variable, VarSet};
 
 use crate::instance::Graph;
 
@@ -40,8 +40,8 @@ impl Misp {
     }
 }
 
-const YES_NO : [i32; 2] = [1, 0];
-const NO    : [i32; 1] = [0];
+const YES_NO : [isize; 2] = [1, 0];
+const NO     : [isize; 1] = [0];
 
 impl Problem<BitSet> for Misp {
     fn nb_vars(&self) -> usize {
@@ -52,7 +52,7 @@ impl Problem<BitSet> for Misp {
         BitSet::new(self.graph.nb_vars).not()
     }
 
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         0
     }
 
@@ -72,7 +72,7 @@ impl Problem<BitSet> for Misp {
         bs
     }
 
-    fn transition_cost(&self, _state: &BitSet, _vars: &VarSet, d: Decision) -> i32 {
+    fn transition_cost(&self, _state: &BitSet, _vars: &VarSet, d: Decision) -> isize {
         if d.value == 0 {
             0
         } else {
@@ -80,8 +80,8 @@ impl Problem<BitSet> for Misp {
         }
     }
 
-    fn impacted_by(&self, state: &BitSet, variable: Variable) -> bool {
-        state[variable.0]
+    fn impacted_by(&self, state: &BitSet, var: Variable) -> bool {
+        state[var.id()]
     }
 }
 impl From<File> for Misp {

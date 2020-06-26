@@ -17,25 +17,26 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use ddo::core::abstraction::dp::Problem;
-use ddo::core::common::{Decision, Domain, Variable, VarSet};
 use std::cmp::{max, min};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
+
+use ddo::abstraction::dp::Problem;
+use ddo::common::{Decision, Domain, Variable, VarSet};
 
 use crate::graph::Graph;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct McpState {
-    pub benef  : Vec<i32>,
+    pub benef  : Vec<isize>,
     pub initial: bool
 }
 
 // Define a few constants to improve readability
-const S      : i32 = 1;
-const T      : i32 =-1;
-const ONLY_S : [i32; 1] = [S];
-const BOTH_ST: [i32; 2] = [S, T];
+const S      : isize = 1;
+const T      : isize =-1;
+const ONLY_S : [isize; 1] = [S];
+const BOTH_ST: [isize; 2] = [S, T];
 
 #[derive(Debug, Clone)]
 pub struct Mcp {
@@ -53,7 +54,7 @@ impl Problem<McpState> for Mcp {
         McpState {initial: true, benef: vec![0; self.nb_vars()]}
     }
 
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         self.graph.sum_of_negative_edges()
     }
 
@@ -69,7 +70,7 @@ impl Problem<McpState> for Mcp {
         McpState {initial: false, benef: benefits}
     }
 
-    fn transition_cost(&self, state: &McpState, vars: &VarSet, d: Decision) -> i32 {
+    fn transition_cost(&self, state: &McpState, vars: &VarSet, d: Decision) -> isize {
         match d.value {
             S => if state.initial { 0 } else { self.branch_on_s(state, vars, d) },
             T => if state.initial { 0 } else { self.branch_on_t(state, vars, d) },
@@ -79,7 +80,7 @@ impl Problem<McpState> for Mcp {
 }
 // private methods
 impl Mcp {
-    fn branch_on_s(&self, state: &McpState, vars: &VarSet, d: Decision) -> i32 {
+    fn branch_on_s(&self, state: &McpState, vars: &VarSet, d: Decision) -> isize {
         // The \( (- s^k_k)^+ \) component
         let res = max(0, -state.benef[d.variable.id()]);
         // The \( \sum_{l > k, s^k_l w_{kl} \le 0} \min\left\{ |s^k_l|, |w_{kl}| \right\} \)
@@ -92,7 +93,7 @@ impl Mcp {
         }
         res + sum
     }
-    fn branch_on_t(&self, state: &McpState, vars: &VarSet, d: Decision) -> i32 {
+    fn branch_on_t(&self, state: &McpState, vars: &VarSet, d: Decision) -> isize {
         // The \( (s^k_k)^+ \) component
         let res = max(0, state.benef[d.variable.id()]);
         // The \( \sum_{l > k, s^k_l w_{kl} \le 0} \min\left\{ |s^k_l|, |w_{kl}| \right\} \)

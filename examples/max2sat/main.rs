@@ -17,106 +17,60 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-extern crate structopt;
 use std::fs::File;
-
-use ddo::core::common::Decision;
-use ddo::core::abstraction::mdd::MDD;
-use ddo::core::abstraction::solver::Solver;
-use ddo::core::implementation::solver::parallel::ParallelSolver;
-use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder_ref;
 use std::time::SystemTime;
+
 use structopt::StructOpt;
+
+use ddo::abstraction::solver::Solver;
+use ddo::implementation::mdd::config::mdd_builder;
+use ddo::implementation::solver::parallel::ParallelSolver;
+
+use crate::heuristics::{Max2SatOrder, MinRank};
+use crate::relax::Max2SatRelax;
 
 mod instance;
 mod model;
 mod relax;
 mod heuristics;
 
-use heuristics::{Max2SatOrder, MinRank};
-use model::State;
-use relax::Max2SatRelax;
-
 #[derive(StructOpt)]
-/// Solve weighed max2sat from DIMACS (.wcnf) files
-struct Max2sat {
-    /// Path to the DIMACS MAX2SAT instance
-    fname: String,
-    /// Log the progression
-    #[structopt(short, long, parse(from_occurrences))]
-    verbose: u8,
-    /// The number of threads to use (default: number of physical threads on this machine)
+pub struct Args {
+    pub fname: String,
     #[structopt(name="threads", short, long)]
     threads: Option<usize>,
-    /// If specified, the max width allowed for any layer
-    #[structopt(name="width", short, long)]
-    width: Option<usize>
+}
+
+
+fn max2sat(fname: &str, threads: Option<usize>) -> isize {
+    let threads   = threads.unwrap_or_else(num_cpus::get);
+    let problem   = File::open(fname).expect("file not found").into();
+    let relax     = Max2SatRelax::new(&problem);
+    let mdd       = mdd_builder(&problem, relax)
+        .with_branch_heuristic(Max2SatOrder::new(&problem))
+        .with_nodes_selection_heuristic(MinRank)
+        .into_deep();
+
+    let solver = ParallelSolver::customized(mdd, 2, threads);
+    let start  = SystemTime::now();
+    let opt    = solver.maximize().0;
+    let end    = SystemTime::now();
+    println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
+    opt
 }
 
 fn main() {
-    let args = Max2sat::from_args();
-    max2sat(&args.fname, args.verbose, args.threads, args.width);
-}
+    let args  = Args::from_args();
+    let value = max2sat(&args.fname, args.threads);
 
-
-/// Solves the given max2sat instance with fixed width mdds
-///
-/// # Arguments
-///
-/// fname is the path name of some dimacs .wcnf file holding
-///           description of the instance to solve
-/// width is the maximum allowed width of a layer.
-///
-fn max2sat(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) -> i32 {
-    let problem = File::open(fname).expect("File not found").into();
-    match width {
-        Some(max_width) => solve(mdd_builder_ref(&problem, Max2SatRelax::new(&problem))
-                          .with_branch_heuristic(Max2SatOrder::new(&problem))
-                          .with_nodes_selection_heuristic(MinRank)
-                          .with_max_width(FixedWidth(max_width))
-                          .into_flat(), verbose, threads),
-        None => solve(mdd_builder_ref(&problem, Max2SatRelax::new(&problem))
-                          .with_branch_heuristic(Max2SatOrder::new(&problem))
-                          .with_nodes_selection_heuristic(MinRank)
-                          .into_flat(), verbose, threads)
-    }
-}
-fn solve<DD: MDD<State> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) -> i32 {
-    let threads    = threads.unwrap_or_else(num_cpus::get);
-    let mut solver = ParallelSolver::customized(mdd, verbose, threads);
-
-    let start = SystemTime::now();
-    let (opt, sln) = solver.maximize();
-    let end = SystemTime::now();
-
-    if verbose >= 1 {
-        println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
-    }
-    maybe_print_solution(verbose, sln);
-    opt
-}
-fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
-    if verbose >= 2 {
-        println!("### Solution: ################################################");
-        if let Some(sln) = sln {
-            let mut sln = sln.clone();
-            sln.sort_by_key(|d| d.variable.0);
-            let solution_txt = sln.iter()
-                .fold(String::new(), |a, i| format!("{} {}", a, (i.variable.0 + 1) as i32 * i.value));
-
-            println!("{}", solution_txt);
-        }
-    }
-    if verbose >= 1 && sln.is_none() {
-        println!("No solution !");
-    }
+    println!("best value = {}", value);
 }
 
 
 #[cfg(test)]
 mod test_max2sat {
     use std::path::PathBuf;
+
     use crate::max2sat;
 
     fn locate(id: &str) -> PathBuf {
@@ -126,9 +80,9 @@ mod test_max2sat {
             .join(id)
     }
 
-    fn solve_id(id: &str) -> i32 {
+    fn solve_id(id: &str) -> isize {
         let fname = locate(id);
-        max2sat(fname.to_str().unwrap(), 0, None, Some(5))
+        max2sat(fname.to_str().unwrap(), None)
     }
 
     #[test]

@@ -17,109 +17,61 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-extern crate structopt;
-
-use bitset_fixed::BitSet;
-use ddo::core::abstraction::mdd::MDD;
-use ddo::core::abstraction::solver::Solver;
-use ddo::core::common::Decision;
-use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder_ref;
-use ddo::core::implementation::solver::parallel::ParallelSolver;
-use ddo::core::utils::Func;
 use std::fs::File;
 use std::time::SystemTime;
+
 use structopt::StructOpt;
+
+use ddo::abstraction::solver::Solver;
+use ddo::implementation::mdd::config::mdd_builder;
+use ddo::implementation::solver::parallel::ParallelSolver;
+
+use crate::heuristics::{MispVarHeu, VarsFromMispState};
+use crate::relax::MispRelax;
 
 mod instance;
 mod model;
 mod relax;
 mod heuristics;
 
-use heuristics::{MispVarHeu, vars_from_misp_state};
-use relax::MispRelax;
-
-/// Solve maximum weighted independent set problem from DIMACS (.clq) files
 #[derive(StructOpt)]
-struct Misp {
-    /// Path to the DIMACS MSIP instance
-    fname: String,
-    /// Log the progression
-    #[structopt(short, long, parse(from_occurrences))]
-    verbose: u8,
-    /// The number of threads to use (default: number of physical threads on this machine)
+pub struct Args {
+    pub fname: String,
     #[structopt(name="threads", short, long)]
     threads: Option<usize>,
-    /// If specified, the max width allowed for any layer
-    #[structopt(name="width", short, long)]
-    width: Option<usize>
+}
+
+fn misp(fname: &str, threads: Option<usize>) -> isize {
+    let threads   = threads.unwrap_or_else(num_cpus::get);
+    let problem   = File::open(fname).expect("file not found").into();
+    let relax     = MispRelax::new(&problem);
+    let mdd       = mdd_builder(&problem, relax)
+        .with_load_vars(VarsFromMispState)
+        .with_branch_heuristic(MispVarHeu::new(&problem))
+        .into_deep();
+    let solver    = ParallelSolver::customized(mdd, 2, threads);
+
+    let start = SystemTime::now();
+    let opt   = solver.maximize().0;
+    let end   = SystemTime::now();
+    println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
+    opt
 }
 
 fn main() {
-    let args = Misp::from_args();
-    misp(&args.fname, args.verbose, args.threads, args.width);
+    let args  = Args::from_args();
+    let value = misp(&args.fname, args.threads);
+
+    println!("best value = {}", value);
 }
 
-/// Solves the given misp instance with fixed width mdds
-///
-/// # Arguments
-///
-/// fname is the path name of some dimacs .clq file holding graph
-///           description of the instance to solve
-/// width is the maximum allowed width of a layer.
-///
-pub fn misp(fname: &str, verbose: u8, threads: Option<usize>, width:Option<usize>) -> i32 {
-    let misp = File::open(fname).expect("File not found").into();
-    match width {
-        Some(max_size) => solve(mdd_builder_ref(&misp, MispRelax::new(&misp))
-            .with_load_vars(Func(vars_from_misp_state))
-            .with_max_width(FixedWidth(max_size))
-            .with_branch_heuristic(MispVarHeu::new(&misp))
-            .into_pooled(), verbose, threads),
 
-        None => solve(mdd_builder_ref(&misp, MispRelax::new(&misp))
-            .with_load_vars(Func(vars_from_misp_state))
-            .with_branch_heuristic(MispVarHeu::new(&misp))
-            .into_pooled(), verbose, threads)
-    }
-}
-fn solve<DD: MDD<BitSet> + Clone + Send>(mdd: DD, verbose: u8, threads: Option<usize>) -> i32 {
-    let threads    = threads.unwrap_or_else(num_cpus::get);
-    let mut solver = ParallelSolver::customized(mdd, verbose, threads);
-
-    let start = SystemTime::now();
-    let (opt, sln) = solver.maximize();
-    let end = SystemTime::now();
-
-    if verbose >= 1 {
-        println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
-    }
-    maybe_print_misp_solution(verbose, sln);
-    opt
-}
-fn maybe_print_misp_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
-    if verbose >= 2 {
-        println!("### Solution: ################################################");
-        if let Some(sln) = sln {
-            let mut sln = sln.clone();
-            sln.sort_by_key(|d| d.variable.0);
-            let solution_txt = sln.iter()
-                .filter(|&d|d.value == 1)
-                .fold(String::new(), |a, i| format!("{} {}", a, i.variable.0 + 1));
-
-            println!("{}", solution_txt);
-        }
-    }
-    if verbose >= 1 && sln.is_none() {
-        println!("No solution !");
-    }
-}
 
 #[cfg(test)]
 mod test_misp {
     use std::path::PathBuf;
-    use crate::misp;
 
+    use crate::misp;
 
     fn locate(id: &str) -> PathBuf {
         PathBuf::new()
@@ -128,9 +80,9 @@ mod test_misp {
             .join(id)
     }
 
-    fn solve_id(id: &str) -> i32 {
+    fn solve_id(id: &str) -> isize {
         let fname = locate(id);
-        misp(fname.to_str().unwrap(), 0, None, Some(100))
+        misp(fname.to_str().unwrap(), None)
     }
 
     /// This test takes > 60s to solve on my machine

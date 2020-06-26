@@ -17,9 +17,10 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use ddo::core::abstraction::dp::{Problem, Relaxation};
-use ddo::core::common::{Node, NodeInfo, VarSet};
 use std::cmp::min;
+
+use ddo::abstraction::dp::{Problem, Relaxation};
+use ddo::common::{Decision, VarSet};
 
 use crate::model::{Max2Sat, State};
 
@@ -36,20 +37,18 @@ impl <'a> Max2SatRelax<'a> {
 }
 
 impl Relaxation<State> for Max2SatRelax<'_> {
-    fn merge_nodes(&self, nodes: &[Node<State>]) -> Node<State> {
-        let mut benefits      = vec![0; self.problem.nb_vars()];
-        let mut relaxed_costs = nodes.iter()
-                                     .map(|n| n.info.lp_len)
-                                     .collect::<Vec<i32>>();
+    fn merge_states(&self, states: &mut dyn Iterator<Item=&State>) -> State {
+        let states       = states.collect::<Vec<&State>>();
+        let mut benefits = vec![0; self.problem.nb_vars()];
 
         // Compute the merged state and relax the best edges costs
         for v in self.vars.iter() {
-            let mut sign      = 0;
-            let mut min_benef = i32::max_value();
-            let mut same      = true;
+            let mut sign = 0;
+            let mut min_benef = isize::max_value();
+            let mut same = true;
 
-            for node in nodes.iter() {
-                let substate = node.state[v];
+            for state in states.iter() {
+                let substate = state[v];
                 min_benef = min(min_benef, substate.abs());
 
                 if sign == 0 && substate != 0 {
@@ -63,32 +62,15 @@ impl Relaxation<State> for Max2SatRelax<'_> {
             if same {
                 benefits[v.0] = sign * min_benef;
             }
-
-            for j in 0..nodes.len() {
-                relaxed_costs[j] += nodes[j].state[v].abs() - benefits[v.0].abs();
-            }
         }
 
-        // Find the best info
-        let mut best    = 0;
-        let mut longest = i32::min_value();
-
-        for (j, relaxed) in relaxed_costs.iter().cloned().enumerate() {
-            if relaxed > longest {
-                best    = j;
-                longest = relaxed;
-            }
+        State{substates: benefits}
+    }
+    fn relax_edge(&self, _: &State, dst: &State, relaxed: &State, _: Decision, cost: isize) -> isize {
+        let mut relaxed_cost = cost;
+        for v in self.vars.iter() {
+            relaxed_cost += dst[v].abs() - relaxed[v].abs();
         }
-
-        let merged_state  = State {substates: benefits};
-        let merged_infos  = NodeInfo {
-            is_exact   : false,
-            lp_len     : longest,
-            lp_arc     : nodes[best].info.lp_arc.clone(),
-            ub         : nodes[best].info.ub,
-            is_relaxed : true
-        };
-
-        Node{state: merged_state, info: merged_infos}
+        relaxed_cost
     }
 }

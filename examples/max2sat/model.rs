@@ -17,44 +17,45 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use ddo::core::abstraction::dp::Problem;
-use ddo::core::common::{Decision, Domain, Variable, VarSet};
 use std::cmp::{max, min, Ordering};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
 use std::ops::{Index, IndexMut};
 
+use ddo::abstraction::dp::Problem;
+use ddo::common::{Decision, Domain, Variable, VarSet};
+
 use crate::instance::Weighed2Sat;
 
-const T  : i32      = 1;
-const F  : i32      =-1;
-const TF : [i32; 2] = [T, F];
+const T  : isize      = 1;
+const F  : isize      =-1;
+const TF : [isize; 2] = [T, F];
 
-const fn v (x: Variable) -> i32 { 1 + x.0 as i32}
-const fn t (x: Variable) -> i32 { v(x) }
-const fn f (x: Variable) -> i32 {-v(x) }
-fn pos(x: i32) -> i32 { max(0, x) }
+const fn v (x: Variable) -> isize { 1 + x.0 as isize}
+const fn t (x: Variable) -> isize { v(x) }
+const fn f (x: Variable) -> isize {-v(x) }
+fn pos(x: isize) -> isize { max(0, x) }
 
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct State {
-    pub substates: Vec<i32>
+    pub substates: Vec<isize>
 }
 
 impl Index<Variable> for State {
-    type Output = i32;
+    type Output = isize;
 
-    fn index(&self, index: Variable) -> &i32 {
+    fn index(&self, index: Variable) -> &isize {
         self.substates.get(index.0).unwrap()
     }
 }
 impl IndexMut<Variable> for State {
-    fn index_mut(&mut self, index: Variable) -> &mut i32 {
+    fn index_mut(&mut self, index: Variable) -> &mut isize {
         self.substates.get_mut(index.0).unwrap()
     }
 }
 impl State {
-    pub fn rank(&self) -> i32 {
+    pub fn rank(&self) -> isize {
         self.substates.iter().map(|x| x.abs()).sum()
     }
 }
@@ -72,15 +73,15 @@ impl PartialOrd for State {
 #[derive(Debug, Clone)]
 pub struct Max2Sat {
     pub nb_vars : usize,
-    pub initial : i32,
-    pub weights : Vec<i32>,
-    pub sum_of_clause_weights: Vec<i32>
+    pub initial : isize,
+    pub weights : Vec<isize>,
+    pub sum_of_clause_weights: Vec<isize>
 }
 
-const fn idx(x: i32) -> usize {
+const fn idx(x: isize) -> usize {
     (x.abs() - 1) as usize
 }
-fn mk_lit(x: i32) -> usize {
+fn mk_lit(x: isize) -> usize {
     let sign = if x > 0 { 1 } else { 0 };
     let abs  = (x.abs() - 1) as usize;
 
@@ -112,11 +113,11 @@ impl Max2Sat {
         ret
     }
 
-    pub fn weight(&self, x: i32, y: i32) -> i32 {
+    pub fn weight(&self, x: isize, y: isize) -> isize {
         self.weights[self.offset(x, y)]
     }
 
-    fn offset(&self, x: i32, y: i32) -> usize {
+    fn offset(&self, x: isize, y: isize) -> usize {
         let a = x.min(y);
         let b = x.max(y);
 
@@ -134,7 +135,7 @@ impl Problem<State> for Max2Sat {
         State{substates: vec![0; self.nb_vars()]}
     }
 
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         // sum of all tautologies
         self.initial
     }
@@ -159,7 +160,7 @@ impl Problem<State> for Max2Sat {
         ret
     }
 
-    fn transition_cost(&self, state: &State, vars: &VarSet, d: Decision) -> i32 {
+    fn transition_cost(&self, state: &State, vars: &VarSet, d: Decision) -> isize {
         let k = d.variable;
         if d.value == F {
             let res = pos(-state[k]);
@@ -215,10 +216,10 @@ impl <B: BufRead> From<Lines<B>> for Max2Sat {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use std::path::PathBuf;
     use std::fs::File;
+    use std::path::PathBuf;
+
+    use super::*;
 
     #[test]
     fn test_index_state() {
@@ -258,19 +259,19 @@ mod tests {
         let problem    = instance(id);
 
         let mut vars   = problem.all_vars();
-        let root       = problem.root_node();
+        let root       = problem.initial_state();
         let expected = State{substates: vec![0, 0, 0]};
-        assert_eq!(expected, root.state);
+        assert_eq!(expected, root);
 
         vars.remove(Variable(0));
         let dec_f      = Decision{variable: Variable(0), value: F};
-        let nod_f      = problem.transition(&root.state, &vars, dec_f);
+        let nod_f      = problem.transition(&root, &vars, dec_f);
 
         let expected = State{substates: vec![0,-4, 3]};
         assert_eq!(expected, nod_f);
 
         let dec_t      = Decision{variable: Variable(0), value: 1};
-        let nod_t     = problem.transition(&root.state, &vars, dec_t);
+        let nod_t     = problem.transition(&root, &vars, dec_t);
         let expected = State{substates: vec![0, 0, 0]};
         assert_eq!(expected, nod_t);
     }

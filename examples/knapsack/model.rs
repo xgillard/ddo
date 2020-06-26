@@ -17,12 +17,17 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use ddo::core::abstraction::dp::Problem;
-use ddo::core::common::{Decision, Domain, Variable, VarSet};
-use regex::Regex;
 use std::cmp::min;
+use std::cmp::Ordering::Equal;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
+
+use regex::Regex;
+use bitset_fixed::BitSet;
+
+use ddo::common::{Decision, Domain, Variable, VarSet};
+use ddo::abstraction::dp::{Problem, Relaxation};
+use ddo::abstraction::heuristics::VariableHeuristic;
 
 #[derive(Debug, Clone)]
 pub struct ItemData {
@@ -52,13 +57,13 @@ impl Problem<KnapsackState> for Knapsack {
         KnapsackState{capacity: self.capacity, free_vars: self.all_vars()}
     }
 
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         0
     }
 
     fn domain_of<'a>(&self, state: &'a KnapsackState, var: Variable) -> Domain<'a> {
         let item       = &self.data[var.id()];
-        let amount_max = min(item.quantity, state.capacity / item.weight) as i32;
+        let amount_max = min(item.quantity, state.capacity / item.weight) as isize;
         (0..=amount_max).into()
     }
 
@@ -72,10 +77,10 @@ impl Problem<KnapsackState> for Knapsack {
         next
     }
 
-    fn transition_cost(&self, _state: &KnapsackState, _vars: &VarSet, d: Decision) -> i32 {
+    fn transition_cost(&self, _state: &KnapsackState, _vars: &VarSet, d: Decision) -> isize {
         let item = &self.data[d.variable.id()];
 
-        item.profit as i32 * d.value
+        item.profit as isize * d.value
     }
 }
 impl <B: BufRead> From<Lines<B>> for Knapsack {
@@ -128,5 +133,66 @@ impl <S: Read> From<BufReader<S>> for Knapsack {
 impl From<File> for Knapsack {
     fn from(f: File) -> Knapsack {
         BufReader::new(f).into()
+    }
+}
+
+
+
+#[derive(Clone)]
+pub struct KnapsackOrder<'a> {
+    pb: &'a Knapsack
+}
+impl <'a> KnapsackOrder<'a> {
+    pub fn new(pb: &'a Knapsack) -> Self {
+        KnapsackOrder{pb}
+    }
+}
+impl VariableHeuristic<KnapsackState> for KnapsackOrder<'_> {
+    fn next_var(&self,
+                free_vars: &VarSet,
+                _: &mut dyn Iterator<Item=&KnapsackState>,
+                _: &mut dyn Iterator<Item=&KnapsackState>) -> Option<Variable>
+    {
+        free_vars.iter().max_by(|x, y| {
+            let ix = &self.pb.data[x.id()];
+            let kx = ix.profit as f32 / ix.weight as f32;
+
+            let iy = &self.pb.data[y.id()];
+            let ky = iy.profit as f32 / iy.weight as f32;
+
+            kx.partial_cmp(&ky).unwrap_or(Equal)
+        })
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct KnapsackRelax<'a> {
+    pb: &'a Knapsack
+}
+impl <'a> KnapsackRelax<'a> {
+    pub fn new(pb: &'a Knapsack) -> Self { KnapsackRelax {pb} }
+}
+impl Relaxation<KnapsackState> for KnapsackRelax<'_> {
+    fn merge_states(&self, states: &mut dyn Iterator<Item=&KnapsackState>) -> KnapsackState {
+        let mut capacity  = 0;
+        let mut free_vars = BitSet::new(self.pb.nb_vars());
+
+        for state in states {
+            free_vars |= &state.free_vars.0;
+            capacity   = capacity.max(state.capacity);
+        }
+
+        KnapsackState {capacity, free_vars: VarSet(free_vars)}
+    }
+    fn relax_edge(&self, _: &KnapsackState, _: &KnapsackState, _: &KnapsackState, _: Decision, cost: isize) -> isize {
+        cost
+    }
+    fn estimate(&self, state: &KnapsackState) -> isize {
+        state.free_vars.iter().map(|v| {
+            let item      = &self.pb.data[v.id()];
+            let max_amout = state.capacity / item.weight;
+            max_amout * item.profit
+        }).sum::<usize>() as isize
     }
 }

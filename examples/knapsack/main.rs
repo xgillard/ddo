@@ -17,118 +17,171 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-extern crate structopt;
-
-use ddo::core::abstraction::mdd::MDD;
-use ddo::core::abstraction::solver::Solver;
-use ddo::core::common::Decision;
-use ddo::core::implementation::heuristics::FixedWidth;
-use ddo::core::implementation::mdd::builder::mdd_builder_ref;
-use ddo::core::implementation::solver::parallel::ParallelSolver;
 use std::fs::File;
 use std::time::SystemTime;
+
 use structopt::StructOpt;
 
-mod heuristics;
-mod model;
-mod relax;
+use ddo::abstraction::solver::Solver;
+use ddo::implementation::heuristics::FixedWidth;
+use ddo::implementation::mdd::config::mdd_builder;
+use ddo::implementation::solver::parallel::ParallelSolver;
 
-use heuristics::KnapsackOrder;
-use model::KnapsackState;
-use relax::KnapsackRelax;
+use crate::model::{KnapsackOrder, KnapsackRelax};
+
+pub mod model;
 
 #[derive(StructOpt)]
-/// Solves hard combinatorial problems with bounded width MDDs
-struct Knapsack {
-    /// Path to the knapsack instance file.
-    ///
-    /// The format of one such instance file should be the following:
-    ///  - The header line describes the sack and should look as follows: `<sack_capacity> <nb_items>`
-    ///  - Then, subsequent lines each describe an item. They should look like `<id> <profit> <weight> <quantity>`
-    ///
-    /// # Example
-    /// The file with the following content describes a knapsack problem
-    /// where the sack has a capacity of 23 and may be filled with 3 different
-    /// type of items.
-    ///
-    /// One unit of the first item (id = 1) brings 10 of profit, and costs 5
-    /// of capacity. The user may only place at most two such objects in the sack.
-    ///
-    /// One unit of the 2nd item (id = 2) brings 7 of profit, and costs 6
-    /// of capacity. The user may only place at most one such item in the sack.
-    ///
-    /// One unit of the 3rd item (id = 3) brings 9 of profit, and costs 1
-    //  of capacity. The user may only place at most one such item in the sack.
-    /// ```
-    /// 23 3
-    /// 1 10 5 2
-    /// 2 7  6 1
-    /// 3 9  1 1
-    /// ```
-    ///
-    fname: String,
-    /// Log the progression
-    #[structopt(short, long, parse(from_occurrences))]
-    verbose: u8,
-    /// The number of threads to use (default: number of physical threads on this machine)
+pub struct Args {
+    pub fname: String,
+    pub width: usize,
     #[structopt(name="threads", short, long)]
     threads: Option<usize>,
-    /// If specified, the max width allowed for any layer
-    #[structopt(name="width", short, long)]
-    width: Option<usize>
+}
+
+
+fn kp(fname: &str, width: usize, threads: Option<usize>) -> isize {
+    let threads   = threads.unwrap_or_else(num_cpus::get);
+    let problem   = File::open(fname).expect("file not found").into();
+    let relax     = KnapsackRelax::new(&problem);
+    let mdd       = mdd_builder(&problem, relax)
+        .with_max_width(FixedWidth(width))
+        .with_branch_heuristic(KnapsackOrder::new(&problem))
+        .into_deep();
+
+    let solver = ParallelSolver::customized(mdd, 2, threads);
+    let start  = SystemTime::now();
+    let opt    = solver.maximize().0;
+    let end    = SystemTime::now();
+    println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
+    opt
 }
 
 fn main() {
-    let args = Knapsack::from_args();
-    knapsack(&args.fname, args.verbose, args.threads, args.width);
+    let args  = Args::from_args();
+    let value = kp(&args.fname, args.width, args.threads);
+
+    println!("best value = {}", value);
 }
 
-/// Solves the given knapsack instance with fixed width mdds
-///
-/// # Arguments
-///
-/// fname is the path name of some file holding the description of the
-///       instance to solve
-/// width is the maximum allowed width of a layer.
-///
-fn knapsack(fname: &str, verbose: u8, threads: Option<usize>, width: Option<usize>) {
-    let problem = File::open(fname).expect("File not found").into();
-    match width {
-        Some(max_width) => solve(mdd_builder_ref(&problem, KnapsackRelax::new(&problem))
-                           .with_branch_heuristic(KnapsackOrder::new(&problem))
-                           .with_max_width(FixedWidth(max_width))
-                           .into_flat(), verbose, threads),
-        None => solve(mdd_builder_ref(&problem, KnapsackRelax::new(&problem))
-                          .with_branch_heuristic(KnapsackOrder::new(&problem))
-                          .into_flat(), verbose, threads)
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::rc::Rc;
+
+    use metrohash::MetroHashMap;
+
+    use ddo::common::VarSet;
+
+    use crate::kp;
+    use crate::model::KnapsackState;
+
+    fn locate(id: &str) -> PathBuf {
+        PathBuf::new()
+            .join(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/tests/resources/knapsack/")
+            .join(id)
     }
-}
-fn solve<DD: MDD<KnapsackState> + Clone + Send >(mdd: DD, verbose: u8, threads: Option<usize>) {
-    let threads    = threads.unwrap_or_else(num_cpus::get);
-    let mut solver = ParallelSolver::customized(mdd, verbose, threads);
 
-    let start = SystemTime::now();
-    let (opt, sln) = solver.maximize();
-    let end = SystemTime::now();
-
-    if verbose >= 1 {
-        println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
+    fn solve_id(id: &str, w: usize) -> isize {
+        let fname = locate(id);
+        kp(fname.to_str().unwrap(), w, None)
     }
-    maybe_print_solution(verbose, sln)
-}
-fn maybe_print_solution(verbose: u8, sln: &Option<Vec<Decision>>) {
-    if verbose >= 2 {
-        println!("### Solution: ################################################");
-        if let Some(sln) = sln {
-            let mut sln = sln.clone();
-            sln.sort_by_key(|d| d.variable.0);
 
-            for i in sln.iter() {
-                println!("{} -> {}", (i.variable.0 + 1), i.value);
-            }
+    /*
+        #[test]
+        fn example2_w5() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 5);
+            println!("{}", v);
         }
+
+        #[test]
+        fn example2_w10() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 10);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w15() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 15);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w20() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 20);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w25() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 25);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w30() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 30);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w100() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 100);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w1000() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 1000);
+            println!("{}", v);
+        }
+
+        #[test]
+        fn example2_w12_000() {
+            let v = kp("/Users/user/Documents/REPO/rust-mdd-solver/examples/tests/resources/knapsack/example2", 12_000);
+            println!("{}", v);
+        }
+    */
+    #[test]
+    fn example3_w1000() {
+        assert_eq!(solve_id("example3", 1_000), 13_570);
     }
-    if verbose >= 1 && sln.is_none() {
-        println!("No solution !");
+    #[test]
+    fn example2_w12_500() {
+        assert_eq!(solve_id("example2", 12_500), 13_570);
+    }
+    #[test]
+    fn example2_w13_000() {
+        assert_eq!(solve_id("example2", 13_000), 13_570);
+    }
+
+    #[test]
+    fn example2_w100_000() {
+        assert_eq!(solve_id("example2", 100_000), 13_570);
+    }
+
+    #[test]
+    fn example2_w1_000_000() {
+        assert_eq!(solve_id("example2", 1_000_000), 13_570);
+    }
+
+    #[test]
+    fn an_hashmap_indexed_on_rc_will_do_the_trick() {
+        let mut map : MetroHashMap<Rc<KnapsackState>, usize> = Default::default();
+
+        let state1 = KnapsackState{free_vars: VarSet::all(5), capacity: 6};
+        let state2 = KnapsackState{free_vars: VarSet::all(5), capacity: 6};
+        let state3 = KnapsackState{free_vars: VarSet::all(5), capacity: 7};
+
+
+        let state1 = Rc::new(state1);
+        let state2 = Rc::new(state2);
+        let state3 = Rc::new(state3);
+
+        map.insert(state1, 1);
+        map.insert(state3, 3);
+
+        assert_eq!(1, map[&state2]); // state2 was never inserted. still, it is equal to state1
     }
 }

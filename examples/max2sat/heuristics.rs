@@ -17,10 +17,10 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use compare::Compare;
-use ddo::core::abstraction::heuristics::VariableHeuristic;
-use ddo::core::common::{Layer, Node, Variable, VarSet};
 use std::cmp::Ordering;
+
+use ddo::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode, VariableHeuristic};
+use ddo::common::{Variable, VarSet};
 
 use crate::model::{Max2Sat, State};
 
@@ -36,9 +36,13 @@ impl <'a> Max2SatOrder<'a> {
 }
 
 impl VariableHeuristic<State> for Max2SatOrder<'_> {
-    fn next_var(&self, free_vars: &VarSet, _c: Layer<'_, State>, _n: Layer<'_, State>) -> Option<Variable> {
+    fn next_var(&self,
+                free_vars: &VarSet,
+                _: &mut dyn Iterator<Item=&State>,
+                _: &mut dyn Iterator<Item=&State>) -> Option<Variable>
+    {
         let mut var = None;
-        let mut wt  = i32::min_value();
+        let mut wt  = isize::min_value();
 
         for v in free_vars.iter() {
             let v_wt = self.problem.sum_of_clause_weights[v.0];
@@ -54,25 +58,24 @@ impl VariableHeuristic<State> for Max2SatOrder<'_> {
 
 #[derive(Debug, Clone)]
 pub struct MinRank;
-impl Compare<Node<State>> for MinRank {
-    fn compare(&self, x: &Node<State>, y: &Node<State>) -> Ordering {
-        let xrank = x.info.lp_len + x.state.rank();
-        let yrank = y.info.lp_len + y.state.rank();
+impl NodeSelectionHeuristic<State> for MinRank {
+    fn compare(&self, x: &dyn SelectableNode<State>, y: &dyn SelectableNode<State>) -> Ordering {
+        let xrank = x.value() + x.state().rank();
+        let yrank = y.value() + y.state().rank();
         xrank.cmp(&yrank)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
     use std::fs::File;
+    use std::path::PathBuf;
 
-    use ddo::core::abstraction::dp::Problem;
-    use ddo::core::abstraction::heuristics::VariableHeuristic;
-    use ddo::core::common::Layer;
+    use ddo::abstraction::dp::Problem;
+    use ddo::abstraction::heuristics::VariableHeuristic;
 
-    use crate::model::Max2Sat;
     use crate::heuristics::Max2SatOrder;
+    use crate::model::Max2Sat;
 
     #[test]
     fn variable_ordering() {
@@ -80,14 +83,10 @@ mod test {
         let order   = Max2SatOrder::new(&problem);
         let mut vars= problem.all_vars();
 
-        let dummy_l = [];
-
         let mut actual= vec![];
         for _ in 0..problem.nb_vars() {
-            let dummy_c = Layer::Plain(dummy_l.iter());
-            let dummy_n = Layer::Plain(dummy_l.iter());
-
-            let v = order.next_var(&vars, dummy_c, dummy_n).unwrap();
+            let empty = vec![];
+            let v = order.next_var(&vars, &mut empty.iter(), &mut empty.iter()).unwrap();
             vars.remove(v);
             actual.push(v.0);
         }

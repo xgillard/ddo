@@ -19,8 +19,8 @@
 
 use bitset_fixed::BitSet;
 
-use ddo::core::common::{Node, NodeInfo};
-use ddo::core::abstraction::dp::{Problem, Relaxation};
+use ddo::abstraction::dp::{Problem, Relaxation};
+use ddo::common::{BitSetIter, Decision};
 
 use crate::model::Misp;
 
@@ -35,24 +35,19 @@ impl <'a> MispRelax<'a> {
     }
 }
 impl <'a> Relaxation<BitSet> for MispRelax<'a> {
-    fn merge_nodes(&self, nodes: &[Node<BitSet>]) -> Node<BitSet> {
-        let mut state = BitSet::new(self.pb.nb_vars());
-        let mut best  = &nodes[0].info;
+    fn merge_states(&self, states: &mut dyn Iterator<Item=&BitSet>) -> BitSet {
+        let mut relaxed = BitSet::new(self.pb.nb_vars());
 
-        for node in nodes.iter() {
-            state |= &node.state;
-
-            if node.info.lp_len > best.lp_len {
-                best = &node.info;
-            }
+        for state in states {
+            relaxed |= state;
         }
 
-        let mut info = best.clone();
-        info.is_exact   = false;
-        info.is_relaxed = true;
-        Node {state, info}
+        relaxed
     }
-    fn estimate_ub(&self, state: &BitSet, info: &NodeInfo) -> i32 {
-        info.lp_len + state.count_ones() as i32
+    fn relax_edge(&self, _: &BitSet, _: &BitSet, _: &BitSet, _: Decision, cost: isize) -> isize {
+        cost
+    }
+    fn estimate  (&self, state  : &BitSet) -> isize {
+        BitSetIter::new(state).map(|i| 0.max(self.pb.graph.weights[i])).sum()
     }
 }

@@ -24,12 +24,12 @@ use std::io::{BufRead, BufReader, Lines, Read};
 
 #[derive(Debug, Copy, Clone, Hash, Eq, Ord, PartialOrd, PartialEq)]
 pub struct BinaryClause {
-    pub a: i32,
-    pub b: i32
+    pub a: isize,
+    pub b: isize
 }
 
 impl BinaryClause {
-    pub fn new(x: i32, y: i32) -> BinaryClause {
+    pub fn new(x: isize, y: isize) -> BinaryClause {
         BinaryClause {a: x.min(y), b: x.max(y)}
     }
     pub fn is_tautology(self) -> bool {
@@ -43,7 +43,7 @@ impl BinaryClause {
 #[derive(Debug, Clone, Default)]
 pub struct Weighed2Sat {
     pub nb_vars : usize,
-    pub weights : HashMap<BinaryClause, i32>
+    pub weights : HashMap<BinaryClause, isize>
 }
 
 impl Weighed2Sat {
@@ -73,16 +73,16 @@ impl Weighed2Sat {
             }
 
             if let Some(caps)= bin_decl.captures(&line) {
-                let w = caps["w"].to_string().parse::<i32>().unwrap();
-                let x = caps["x"].to_string().parse::<i32>().unwrap();
-                let y = caps["y"].to_string().parse::<i32>().unwrap();
+                let w = caps["w"].to_string().parse::<isize>().unwrap();
+                let x = caps["x"].to_string().parse::<isize>().unwrap();
+                let y = caps["y"].to_string().parse::<isize>().unwrap();
 
                 instance.weights.insert(BinaryClause::new(x, y), w);
                 continue;
             }
             if let Some(caps)= unit_decl.captures(&line) {
-                let w = caps["w"].to_string().parse::<i32>().unwrap();
-                let x = caps["x"].to_string().parse::<i32>().unwrap();
+                let w = caps["w"].to_string().parse::<isize>().unwrap();
+                let x = caps["x"].to_string().parse::<isize>().unwrap();
 
                 instance.weights.insert(BinaryClause::new(x, x), w);
                 continue;

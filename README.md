@@ -34,7 +34,7 @@ as a dependency to your Cargo.toml file and building your project.
 
 ```toml
 [dependencies]
-ddo = "0.1.0"
+ddo = "0.2.0"
 ```
 
 ## Simplistic yet complete example
@@ -55,6 +55,12 @@ longest path, where the longest path is the value of the objective function you
 try to optimize).  
 
 ### Describe the problem as dynamic program
+The first thing to do in this example is to describe the binary knapsack
+problem in terms of a dynamic program. Here, the state of a node, is nothing
+more than an unsigned integer (usize). That unsigned integer represents the
+remaining capacity of our sack. To do so, you define your own structure and
+make sure it implements the `Problem<usize>` trait.
+
 ```rust
 /// Describe the binary knapsack problem in terms of a dynamic program.
 /// Here, the state of a node, is nothing more than an unsigned integer (usize).
@@ -79,34 +85,49 @@ impl Problem<usize> for Knapsack {
     fn initial_state(&self) -> usize {
         self.capacity
     }
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         0
     }
     fn transition(&self, state: &usize, _vars: &VarSet, dec: Decision) -> usize {
         state - (self.weight[dec.variable.id()] * dec.value as usize)
     }
-    fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> i32 {
-        self.profit[dec.variable.id()] as i32 * dec.value
+    fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> isize {
+        self.profit[dec.variable.id()] as isize * dec.value
     }
 }
 ```
 
 ### Provide a relaxation for the problem
+The relaxation we will define is probably the simplest you can think of.
+When one needs to define a new state to replace those exceeding the maximum
+width of the MDD, we will simply keep the state with the maximum capacity
+as it enables at least all the possibly behaviors feasible with lesser capacities.
+
+Optionally, we could also implement a rough upper bound estimator for our
+problem in the relaxation. However, we wont do it in this minimalistic
+example since the framework provides you with a default implementation.
+If you were to override the default implementation you would need to
+implement the `estimate()` method of the `Relaxation` trait.
+
 ```rust
-/// Merge the nodes by creating a new fake node that has the maximum remaining
-/// capacity from the merged nodes and the maximum objective value (intuitiveley,
-/// it keeps the best state, and the best value for the objective function).
 #[derive(Debug, Clone)]
 struct KPRelax;
 impl Relaxation<usize> for KPRelax {
-    fn merge_nodes(&self, nodes: &[Node<usize>]) -> Node<usize> {
-        let lp_info = nodes.iter()
-            .map(|n| &n.info)
-            .max_by_key(|i| i.lp_len).unwrap();
-        let max_capa= nodes.iter()
-            .map(|n| n.state)
-            .max().unwrap();
-        Node::merged(max_capa, lp_info.lp_len, lp_info.lp_arc.clone())
+    /// To merge a given selection of states (capacities) we will keep the
+    /// maximum capacity. This is an obvious relaxation as it allows us to
+    /// put more items in the sack.
+    fn merge_states(&self, states: &mut dyn Iterator<Item=&usize>) -> usize {
+        // the selection is guaranteed to have at least one state so using
+        // unwrap after max to get rid of the wrapping 'Option' is perfectly safe.
+        *states.max().unwrap()
+    }
+    /// When relaxing (merging) the states, we did not run into the risk of
+    /// possibly decreasing the maximum objective value reachable from the
+    /// components of the merged node. Hence, we dont need to do anything
+    /// when relaxing the edge. Still, if we wanted to, we could chose to
+    /// return an higher value.
+    fn relax_edge(&self, src: &usize, dst: &usize, relaxed: &usize, d: Decision, cost: isize) -> isize {
+        cost
     }
 }
 ```
@@ -116,22 +137,22 @@ impl Relaxation<usize> for KPRelax {
 /// Then instantiate a solver and spawn as many threads as there are hardware
 /// threads on the machine to solve the problem.
 fn main() {
+    // 1. Create an instance of our knapsack problem
     let problem = Knapsack {
         capacity: 50,
         profit  : vec![60, 100, 120],
         weight  : vec![10,  20,  30]
     };
-    let mdd = mdd_builder(problem, KPRelax).build();
-    let mut solver = ParallelSolver::new(mdd);
-    let (optimal, solution) = solver.maximize();
+    // 2. Build an MDD for the given problem and relaxation
+    let mdd = mdd_builder(&problem, KPRelax).into_deep();
 
-    assert_eq!(220, optimal);
-    println!("Solution");
-    for decision in solution.as_ref().unwrap() {
-        if decision.value == 1 {
-            println!("{}", decision.variable.id());
-        }
-    }
+    // 3. Create a parllel solver on the basis of this MDD (this is how
+    //    you can specify the MDD implementation you wish to use to develop
+    //    the relaxed and restricted MDDs).
+    let mut solver = ParallelSolver::new(mdd);
+    // 4. Maximize your objective function
+    let (optimal, solution) = solver.maximize();
+    // 5. Do whatever you like with the optimal solution.
 }
 ```
 
@@ -158,6 +179,19 @@ and it should display an helpful message explaining you how to use it.
 ### Note
 The implementation of MISP, MAX2SAT and MCP correspond to the formulation and
 relaxation proposed by [Bergman et al](https://pubsonline.informs.org/doi/abs/10.1287/ijoc.2015.0648).
+
+## Citing DDO
+If you use DDO, or find it useful for your purpose (research, teaching, business, ...)
+please cite:
+```
+@misc{gillard:20:ddo,
+    author       = {Xavier Gillard, Pierre Schaus, Vianney Coppé},
+    title        = {Ddo, a generic and efficient framework for MDD-based optimization},
+    howpublished = {IJCAI-20},
+    year         = {2020},
+    note         = {Available from \url{https://github.com/xgillard/ddo}},
+}
+```
 
 ## References
 +   David Bergman, Andre A. Cire, Ashish Sabharwal, Samulowitz Horst, Saraswat Vijay, and Willem-Jan and van Hoeve. [Parallel combinatorial optimization with decision diagrams.](https://link.springer.com/chapter/10.1007/978-3-319-07046-9_25) In Helmut Simonis, editor, Integration of AI and OR Techniques in Constraint Programming, volume 8451, pages 351–367. Springer, 2014.

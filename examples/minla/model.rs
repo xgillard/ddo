@@ -1,15 +1,15 @@
-use bitset_fixed::BitSet;
+use std::hash::{Hash, Hasher};
 use std::ops::Not;
 
-use ddo::core::abstraction::dp::Problem;
-use ddo::core::common::{Variable, Domain, VarSet, Decision};
-use std::hash::{Hasher, Hash};
-use ddo::core::utils::BitSetIter;
+use bitset_fixed::BitSet;
+
+use ddo::common::{BitSetIter, Decision, Domain, Variable, VarSet};
+use ddo::abstraction::dp::Problem;
 
 #[derive(Debug, Clone)]
 pub struct State {
     pub free : BitSet,
-    pub cut  : Vec<i32>
+    pub cut  : Vec<isize>
 }
 impl PartialEq for State {
     fn eq(&self, other: &Self) -> bool {
@@ -25,9 +25,26 @@ impl Hash for State {
 
 #[derive(Debug, Clone)]
 pub struct Minla {
-    pub g : Vec<Vec<i32>>
+    pub g : Vec<Vec<isize>>,
+    pub edges : Vec<(isize,usize,usize)>
 }
 impl Minla {
+    pub fn new(g : Vec<Vec<isize>>) -> Minla {
+        let mut edges = vec![];
+        for (i, is) in g.iter().enumerate() {
+            for (j, js) in is.iter().enumerate() {
+                if i < j {
+                    edges.push((*js, i, j));
+                }
+            }
+        }
+        edges.sort_unstable();
+        Minla {
+            g,
+            edges
+        }
+    }
+
     fn no_vertex(&self) -> usize {
         self.nb_vars()
     }
@@ -44,15 +61,15 @@ impl Problem<State> for Minla {
         }
     }
 
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         0
     }
 
     fn domain_of<'a>(&self, state: &'a State, var: Variable) -> Domain<'a> {
         if var.0 == 0 {
-            Domain::from(0..((self.nb_vars()-1) as i32))
+            Domain::from(0..((self.nb_vars()-1) as isize))
         } else if state.free.count_ones() == 0 { // relaxed node with empty free vertices intersection
-            Domain::from(vec![self.no_vertex() as i32])
+            Domain::from(vec![self.no_vertex() as isize])
         } else {
             Domain::from(&state.free)
         }
@@ -61,21 +78,20 @@ impl Problem<State> for Minla {
     fn transition(&self, state: &State, _vars: &VarSet, d: Decision) -> State {
         let i = d.value as usize;
 
-        let mut free = state.free.clone();
-        let mut cut = state.cut.clone();
+        let mut result = state.clone();
 
         if i != self.no_vertex() {
-            free.set(i, false);
+            result.free.set(i as usize, false);
 
-            for j in BitSetIter::new(&free) {
-                cut[j] += self.g[i][j];
+            for j in BitSetIter::new(&result.free) {
+                result.cut[j] += self.g[i][j];
             }
         }
 
-        State { free, cut }
+        result
     }
 
-    fn transition_cost(&self, state: &State, _vars: &VarSet, d: Decision) -> i32 {
+    fn transition_cost(&self, state: &State, _vars: &VarSet, d: Decision) -> isize {
         let i = d.value as usize;
 
         let mut cost = 0;

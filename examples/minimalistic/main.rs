@@ -17,11 +17,13 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use ddo::core::abstraction::dp::{Problem, Relaxation};
-use ddo::core::abstraction::solver::Solver;
-use ddo::core::common::{Decision, Domain, Node, Variable, VarSet};
-use ddo::core::implementation::mdd::builder::mdd_builder;
-use ddo::core::implementation::solver::parallel::ParallelSolver;
+use ddo::common::{Decision, Domain, Variable, VarSet};
+
+use ddo::abstraction::dp::{Problem, Relaxation};
+use ddo::abstraction::solver::Solver;
+
+use ddo::implementation::mdd::config::mdd_builder;
+use ddo::implementation::solver::parallel::ParallelSolver;
 
 /// Describe the binary knapsack problem in terms of a dynamic program.
 /// Here, the state of a node, is nothing more than an unsigned integer (usize).
@@ -46,47 +48,68 @@ impl Problem<usize> for Knapsack {
     fn initial_state(&self) -> usize {
         self.capacity
     }
-    fn initial_value(&self) -> i32 {
+    fn initial_value(&self) -> isize {
         0
     }
     fn transition(&self, state: &usize, _vars: &VarSet, dec: Decision) -> usize {
         state - (self.weight[dec.variable.id()] * dec.value as usize)
     }
-    fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> i32 {
-        self.profit[dec.variable.id()] as i32 * dec.value
+    fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> isize {
+        self.profit[dec.variable.id()] as isize * dec.value
     }
 }
 
 /// Merge the nodes by creating a new fake node that has the maximum remaining
-/// capacity from the merged nodes and the maximum objective value (intuitiveley,
-/// it keeps the best state, and the best value for the objective function).
+/// capacity from the merged nodes.
 #[derive(Debug, Clone)]
 struct KPRelax;
 impl Relaxation<usize> for KPRelax {
-    fn merge_nodes(&self, nodes: &[Node<usize>]) -> Node<usize> {
-        let lp_info = nodes.iter()
-            .map(|n| &n.info)
-            .max_by_key(|i| i.lp_len).unwrap();
-        let max_capa= nodes.iter()
-            .map(|n| n.state)
-            .max().unwrap();
-        Node::merged(max_capa, lp_info.lp_len, lp_info.lp_arc.clone())
+    /// To merge a given selection of states (capacities) we will keep the
+    /// maximum capacity. This is an obvious relaxation as it allows us to
+    /// put more items in the sack.
+    fn merge_states(&self, states: &mut dyn Iterator<Item=&usize>) -> usize {
+        // the selection is guaranteed to have at least one state so using
+        // unwrap after max to get rid of the wrapping 'Option' is perfectly safe.
+        *states.max().unwrap()
     }
+    /// When relaxing (merging) the states, we did not run into the risk of
+    /// possibly decreasing the maximum objective value reachable from the
+    /// components of the merged node. Hence, we dont need to do anything
+    /// when relaxing the edge. Still, if we wanted to, we could chose to
+    /// return an higher value.
+    fn relax_edge(&self, _src: &usize, _dst: &usize, _relaxed: &usize, _d: Decision, cost: isize) -> isize {
+        cost
+    }
+    // [Optional]
+    // We could also implement a rough upper bound estimator for our model.
+    // but we will not do it in this minimal example. (A default
+    // implementation is provided). If you were to override the default
+    // implementation -- and if possible, you should; you would need to
+    // implement the `estimate()` method of the `Relaxation` trait.
 }
 
+/// This is your main method: it is far from being useful in this case,
+/// but it helps for you to get the idea.
 fn main() {
+    // 1. Create an instance of our knapsack problem
     let problem = Knapsack {
         capacity: 50,
         profit  : vec![60, 100, 120],
         weight  : vec![10,  20,  30]
     };
-    let mdd = mdd_builder(problem, KPRelax).build();
-    let mut solver = ParallelSolver::new(mdd);
+    // 2. Build an MDD for the given problem and relaxation
+    let mdd = mdd_builder(&problem, KPRelax).into_deep();
+    // 3. Create a parllel solver on the basis of this MDD (this is how
+    //    you can specify the MDD implementation you wish to use to develop
+    //    the relaxed and restricted MDDs).
+    let solver = ParallelSolver::new(mdd);
+    // 4. Maximize your objective function
     let (optimal, solution) = solver.maximize();
 
+    // 5. Do whatever you like with the optimal solution.
     assert_eq!(220, optimal);
     println!("Solution");
-    for decision in solution.as_ref().unwrap() {
+    for decision in solution.unwrap().iter() {
         if decision.value == 1 {
             println!("{}", decision.variable.id());
         }

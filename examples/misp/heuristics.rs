@@ -19,10 +19,9 @@
 
 use bitset_fixed::BitSet;
 
-use ddo::core::abstraction::dp::Problem;
-use ddo::core::abstraction::heuristics::VariableHeuristic;
-use ddo::core::common::{Layer, Node, Variable, VarSet};
-use ddo::core::utils::BitSetIter;
+use ddo::abstraction::dp::Problem;
+use ddo::abstraction::heuristics::{LoadVars, VariableHeuristic};
+use ddo::common::{BitSetIter, FrontierNode, Variable, VarSet};
 
 use crate::model::Misp;
 
@@ -34,10 +33,14 @@ impl MispVarHeu {
     }
 }
 impl VariableHeuristic<BitSet> for MispVarHeu {
-    fn next_var<'a>(&self, _: &'a VarSet, _: Layer<'a, BitSet>, next: Layer<'a, BitSet>) -> Option<Variable> {
+    fn next_var(&self,
+                _: &VarSet,
+                _: &mut dyn Iterator<Item=&BitSet>,
+                next: &mut dyn Iterator<Item=&BitSet>) -> Option<Variable>
+    {
         let mut counters = vec![0; self.0];
 
-        for (s, _) in next {
+        for s in next {
             for v in BitSetIter::new(s) {
                 counters[v] += 1;
             }
@@ -50,6 +53,10 @@ impl VariableHeuristic<BitSet> for MispVarHeu {
     }
 }
 
-pub fn vars_from_misp_state(n: &Node<BitSet>) -> VarSet {
-    VarSet(n.state.clone())
+#[derive(Debug, Clone, Copy)]
+pub struct VarsFromMispState;
+impl LoadVars<BitSet> for VarsFromMispState {
+    fn variables(&self, node: &FrontierNode<BitSet>) -> VarSet {
+        VarSet(node.state.as_ref().clone())
+    }
 }

@@ -1,6 +1,6 @@
 [package]
 name          = "ddo"
-version       = "0.1.7"
+version       = "0.2.0"
 authors       = ["Xavier Gillard <xavier.gillard@uclouvain.be>"]
 edition       = "2018"
 description   = "DDO a generic and efficient framework for MDD-based  optimization."
@@ -11,11 +11,13 @@ keywords      = ["optimization", "solver", "decision-diagrams", "combinatorial",
 categories    = ["science", "mathematics", "algorithms", "concurrency"]
 exclude       = ["examples/tests/resources/*" ]
 
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
+compare          = "0.1.0"
 bitset-fixed     = "0.1.0"
 binary-heap-plus = "0.2.0"
-compare          = "0.1.0"
-# -- hash algorithms -------
 metrohash        = "1.0.6"
 # -- going parallel --------
 num_cpus         = "1.12.0"
@@ -25,10 +27,7 @@ crossbeam        = "0.7.3"
 [dev-dependencies]
 mock-it          = "0.3.0"
 regex            = "1.3.3"
-structopt        = "0.3.11"
-
-[profile.test]
-opt-level = 3
+structopt        = "0.3.12"
 
 [profile.release]
 lto = true
