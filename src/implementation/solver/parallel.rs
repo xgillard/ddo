@@ -28,7 +28,7 @@ use std::sync::Arc;
 use binary_heap_plus::BinaryHeap;
 use parking_lot::{Condvar, Mutex};
 
-use crate::abstraction::mdd::MDD;
+use crate::abstraction::mdd::{MDD, Config};
 use crate::abstraction::solver::Solver;
 use crate::common::{FrontierNode, Solution};
 use crate::implementation::heuristics::MaxUB;
@@ -104,10 +104,12 @@ enum WorkLoad<T> {
     }
 }
 
-pub struct ParallelSolver<T, DD>
+pub struct ParallelSolver<T, C, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          DD: Send + Sync + MDD<T> + Clone
+          C : Send + Sync + Clone + Config<T>,
+          DD: MDD<T, C> + From<C>
 {
+    config: C,
     /// This is the MDD which will be used to expand the restricted and relaxed
     /// mdds. Technically, all threads are going to take their own copy (clone)
     /// of this mdd. Thus, this instance will only serve as a prototype to
@@ -130,9 +132,10 @@ pub struct ParallelSolver<T, DD>
 }
 
 /// private interface of the parallel solver
-impl <T, DD> ParallelSolver<T, DD>
+impl <T, C, DD> ParallelSolver<T, C, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          DD: Send + Sync + MDD<T> + Clone
+          C : Send + Sync + Clone + Config<T>,
+          DD: MDD<T, C> + From<C>
 {
     /// This creates a solver that will find the best solution in the problem
     /// described by the given `mdd` (mdd is not expanded yet). This solver will
@@ -195,6 +198,7 @@ impl <T, DD> ParallelSolver<T, DD>
     ///
     pub fn customized(mdd: DD, verbosity: u8, nb_threads: usize) -> Self {
         ParallelSolver {
+            config: mdd.config().clone(),
             mdd,
             shared: Arc::new(Shared {
                 monitor : Condvar::new(),
@@ -336,9 +340,10 @@ impl <T, DD> ParallelSolver<T, DD>
     }
 }
 
-impl <T, DD> Solver for ParallelSolver<T, DD>
+impl <T, C, DD> Solver for ParallelSolver<T, C, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          DD: Send + Sync + MDD<T> + Clone
+          C : Send + Sync + Clone + Config<T>,
+          DD: MDD<T, C> + From<C>
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers
@@ -350,10 +355,11 @@ impl <T, DD> Solver for ParallelSolver<T, DD>
         crossbeam::thread::scope(|s|{
             for i in 0..self.nb_threads {
                 let shared    = Arc::clone(&self.shared);
-                let mut mdd   = self.mdd.clone();
+                let conf      = self.config.clone();
                 let verbosity = self.verbosity;
 
                 s.spawn(move |_| {
+                    let mut mdd = DD::from(conf);
                     loop {
                         match Self::get_workload(&shared, i) {
                             WorkLoad::Complete   => break,

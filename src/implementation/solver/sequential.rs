@@ -23,7 +23,7 @@ use std::hash::Hash;
 
 use binary_heap_plus::BinaryHeap;
 
-use crate::abstraction::mdd::MDD;
+use crate::abstraction::mdd::{MDD, Config};
 use crate::abstraction::solver::Solver;
 use crate::common::{FrontierNode, Solution};
 use crate::implementation::heuristics::MaxUB;
@@ -74,10 +74,12 @@ use crate::implementation::heuristics::MaxUB;
 /// // sol is the sequence of decision yielding that optimal value (if sol exists, `sol != None`)
 /// let (val, sol) = solver.maximize();
 /// ```
-pub struct SequentialSolver<T, DD>
+pub struct SequentialSolver<T, C, DD>
     where T : Hash + Eq + Clone,
-          DD: MDD<T> + Clone
+          C : Config<T> + Clone,
+          DD: MDD<T, C> + Clone
 {
+    config: C,
     mdd: DD,
     fringe: BinaryHeap<FrontierNode<T>, MaxUB>,
     explored : usize,
@@ -87,9 +89,10 @@ pub struct SequentialSolver<T, DD>
     verbosity: u8
 }
 // private interface.
-impl <T, DD> SequentialSolver<T, DD>
+impl <T, C, DD> SequentialSolver<T, C, DD>
     where T : Hash + Eq + Clone,
-          DD: MDD<T> + Clone
+          C : Config<T> + Clone,
+          DD: MDD<T, C> + Clone
 {
     pub fn new(mdd: DD) -> Self {
         Self::customized(mdd, 0)
@@ -99,6 +102,7 @@ impl <T, DD> SequentialSolver<T, DD>
     }
     pub fn customized(mdd: DD, verbosity: u8) -> Self {
         SequentialSolver {
+            config: mdd.config().clone(),
             mdd,
             fringe: BinaryHeap::from_vec_cmp(vec![], MaxUB),
             explored: 0,
@@ -116,14 +120,15 @@ impl <T, DD> SequentialSolver<T, DD>
     }
 }
 
-impl <T, DD> Solver for SequentialSolver<T, DD>
+impl <T, C, DD> Solver for SequentialSolver<T, C, DD>
     where T : Hash + Eq + Clone,
-          DD: MDD<T> + Clone
+          C : Config<T> + Clone,
+          DD: MDD<T, C> + Clone
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality.
     fn maximize(mut self) -> (isize, Option<Solution>) {
-        let root = self.mdd.config().root_node();
+        let root = self.config.root_node();
         self.fringe.push(root);
 
         while !self.fringe.is_empty() {

@@ -28,9 +28,9 @@ use crate::abstraction::heuristics::SelectableNode;
 /// # Type param
 /// The type parameter `<T>` denotes the type of the state defined/manipulated
 /// by the `Problem` definition.
-pub trait MDD<T> {
+pub trait MDD<T, C: Config<T>> {
     /// Returns a reference to the configuration of this MDD.
-    fn config(&self) -> &dyn Config<T>;
+    fn config(&self) -> &C;
 
     /// Expands this MDD into  an exact MDD
     fn exact(&mut self, root: &FrontierNode<T>, best_lb : isize);

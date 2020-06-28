@@ -131,11 +131,11 @@ pub struct PooledMDD<T, C>
 }
 /// As the name suggests, `PooledMDD` is an implementation of the `MDD` trait.
 /// See the trait definiton for the documentation related to these methods.
-impl <T, C> MDD<T> for PooledMDD<T, C>
+impl <T, C> MDD<T, C> for PooledMDD<T, C>
     where T: Eq + Hash + Clone,
           C: Config<T> + Clone
 {
-    fn config(&self) -> &dyn Config<T> {
+    fn config(&self) -> &C {
         &self.config
     }
 
@@ -461,7 +461,7 @@ mod test_pooledmdd {
     use std::sync::Arc;
 
     use crate::abstraction::dp::{Problem, Relaxation};
-    use crate::abstraction::mdd::MDD;
+    use crate::abstraction::mdd::{MDD, Config};
     use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;

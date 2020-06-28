@@ -88,11 +88,11 @@ pub struct DeepMDD<T, C>
 
 /// As the name suggests, `DeepMDD` is an implementation of the `MDD` trait.
 /// See the trait definiton for the documentation related to these methods.
-impl <T, C> MDD<T> for DeepMDD<T, C>
+impl <T, C> MDD<T, C> for DeepMDD<T, C>
     where T: Eq + Hash + Clone,
           C: Config<T> + Clone
 {
-    fn config(&self) -> &dyn Config<T> {
+    fn config(&self) -> &C {
         &self.config
     }
 
