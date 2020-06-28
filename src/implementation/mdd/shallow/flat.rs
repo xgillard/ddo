@@ -139,6 +139,9 @@ pub struct FlatMDD<T, C>
     /// A flag indicating whether this mdd is exact
     is_exact: bool,
 
+    /// This is the best known lower bound at the time of the MDD unrolling.
+    /// This field is set once before developing mdd.
+    best_lb: isize,
     /// This is the maximum width allowed for a layer of the MDD. It is determined
     /// once at the beginning of the MDD derivation.
     max_width: usize,
@@ -176,15 +179,13 @@ impl <T, C> MDD<T> for FlatMDD<T, C>
     fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
         if !self.is_exact {
             let ub = self.best_value();
-            self.layers[self.lel].values().for_each(|n| {
-                let frontier_node = FrontierNode {
-                    state: Arc::clone(&n.this_state),
-                    path: n.path(),
-                    lp_len: n.value(),
-                    ub: ub.min(n.value().saturating_add(self.config.estimate(n.state())))
-                };
-                (func)(frontier_node);
-            });
+            if ub > self.best_lb {
+                self.layers[self.lel].values().for_each(|n| {
+                    let mut frontier_node = FrontierNode::from(n);
+                    frontier_node.ub = ub.min(frontier_node.ub);
+                    (func)(frontier_node);
+                });
+            }
         }
     }
 
@@ -241,6 +242,7 @@ impl <T, C> FlatMDD<T, C>
             prev     : 0,
             is_exact : true,
             max_width: usize::max_value(),
+            best_lb  : isize::min_value(),
             best_node: None
         }
     }
@@ -254,6 +256,7 @@ impl <T, C> FlatMDD<T, C>
         self.prev      = 0;
         self.is_exact  = true;
         self.best_node = None;
+        self.best_lb   = isize::min_value();
         self.layers.iter_mut().for_each(|l|l.clear());
     }
     /// Develops/Unrolls the requested type of MDD, starting from a given root
@@ -261,7 +264,8 @@ impl <T, C> FlatMDD<T, C>
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
     fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize) {
-        let root = Node::from(root);
+        let root     = Node::from(root);
+        self.best_lb = best_lb;
         self.layers[self.next].insert(Arc::clone(&root.this_state), root);
 
         let mut depth = 0;
@@ -272,15 +276,12 @@ impl <T, C> FlatMDD<T, C>
 
             for node in current_layer!(self).values() {
                 let src_state = node.this_state.as_ref();
-                let est = self.config.estimate(src_state);
-                if node.value.saturating_add(est) > best_lb {
-                    for val in self.config.domain_of(src_state, var) {
-                        let decision = Decision { variable: var, value: val };
-                        let state    = self.config.transition(src_state, &vars, decision);
-                        let weight   = self.config.transition_cost(src_state, &vars, decision);
+                for val in self.config.domain_of(src_state, var) {
+                    let decision = Decision { variable: var, value: val };
+                    let state    = self.config.transition(src_state, &vars, decision);
+                    let weight   = self.config.transition_cost(src_state, &vars, decision);
 
-                        self.branch(node, state, decision, weight)
-                    }
+                    self.branch(node, state, decision, weight)
                 }
             }
 
@@ -330,6 +331,7 @@ impl <T, C> FlatMDD<T, C>
             this_state: Arc::new(dest),
             path: Arc::new(SingleExtension { parent: Arc::clone(&node.path), decision }),
             value: node.value.saturating_add(weight),
+            estimate: isize::max_value(),
             flags: node.flags, // if its inexact, it will be or relaxed it will be considered inexact or relaxed too
             best_edge: Some(Edge {
                 parent_state: Arc::clone(&node.this_state),
@@ -341,9 +343,14 @@ impl <T, C> FlatMDD<T, C>
     }
 
     /// Inserts the given node in the next layer or updates it if needed.
-    fn add_node(&mut self, node: Node<T>) {
+    fn add_node(&mut self, mut node: Node<T>) {
         match self.layers[self.next].entry(Arc::clone(&node.this_state)) {
-            Entry::Vacant(re) => { re.insert(node); },
+            Entry::Vacant(re) => {
+                node.estimate = self.config.estimate(node.state());
+                if node.ub() > self.best_lb {
+                    re.insert(node);
+                }
+            },
             Entry::Occupied(mut re) => { re.get_mut().merge(node); }
         }
     }
@@ -450,6 +457,7 @@ impl <T, C> FlatMDD<T, C>
             this_state: Arc::new(merged_state),
             path      : merged_path,
             value     : merged_value,
+            estimate  : isize::max_value(),
             flags     : NodeFlags::new_relaxed(),
             best_edge : merged_edge
         };
@@ -776,11 +784,12 @@ mod test_private {
     #[test]
     fn branch_inserts_a_node_with_given_state_when_none_exists() {
         let config  = MockConfig::default();
-        let mut mdd = FlatMDD::new(config);
+        let mut mdd = FlatMDD::new(Proxy::new(&config));
         let node    = Node {
             this_state: Arc::new(42),
             path      : Arc::new(PartialAssignment::Empty),
             value     : 42,
+            estimate  : isize::max_value(),
             flags     : Default::default(),
             best_edge : None
         };
@@ -796,6 +805,7 @@ mod test_private {
         mdd.branch(src, dst, dec, wt);
         assert_eq!(1, mdd.layers[mdd.next].len());
         assert!(mdd.layers[mdd.next].get(&Arc::new(1)).is_some());
+        // TODO assert!(verify(config.estimate.was_called()))
     }
     #[test]
     fn branch_wont_update_existing_node_to_remember_last_decision_and_path_if_it_doesnt_improve_value() {
@@ -805,6 +815,7 @@ mod test_private {
             this_state: Arc::new(42),
             path      : Arc::new(PartialAssignment::Empty),
             value     : 42,
+            estimate  : isize::max_value(),
             flags     : Default::default(),
             best_edge : None
         };
@@ -815,6 +826,7 @@ mod test_private {
             this_state: Arc::new(1),
             path      : Arc::new(PartialAssignment::Empty),
             value     : 100,
+            estimate  : isize::max_value(),
             flags     : Default::default(),
             best_edge : None
         });
@@ -836,6 +848,7 @@ mod test_private {
             this_state: Arc::new(42),
             path      : Arc::new(PartialAssignment::Empty),
             value     : 42,
+            estimate  : isize::max_value(),
             flags     : Default::default(),
             best_edge : None
         };
@@ -846,6 +859,7 @@ mod test_private {
             this_state: Arc::new(1),
             path      : Arc::new(PartialAssignment::Empty),
             value     : 1,
+            estimate  : isize::max_value(),
             flags     : Default::default(),
             best_edge : None
         });
@@ -1682,6 +1696,7 @@ mod test_private {
             this_state: Arc::new(s),
             path: Arc::new(PartialAssignment::Empty),
             value: v,
+            estimate: isize::max_value(),
             flags: Default::default(),
             best_edge: None
         })

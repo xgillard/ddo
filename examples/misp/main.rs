@@ -48,7 +48,7 @@ fn misp(fname: &str, threads: Option<usize>) -> isize {
     let mdd       = mdd_builder(&problem, relax)
         .with_load_vars(VarsFromMispState)
         .with_branch_heuristic(MispVarHeu::new(&problem))
-        .into_deep();
+        .into_pooled();
     let solver    = ParallelSolver::customized(mdd, 2, threads);
 
     let start = SystemTime::now();

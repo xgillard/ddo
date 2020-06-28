@@ -35,6 +35,7 @@ pub struct Node<T> {
     pub this_state   : Arc<T>,
     pub path         : Arc<PartialAssignment>,
     pub value        : isize,
+    pub estimate     : isize,
     pub flags        : NodeFlags,
     pub best_edge    : Option<Edge<T>>
 }
@@ -92,12 +93,16 @@ impl <T> Node<T> {
             self.flags     = other.flags;
             self.best_edge = other.best_edge;
         }
-
+        self.estimate = self.estimate.min(other.estimate);
         self.set_exact(exact);
     }
     /// Returns the path to this node
     pub fn path(&self) -> Arc<PartialAssignment> {
         Arc::clone(&self.path)
+    }
+    /// Returns the nodes upper bound
+    pub fn ub(&self) -> isize {
+        self.value.saturating_add(self.estimate)
     }
 }
 /// Because the solver works with `FrontierNode`s but the MDD uses `Node`s, we
@@ -109,12 +114,25 @@ impl <T> From<&FrontierNode<T>> for Node<T> {
             this_state: Arc::clone(&n.state),
             path      : Arc::clone(&n.path),
             value     : n.lp_len,
+            estimate  : n.ub - n.lp_len,
             flags     : NodeFlags::new_exact(),
             best_edge : None
         }
     }
 }
-
+/// Because the solver works with `FrontierNode`s but the MDD uses `Node`s, we
+/// need a way to convert from one type to the other. This conversion ensures
+/// that a `FrontierNode` can be built from a `Node`.
+impl <T> From<&Node<T>> for FrontierNode<T> {
+    fn from(n: &Node<T>) -> Self {
+        FrontierNode {
+            state : Arc::clone(&n.this_state),
+            path  : n.path(),
+            lp_len: n.value(),
+            ub    : n.ub()
+        }
+    }
+}
 
 // ############################################################################
 // #### TESTS #################################################################
@@ -132,7 +150,7 @@ mod test_node {
     use crate::implementation::mdd::utils::NodeFlags;
 
     #[test]
-    fn test_from() {
+    fn test_from_frontier_node() {
         let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
@@ -141,14 +159,36 @@ mod test_node {
             state: Arc::new(12),
             path: Arc::new(FragmentExtension {parent: empty, fragment: vec![d1, d2]}),
             lp_len: 56,
-            ub: 9
+            ub: 57
         };
 
         let node = Node::from(&front);
         assert_eq!(12, *node.this_state);
         assert_eq!(vec![d1, d2], node.path.iter().collect::<Vec<Decision>>());
         assert_eq!(56, node.value);
+        assert_eq!( 1, node.estimate);
         assert!(node.best_edge.is_none());
+    }
+    #[test]
+    fn test_into_frontier_node() {
+        let empty = Arc::new(PartialAssignment::Empty);
+        let d1= Decision{variable: Variable(2), value: 1};
+        let d2= Decision{variable: Variable(2), value: 2};
+        let pa= Arc::new(FragmentExtension {parent: empty, fragment: vec![d1, d2]});
+        let node  = Node {
+            this_state: Arc::new(12),
+            path      : pa,
+            value     : 56,
+            estimate  : 1,
+            flags     : Default::default(),
+            best_edge : None
+        };
+
+        let front = FrontierNode::from(&node);
+        assert_eq!(12, *front.state);
+        assert_eq!(vec![d1, d2], front.path.iter().collect::<Vec<Decision>>());
+        assert_eq!(56, front.lp_len);
+        assert_eq!(57, front.ub);
     }
 
     #[test]
@@ -157,6 +197,7 @@ mod test_node {
             this_state: Arc::new(42),
             path: Arc::new(PartialAssignment::Empty),
             value: 0,
+            estimate: 1000,
             flags: Default::default(),
             best_edge: None
         };
@@ -169,6 +210,7 @@ mod test_node {
             this_state: Arc::new(42),
             path: Arc::new(PartialAssignment::Empty),
             value: 74,
+            estimate: 1000,
             flags: Default::default(),
             best_edge: None
         };
@@ -181,6 +223,7 @@ mod test_node {
             this_state: Arc::new(42),
             path: Arc::new(PartialAssignment::Empty),
             value: 74,
+            estimate: 1000,
             flags: Default::default(),
             best_edge: None
         };
@@ -203,6 +246,7 @@ mod test_node {
             this_state: Arc::new(42),
             path: Arc::new(PartialAssignment::Empty),
             value: 74,
+            estimate: 1000,
             flags: Default::default(),
             best_edge: None
         };
@@ -224,6 +268,7 @@ mod test_node {
             this_state: Arc::new(42),
             path: Arc::new(PartialAssignment::Empty),
             value: 74,
+            estimate: 1000,
             flags: Default::default(),
             best_edge: None
         };
@@ -246,6 +291,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -257,6 +303,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 0,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -283,6 +330,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -294,6 +342,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -320,6 +369,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -331,6 +381,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 2,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -357,6 +408,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -368,6 +420,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -389,6 +442,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -400,6 +454,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 2,
+            estimate: 1000,
             flags: NodeFlags::new_relaxed(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -420,6 +475,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 2,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -431,6 +487,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_relaxed(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -452,6 +509,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
             value: 1,
+            estimate: 1000,
             flags: NodeFlags::new_relaxed(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
@@ -463,6 +521,7 @@ mod test_node {
             this_state: Arc::new(1),
             path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
             value: 2,
+            estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
                 parent_state: Arc::new(0),
