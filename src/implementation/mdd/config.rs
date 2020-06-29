@@ -72,9 +72,64 @@ use crate::implementation::mdd::shallow::pooled::PooledMDD;
 /// let relax   = MockRelax;
 /// let mdd     = mdd_builder(&problem, relax)
 ///                  .with_max_width(FixedWidth(100))
-///                  .build();
+///                  .into_deep();
 /// ```
 pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> ConfigurationBuilder<T, PB, RLX>
+    where T: Hash + Eq + Clone, PB: Problem<T> + Clone, RLX: Relaxation<T> + Clone {
+    config_builder(pb, rlx)
+}
+
+/// This is the function you should use to instantiate a new configuration builder
+/// with all defaults heuristics. It should be used as in the following example
+/// where one creates an MDD whaving a fixed width strategy.
+///
+/// The advantage of using `config_builder` over using `mdd_builder` is simply
+/// that it adds readability. `config_builder` should be used when you intend
+/// to use a custom mdd type (ie an hybrid mdd) whereas `mdd builder should be
+/// used when you want to create an mdd by calling the one of its `into_xxx`
+/// methods.
+///
+/// Here is an example of how to use the config_builder in order to instanciate
+/// an hybrid flat-deep mdd.
+///
+/// # Example:
+/// ```
+/// # use ddo::implementation::mdd::config::config_builder;
+/// # use ddo::abstraction::dp::{Problem, Relaxation};
+/// # use ddo::common::{Variable, VarSet, Domain, Decision};
+/// # use ddo::implementation::heuristics::FixedWidth;
+/// use ddo::implementation::mdd::hybrid::HybridFlatDeep;
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #   fn nb_vars(&self)       -> usize { 0 }
+/// #   fn initial_state(&self) -> usize { 0 }
+/// #   fn initial_value(&self) -> isize { 0 }
+/// #   fn domain_of<'a>(&self,state: &'a usize,var: Variable) -> Domain<'a> {
+/// #       (0..1).into()
+/// #   }
+/// #   fn transition(&self,state: &usize,vars: &VarSet,d: Decision)      -> usize { 0 }
+/// #   fn transition_cost(&self,state: &usize,vars: &VarSet,d: Decision) -> isize { 0 }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #    fn merge_states(&self, states: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #      states.cloned().max().unwrap()
+/// #    }
+/// #    fn relax_edge(&self, src: &usize, dst: &usize, relaxed: &usize, decision: Decision, cost: isize) -> isize {
+/// #      cost
+/// #    }
+/// # }
+/// let problem = MockProblem;
+/// let relax   = MockRelax;
+/// let config  = config_builder(&problem, relax)
+///                  .with_max_width(FixedWidth(100))
+///                  .build();
+/// // This is nothing but an example
+/// let mdd     = HybridFlatDeep::from(config);
+/// ```
+pub fn config_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> ConfigurationBuilder<T, PB, RLX>
     where T: Hash + Eq + Clone, PB: Problem<T> + Clone, RLX: Relaxation<T> + Clone {
     let lv = LoadVarFromPartialAssignment::new(pb.all_vars());
     ConfigurationBuilder {
@@ -650,9 +705,27 @@ mod tests {
     }
 
     #[test]
-    fn it_can_build_an_mdd() {
+    fn it_can_build_a_deep_mdd() {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
         let _      = mdd_builder(&prob, Proxy::new(&relax)).into_deep();
+    }
+    #[test]
+    fn it_can_build_a_flat_mdd() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let _      = mdd_builder(&prob, Proxy::new(&relax)).into_flat();
+    }
+    #[test]
+    fn it_can_build_a_pooled_mdd() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let _      = mdd_builder(&prob, Proxy::new(&relax)).into_pooled();
+    }
+    #[test]
+    fn it_can_build_a_plain_config() {
+        let prob   = MockProblem::default();
+        let relax  = MockRelax::default();
+        let _      = mdd_builder(&prob, Proxy::new(&relax)).build();
     }
 }

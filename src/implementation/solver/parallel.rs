@@ -32,6 +32,7 @@ use crate::abstraction::mdd::{MDD, Config};
 use crate::abstraction::solver::Solver;
 use crate::common::{FrontierNode, Solution};
 use crate::implementation::heuristics::MaxUB;
+use std::marker::PhantomData;
 
 /// The shared data that may only be manipulated within critical sections
 struct Critical<T> {
@@ -109,12 +110,9 @@ pub struct ParallelSolver<T, C, DD>
           C : Send + Sync + Clone + Config<T>,
           DD: MDD<T, C> + From<C>
 {
+    /// This is the configuration which will be used to drive the behavior of
+    /// the mdd-unrolling.
     config: C,
-    /// This is the MDD which will be used to expand the restricted and relaxed
-    /// mdds. Technically, all threads are going to take their own copy (clone)
-    /// of this mdd. Thus, this instance will only serve as a prototype to
-    /// instantiate the threads.
-    mdd: DD,
     /// This is an atomically-reference-counted smart pointer to the shared state.
     /// Again, each thread is going to take its own clone of this smart pointer.
     shared: Arc<Shared<T>>,
@@ -128,7 +126,10 @@ pub struct ParallelSolver<T, C, DD>
     /// This is a configuration parameter that tunes the number of threads that
     /// will be spawned to solve the problem. By default, this number amounts
     /// to the number of hardware threads available on the machine.
-    nb_threads: usize
+    nb_threads: usize,
+    /// This is just a marker that allows us to remember the exact type of the
+    /// mdds to be instanciated.
+    _phantom: PhantomData<DD>
 }
 
 /// private interface of the parallel solver
@@ -144,6 +145,14 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     /// All the other parameters will use their default value.
     /// + `nb_threads` will be the number of hardware threads
     /// + `verbosity`  will be 0
+    ///
+    /// # Warning
+    /// By passing the given MDD, you are effectively only passing the _type_
+    /// of the mdd to use while developing the restricted and relaxed representations.
+    /// Each thread will instantiate its own fresh copy using a clone of the
+    /// configuration you provided. However, it will *not* clone your mdd. The
+    /// latter will be dropped as soon as the constructor ends. However, clean
+    /// copies are created when maximizing the objective function.
     pub fn new(mdd: DD) -> Self {
         Self::customized(mdd, 0, num_cpus::get())
     }
@@ -165,6 +174,13 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     ///   + *1* which only prints the final statistics when the problem is solved
     ///   + *2* which prints progress information every 100 explored nodes.
     ///
+    /// # Warning
+    /// By passing the given MDD, you are effectively only passing the _type_
+    /// of the mdd to use while developing the restricted and relaxed representations.
+    /// Each thread will instantiate its own fresh copy using a clone of the
+    /// configuration you provided. However, it will *not* clone your mdd. The
+    /// latter will be dropped as soon as the constructor ends. However, clean
+    /// copies are created when maximizing the objective function.
     pub fn with_verbosity(mdd: DD, verbosity: u8) -> Self {
         Self::customized(mdd, verbosity, num_cpus::get())
     }
@@ -174,6 +190,14 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     /// expansion of `mdd`.
     ///
     /// When using this constructor, the verbosity of the solver is set to level 0.
+    ///
+    /// # Warning
+    /// By passing the given MDD, you are effectively only passing the _type_
+    /// of the mdd to use while developing the restricted and relaxed representations.
+    /// Each thread will instantiate its own fresh copy using a clone of the
+    /// configuration you provided. However, it will *not* clone your mdd. The
+    /// latter will be dropped as soon as the constructor ends. However, clean
+    /// copies are created when maximizing the objective function.
     pub fn with_nb_threads(mdd: DD, nb_threads: usize) -> Self {
         Self::customized(mdd, 0, nb_threads)
     }
@@ -196,10 +220,16 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     /// spawn in order to solve the problem. We advise you to use the number of
     /// hardware threads on your machine.
     ///
+    /// # Warning
+    /// By passing the given MDD, you are effectively only passing the _type_
+    /// of the mdd to use while developing the restricted and relaxed representations.
+    /// Each thread will instantiate its own fresh copy using a clone of the
+    /// configuration you provided. However, it will *not* clone your mdd. The
+    /// latter will be dropped as soon as the constructor ends. However, clean
+    /// copies are created when maximizing the objective function.
     pub fn customized(mdd: DD, verbosity: u8, nb_threads: usize) -> Self {
         ParallelSolver {
             config: mdd.config().clone(),
-            mdd,
             shared: Arc::new(Shared {
                 monitor : Condvar::new(),
                 critical: Mutex::new(Critical {
@@ -213,7 +243,8 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
                 })
             }),
             verbosity,
-            nb_threads
+            nb_threads,
+            _phantom: PhantomData
         }
     }
 
@@ -226,7 +257,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     }
 
     fn root_node(&self) -> FrontierNode<T> {
-       self.mdd.config().root_node()
+       self.config.root_node()
     }
 
     /// This method processes the given `node`. To do so, it reads the current

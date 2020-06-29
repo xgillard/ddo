@@ -1713,6 +1713,9 @@ mod test_private {
         g.restrict_last();
     }
 
+    // TODO: test partial assignment in flat
+    // TODO: test merge in flat
+
     fn add_root<T, C>(mdd : &mut FlatMDD<T, C>, s: T, v: isize)
         where T: Eq + Hash + Clone,
               C: Config<T> + Clone
