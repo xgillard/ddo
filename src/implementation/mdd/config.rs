@@ -261,43 +261,6 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
     }
 }
 
-impl <'x, T, P, R, L, V, W, S> From<PassThroughConfig<'x, T, P, R, L, V, W, S>> for DeepMDD<T, PassThroughConfig<'x, T, P, R, L, V, W, S>>
-    where T: Hash + Eq + Clone,
-          P: Problem<T> + Clone,
-          R: Relaxation<T> + Clone,
-          L: LoadVars<T> + Clone,
-          V: VariableHeuristic<T> + Clone,
-          W: WidthHeuristic + Clone,
-          S: NodeSelectionHeuristic<T> + Clone {
-    fn from(c: PassThroughConfig<'x, T, P, R, L, V, W, S>) -> Self {
-        DeepMDD::new(c)
-    }
-}
-impl <'x, T, P, R, L, V, W, S> From<PassThroughConfig<'x, T, P, R, L, V, W, S>> for FlatMDD<T, PassThroughConfig<'x, T, P, R, L, V, W, S>>
-    where T: Hash + Eq + Clone,
-          P: Problem<T> + Clone,
-          R: Relaxation<T> + Clone,
-          L: LoadVars<T> + Clone,
-          V: VariableHeuristic<T> + Clone,
-          W: WidthHeuristic + Clone,
-          S: NodeSelectionHeuristic<T> + Clone {
-    fn from(c: PassThroughConfig<'x, T, P, R, L, V, W, S>) -> Self {
-        FlatMDD::new(c)
-    }
-}
-impl <'x, T, P, R, L, V, W, S> From<PassThroughConfig<'x, T, P, R, L, V, W, S>> for PooledMDD<T, PassThroughConfig<'x, T, P, R, L, V, W, S>>
-    where T: Hash + Eq + Clone,
-          P: Problem<T> + Clone,
-          R: Relaxation<T> + Clone,
-          L: LoadVars<T> + Clone,
-          V: VariableHeuristic<T> + Clone,
-          W: WidthHeuristic + Clone,
-          S: NodeSelectionHeuristic<T> + Clone {
-    fn from(c: PassThroughConfig<'x, T, P, R, L, V, W, S>) -> Self {
-        PooledMDD::new(c)
-    }
-}
-
 /// This structure provides a simple 'umbrella' over the configuration of an MDD.
 /// All it does it to forward calls to the appropriate heuristic.
 #[derive(Debug, Clone)]

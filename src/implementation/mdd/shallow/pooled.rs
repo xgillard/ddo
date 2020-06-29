@@ -472,6 +472,15 @@ impl <T, C> PooledMDD<T, C>
     }
 }
 
+impl <T, C> From<C> for PooledMDD<T, C>
+    where T: Eq + Hash + Clone,
+          C: Config<T> + Clone
+{
+    fn from(c: C) -> Self {
+        Self::new(c)
+    }
+}
+
 
 // ############################################################################
 // #### TESTS #################################################################

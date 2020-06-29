@@ -42,3 +42,4 @@ pub mod utils;
 pub mod config;
 pub mod deep;
 pub mod shallow;
+pub mod hybrid;

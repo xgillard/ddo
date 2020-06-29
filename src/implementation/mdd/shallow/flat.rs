@@ -493,6 +493,14 @@ impl <T, C> FlatMDD<T, C>
     }
 }
 
+impl <T, C> From<C> for FlatMDD<T, C>
+    where T: Eq + Hash + Clone,
+          C: Config<T> + Clone
+{
+    fn from(c: C) -> Self {
+        Self::new(c)
+    }
+}
 
 // ############################################################################
 // #### TESTS #################################################################

@@ -411,6 +411,16 @@ impl <T, C> DeepMDD<T, C>
     }
 }
 
+impl <T, C> From<C> for DeepMDD<T, C>
+    where T: Eq + Hash + Clone,
+          C: Config<T> + Clone
+{
+    fn from(c: C) -> Self {
+        Self::new(c)
+    }
+}
+
+
 
 // ############################################################################
 // #### TESTS #################################################################

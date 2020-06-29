@@ -28,6 +28,7 @@ use ddo::implementation::solver::parallel::ParallelSolver;
 
 use crate::heuristics::{MispVarHeu, VarsFromMispState};
 use crate::relax::MispRelax;
+use ddo::implementation::mdd::hybrid::HybridPooledDeep;
 
 mod instance;
 mod model;
@@ -45,10 +46,12 @@ fn misp(fname: &str, threads: Option<usize>) -> isize {
     let threads   = threads.unwrap_or_else(num_cpus::get);
     let problem   = File::open(fname).expect("file not found").into();
     let relax     = MispRelax::new(&problem);
-    let mdd       = mdd_builder(&problem, relax)
+    let conf      = mdd_builder(&problem, relax)
         .with_load_vars(VarsFromMispState)
         .with_branch_heuristic(MispVarHeu::new(&problem))
-        .into_pooled();
+        .build();
+
+    let mdd       = HybridPooledDeep::from(conf);
     let solver    = ParallelSolver::customized(mdd, 2, threads);
 
     let start = SystemTime::now();
