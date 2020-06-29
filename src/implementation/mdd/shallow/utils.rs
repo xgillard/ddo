@@ -25,6 +25,8 @@ use std::sync::Arc;
 use crate::abstraction::heuristics::SelectableNode;
 use crate::common::{Decision, FrontierNode, PartialAssignment};
 use crate::implementation::mdd::utils::NodeFlags;
+use std::rc::Rc;
+use crate::common::PartialAssignment::FragmentExtension;
 
 /// This tiny structure represents an internal node from the flat MDD.
 /// Basically, it only remembers its own state, value, the best path from root
@@ -32,8 +34,7 @@ use crate::implementation::mdd::utils::NodeFlags;
 /// parents.
 #[derive(Debug, Clone)]
 pub struct Node<T> {
-    pub this_state   : Arc<T>,
-    pub path         : Arc<PartialAssignment>,
+    pub this_state   : Rc<T>,
     pub value        : isize,
     pub estimate     : isize,
     pub flags        : NodeFlags,
@@ -44,9 +45,9 @@ pub struct Node<T> {
 /// and the weight of taking that transition.
 #[derive(Debug, Clone)]
 pub struct Edge<T> {
-    pub parent_state: Arc<T>,
-    pub weight      : isize,
-    pub decision    : Decision,
+    pub parent   : Rc<Node<T>>,
+    pub weight   : isize,
+    pub decision : Decision,
 }
 /// If a layer grows too large, the branch and bound algorithm might need to
 /// squash the current layer and thus to select some Nodes for merge or removal.
@@ -62,6 +63,22 @@ impl <T> SelectableNode<T> for Node<T> {
     /// Returns true iff the node is an exact node.
     fn is_exact(&self) -> bool {
         self.flags.is_exact()
+    }
+}
+/// If a layer grows too large, the branch and bound algorithm might need to
+/// squash the current layer and thus to select some Nodes for merge or removal.
+impl <T> SelectableNode<T> for Rc<Node<T>> {
+    /// Returns a reference to the state of this node
+    fn state(&self) -> &T {
+        self.as_ref().state()
+    }
+    /// Returns the value of the objective function at this node.
+    fn value(&self) -> isize {
+        self.as_ref().value()
+    }
+    /// Returns true iff the node is an exact node.
+    fn is_exact(&self) -> bool {
+        self.as_ref().is_exact()
     }
 }
 impl <T> Node<T> {
@@ -88,31 +105,45 @@ impl <T> Node<T> {
         let exact = self.is_exact() && other.is_exact();
 
         if other.value > self.value {
-            self.value     = other.value;
-            self.path      = other.path;
-            self.flags     = other.flags;
+            self.value = other.value;
+            self.flags = other.flags;
             self.best_edge = other.best_edge;
         }
         self.estimate = self.estimate.min(other.estimate);
         self.set_exact(exact);
     }
     /// Returns the path to this node
-    pub fn path(&self) -> Arc<PartialAssignment> {
-        Arc::clone(&self.path)
+    pub fn path(&self) -> Vec<Decision> {
+        let mut edge = &self.best_edge;
+        let mut path = vec![];
+        while let Some(e) = edge {
+            path.push(e.decision);
+            edge = &e.parent.best_edge;
+        }
+        path
     }
     /// Returns the nodes upper bound
     pub fn ub(&self) -> isize {
         self.value.saturating_add(self.estimate)
     }
 }
+impl <T: Clone> Node<T> {
+    pub fn to_frontier_node(&self, root: &Arc<PartialAssignment>) -> FrontierNode<T> {
+        FrontierNode {
+            state : Arc::new(self.this_state.as_ref().clone()),
+            path  : Arc::new(FragmentExtension {parent: Arc::clone(root), fragment: self.path()}),
+            lp_len: self.value,
+            ub    : self.ub()
+        }
+    }
+}
 /// Because the solver works with `FrontierNode`s but the MDD uses `Node`s, we
 /// need a way to convert from one type to the other. This conversion ensures
 /// that a `Node` can be built from a `FrontierNode`.
-impl <T> From<&FrontierNode<T>> for Node<T> {
+impl <T : Clone> From<&FrontierNode<T>> for Node<T> {
     fn from(n: &FrontierNode<T>) -> Self {
         Node {
-            this_state: Arc::clone(&n.state),
-            path      : Arc::clone(&n.path),
+            this_state: Rc::new(n.state.as_ref().clone()),
             value     : n.lp_len,
             estimate  : n.ub - n.lp_len,
             flags     : NodeFlags::new_exact(),
@@ -120,24 +151,10 @@ impl <T> From<&FrontierNode<T>> for Node<T> {
         }
     }
 }
-/// Because the solver works with `FrontierNode`s but the MDD uses `Node`s, we
-/// need a way to convert from one type to the other. This conversion ensures
-/// that a `FrontierNode` can be built from a `Node`.
-impl <T> From<&Node<T>> for FrontierNode<T> {
-    fn from(n: &Node<T>) -> Self {
-        FrontierNode {
-            state : Arc::clone(&n.this_state),
-            path  : n.path(),
-            lp_len: n.value(),
-            ub    : n.ub()
-        }
-    }
-}
 
 // ############################################################################
 // #### TESTS #################################################################
 // ############################################################################
-
 
 #[cfg(test)]
 mod test_node {
@@ -148,6 +165,7 @@ mod test_node {
     use crate::common::PartialAssignment::FragmentExtension;
     use crate::implementation::mdd::shallow::utils::{Edge, Node};
     use crate::implementation::mdd::utils::NodeFlags;
+    use std::rc::Rc;
 
     #[test]
     fn test_from_frontier_node() {
@@ -164,38 +182,68 @@ mod test_node {
 
         let node = Node::from(&front);
         assert_eq!(12, *node.this_state);
-        assert_eq!(vec![d1, d2], node.path.iter().collect::<Vec<Decision>>());
         assert_eq!(56, node.value);
         assert_eq!( 1, node.estimate);
         assert!(node.best_edge.is_none());
     }
     #[test]
-    fn test_into_frontier_node() {
+    fn test_into_frontier_node_no_path() {
         let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
         let pa= Arc::new(FragmentExtension {parent: empty, fragment: vec![d1, d2]});
         let node  = Node {
-            this_state: Arc::new(12),
-            path      : pa,
+            this_state: Rc::new(12),
             value     : 56,
             estimate  : 1,
             flags     : Default::default(),
             best_edge : None
         };
 
-        let front = FrontierNode::from(&node);
+        let front = node.to_frontier_node(&pa);
         assert_eq!(12, *front.state);
         assert_eq!(vec![d1, d2], front.path.iter().collect::<Vec<Decision>>());
         assert_eq!(56, front.lp_len);
         assert_eq!(57, front.ub);
     }
+    #[test]
+    fn test_into_frontier_with_path() {
+        let empty = Arc::new(PartialAssignment::Empty);
+        let d1= Decision{variable: Variable(2), value: 1};
+        let d2= Decision{variable: Variable(2), value: 2};
+        let d3= Decision{variable: Variable(3), value: 3};
 
+        let pa= Arc::new(FragmentExtension {parent: empty, fragment: vec![d1, d2]});
+
+        let node1  = Node {
+            this_state: Rc::new(12),
+            value     : 56,
+            estimate  : 100,
+            flags     : Default::default(),
+            best_edge : None
+        };
+        let node   = Node {
+            this_state: Rc::new(12),
+            value     : 57,
+            estimate  : 100,
+            flags     : Default::default(),
+            best_edge : Some(Edge {
+                parent: Rc::new(node1),
+                weight: 1,
+                decision: d3
+            })
+        };
+
+        let front = node.to_frontier_node(&pa);
+        assert_eq!(12, *front.state);
+        assert_eq!(vec![d3, d1, d2], front.path.iter().collect::<Vec<Decision>>());
+        assert_eq!(57, front.lp_len);
+        assert_eq!(157, front.ub);
+    }
     #[test]
     fn selectable_node_yields_a_ref_to_this_state() {
         let node = Node {
-            this_state: Arc::new(42),
-            path: Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value: 0,
             estimate: 1000,
             flags: Default::default(),
@@ -207,8 +255,7 @@ mod test_node {
     #[test]
     fn selectable_node_yields_the_nodes_value() {
         let node = Node {
-            this_state: Arc::new(42),
-            path: Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value: 74,
             estimate: 1000,
             flags: Default::default(),
@@ -220,8 +267,7 @@ mod test_node {
     #[test]
     fn selectable_node_is_exact_iff_flags_is_exact_and_not_relaxed() {
         let mut node = Node {
-            this_state: Arc::new(42),
-            path: Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value: 74,
             estimate: 1000,
             flags: Default::default(),
@@ -243,8 +289,7 @@ mod test_node {
     #[test]
     fn node_has_exact_best_iff_relaxed_flag_is_not_set() {
         let mut node = Node {
-            this_state: Arc::new(42),
-            path: Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value: 74,
             estimate: 1000,
             flags: Default::default(),
@@ -265,8 +310,7 @@ mod test_node {
     #[test]
     fn set_exact_changes_the_value_of_exact_flag() {
         let mut node = Node {
-            this_state: Arc::new(42),
-            path: Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value: 74,
             estimate: 1000,
             flags: Default::default(),
@@ -283,30 +327,34 @@ mod test_node {
 
     #[test]
     fn merging_two_exact_nodes_has_no_effect_when_second_has_lower_value() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d1
             })
         };
         let n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 0,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d2
             })
@@ -322,30 +370,34 @@ mod test_node {
 
     #[test]
     fn merging_two_exact_nodes_has_no_effect_when_second_has_equal_value() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d1
             })
         };
         let n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d2
             })
@@ -361,30 +413,34 @@ mod test_node {
 
     #[test]
     fn merging_two_nodes_updates_best_edge_and_value_when_second_has_higher_value() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d1
             })
         };
         let n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 2,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 2,
                 decision: d2
             })
@@ -400,30 +456,34 @@ mod test_node {
 
     #[test]
     fn merging_exact_and_inexact_makes_the_result_inexact() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d1
             })
         };
         let mut n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d2
             })
@@ -434,30 +494,34 @@ mod test_node {
     }
     #[test]
     fn merging_exact_and_relaxed_yields_relaxed_if_best_has_relaxed_flag() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d1
             })
         };
         let n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 2,
             estimate: 1000,
             flags: NodeFlags::new_relaxed(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 2,
                 decision: d2
             })
@@ -467,30 +531,34 @@ mod test_node {
     }
     #[test]
     fn merging_exact_and_relaxed_not_relaxed_if_best_not_relaxed() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 2,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 2,
                 decision: d1
             })
         };
         let n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_relaxed(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d2
             })
@@ -501,30 +569,34 @@ mod test_node {
 
     #[test]
     fn merging_exact_and_relaxed_clears_relaxed_flag_if_best_not_relaxed() {
-        let empty = Arc::new(PartialAssignment::Empty);
         let d1= Decision{variable: Variable(2), value: 1};
         let d2= Decision{variable: Variable(2), value: 2};
-
+        let n0 = Node {
+            this_state: Rc::new(0),
+            value: 0,
+            estimate: 0,
+            flags: Default::default(),
+            best_edge: None
+        };
+        let n0 = Rc::new(n0);
         let mut n1 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d1,parent: Arc::clone(&empty)}),
+            this_state: Rc::new(1),
             value: 1,
             estimate: 1000,
             flags: NodeFlags::new_relaxed(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 1,
                 decision: d1
             })
         };
         let n2 = Node {
-            this_state: Arc::new(1),
-            path: Arc::new(PartialAssignment::SingleExtension {decision: d2,parent: empty}),
+            this_state: Rc::new(1),
             value: 2,
             estimate: 1000,
             flags: NodeFlags::new_exact(),
             best_edge: Some(Edge{
-                parent_state: Arc::new(0),
+                parent: Rc::clone(&n0),
                 weight: 2,
                 decision: d2
             })

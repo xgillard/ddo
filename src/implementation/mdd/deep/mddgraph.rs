@@ -30,13 +30,13 @@
 use std::cmp::Ordering;
 use std::hash::Hash;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::rc::Rc;
 
 use metrohash::MetroHashMap;
 
-use crate::common::Decision;
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::Config;
+use crate::common::Decision;
 use crate::implementation::mdd::deep::mddgraph::Error::NoSuchElement;
 use crate::implementation::mdd::utils::NodeFlags;
 
@@ -120,7 +120,7 @@ pub struct NodeData<T> {
     /// ### Technical Note
     /// A shared state has been used to avoid the need for potentially expensive
     /// state copies (which would have occurred if the state were cloned).
-    pub state: Arc<T>,
+    pub state: Rc<T>,
 
     /// The length (in terms of the objective function) of the longest path from
     /// the root until this node.
@@ -149,7 +149,7 @@ impl <T> NodeData<T> {
     /// Creates a new node associating the index `id` with the given state (`data`).
     /// The argument `relaxed` is a flag telling whether or not the node is a
     /// relaxed node.
-    pub fn new(id: NodeIndex, data: Arc<T>, relaxed: bool) -> Self {
+    pub fn new(id: NodeIndex, data: Rc<T>, relaxed: bool) -> Self {
         NodeData {
             my_id       : id,
             state       : data,
@@ -162,8 +162,8 @@ impl <T> NodeData<T> {
     }
     /// Returns (an atomically ref counted) reference to the state (from the
     /// problem description) if this node.
-    pub fn state_ref(&self) -> Arc<T> {
-        Arc::clone(&self.state)
+    pub fn state_ref(&self) -> Rc<T> {
+        Rc::clone(&self.state)
     }
     /// Returns true iff the node is a relaxed node
     pub fn is_relaxed(&self) -> bool {
@@ -294,7 +294,7 @@ pub struct Graph<T: Hash + Eq> {
     pub layers: Vec<LayerData>,
     /// This is the map that associates one state of the current layer to the
     /// node index (also belongs to the current layer) which stores it.
-    pub state : MetroHashMap<Arc<T>, NodeIndex>,
+    pub state : MetroHashMap<Rc<T>, NodeIndex>,
     /// If present, this is the identifier of the last exact layer.
     pub lel   : Option<LayerIndex>
 }
@@ -369,11 +369,11 @@ impl <T: Hash + Eq> Graph<T> {
     /// In that case, it will simply add a new disconnected node to the current
     /// layer but it will not replace the preexisting root. Doing so would
     /// create incohernce in the structure and should be avoided.
-    pub fn add_root(&mut self, s: Arc<T>, value: isize) -> NodeIndex {
+    pub fn add_root(&mut self, s: Rc<T>, value: isize) -> NodeIndex {
         let idx = NodeIndex(0);
         let node= NodeData {
             my_id       : idx,
-            state       : Arc::clone(&s),
+            state       : Rc::clone(&s),
             lp_from_top : value,
             lp_from_bot : isize::min_value(),
             best_parent : None,
@@ -393,9 +393,9 @@ impl <T: Hash + Eq> Graph<T> {
         let nodes = &mut self.nodes;
         let layers= &mut self.layers;
 
-        let s = Arc::new(s);
+        let s = Rc::new(s);
 
-        *state.entry(Arc::clone(&s)).or_insert_with(|| {
+        *state.entry(Rc::clone(&s)).or_insert_with(|| {
             let idx = NodeIndex(nodes.len());
             let node= NodeData::new(idx, s, false);
             nodes.push(node);
@@ -682,7 +682,7 @@ impl <T: Hash + Eq> Graph<T> {
 
         // Merge the states of the nodes that must go
         let merged = config.merge_states(&mut squash.iter().map(|n| n.state.as_ref()));
-        let merged = Arc::new(merged);
+        let merged = Rc::new(merged);
 
         // Determine the identifier of the new merged node. If the merged state
         // is already known, combine the known state with the merger
@@ -697,7 +697,7 @@ impl <T: Hash + Eq> Graph<T> {
         // .. make a default node
         let mut merged_node = NodeData {
             my_id      : n_id,
-            state      : Arc::clone(&merged),
+            state      : Rc::clone(&merged),
             flags      : NodeFlags::new_relaxed(),
             lp_from_top: isize::min_value(),
             lp_from_bot: isize::min_value(),
@@ -806,14 +806,15 @@ impl <'g, T: Hash + Eq> Iterator for Parents<'g, T> {
 
 #[cfg(test)]
 mod test_node_data {
-    use crate::implementation::mdd::deep::mddgraph::{NodeIndex, NodeData};
-    use std::sync::Arc;
+    use std::rc::Rc;
+
     use crate::abstraction::heuristics::SelectableNode;
+    use crate::implementation::mdd::deep::mddgraph::{NodeData, NodeIndex};
 
     #[test]
     fn new_can_create_a_new_relaxed_node() {
         let id    = NodeIndex(65);
-        let tested= NodeData::new(id, Arc::new(42), true);
+        let tested= NodeData::new(id, Rc::new(42), true);
 
         assert_eq!(id,    tested.my_id);
         assert_eq!(42,    *tested.state);
@@ -823,7 +824,7 @@ mod test_node_data {
     #[test]
     fn new_can_create_a_new_exact_node() {
         let id    = NodeIndex(24);
-        let tested= NodeData::new(id, Arc::new(7), false);
+        let tested= NodeData::new(id, Rc::new(7), false);
         assert_eq!(id,    tested.my_id);
         assert_eq!(7 ,    *tested.state);
         assert_eq!(false, tested.flags.is_relaxed());
@@ -831,7 +832,7 @@ mod test_node_data {
     }
     #[test]
     fn when_created_a_node_is_disconnected_from_graph() {
-        let tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
 
         // infinite negative distance to both poles of the MDD.
         assert_eq!(isize::min_value(), tested.lp_from_top);
@@ -841,25 +842,25 @@ mod test_node_data {
     }
     #[test]
     fn state_ref_yields_an_arc_reference_to_the_state() {
-        let tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
-        assert_eq!(Arc::new(42), tested.state_ref());
+        let tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
+        assert_eq!(Rc::new(42), tested.state_ref());
     }
     #[test]
     fn state_yields_a_plain_reference_to_the_state() {
-        let tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
         assert_eq!(&42, tested.state());
     }
     #[test]
     fn is_relaxed_iff_node_was_relaxed() {
-        let tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
         assert!(tested.is_relaxed());
 
-        let tested= NodeData::new(NodeIndex(65), Arc::new(42), false);
+        let tested= NodeData::new(NodeIndex(65), Rc::new(42), false);
         assert!(!tested.is_relaxed());
     }
     #[test]
     fn is_feasible_iff_marked_so() {
-        let mut tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let mut tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
         assert_eq!(false, tested.is_feasible());
 
         tested.set_feasible(true);
@@ -873,10 +874,10 @@ mod test_node_data {
     }
     #[test]
     fn is_relaxed_iff_marked_exact_and_not_relaxed() {
-        let tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
         assert_eq!(false, tested.is_exact());
 
-        let mut tested= NodeData::new(NodeIndex(65), Arc::new(42), false);
+        let mut tested= NodeData::new(NodeIndex(65), Rc::new(42), false);
         assert_eq!(true, tested.is_exact());
 
         tested.set_exact(false);
@@ -886,14 +887,14 @@ mod test_node_data {
         assert_eq!(true, tested.is_exact());
 
         // it is relaxed: it cant be made exact again
-        let mut tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let mut tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
         assert_eq!(false, tested.is_exact());
         tested.set_exact(true);
         assert_eq!(false, tested.is_exact());
     }
     #[test]
     fn value_returns_the_longest_path_from_the_root() {
-        let mut tested= NodeData::new(NodeIndex(65), Arc::new(42), true);
+        let mut tested= NodeData::new(NodeIndex(65), Rc::new(42), true);
         assert_eq!(isize::min_value(), tested.value());
 
         tested.lp_from_top = 999;
@@ -934,16 +935,16 @@ mod test_layerdata {
 
 #[cfg(test)]
 mod test_graph {
-    use std::sync::Arc;
+    use std::cmp::Ordering;
+    use std::rc::Rc;
 
     use metrohash::MetroHashMap;
-
-    use crate::common::{Decision, Variable};
-    use crate::implementation::mdd::deep::mddgraph::{Graph, NodeIndex, EdgeState, LayerData, LayerIndex, EdgeIndex};
-    use crate::abstraction::heuristics::SelectableNode;
-    use crate::test_utils::MockConfig;
-    use std::cmp::Ordering;
     use mock_it::verify;
+
+    use crate::abstraction::heuristics::SelectableNode;
+    use crate::common::{Decision, Variable};
+    use crate::implementation::mdd::deep::mddgraph::{EdgeIndex, EdgeState, Graph, LayerData, LayerIndex, NodeIndex};
+    use crate::test_utils::MockConfig;
 
     #[test]
     fn default_graph_is_empty() {
@@ -995,21 +996,21 @@ mod test_graph {
     fn add_root_increases_the_width_of_first_layer() {
         let mut g = Graph::new();
         assert_eq!(0, g.layers[0].width());
-        g.add_root(Arc::new(24), 12);
+        g.add_root(Rc::new(24), 12);
         assert_eq!(1, g.layers[0].width());
     }
     #[test]
     fn add_root_increases_the_nodes_count() {
         let mut g = Graph::new();
         assert_eq!(0, g.nb_nodes());
-        g.add_root(Arc::new(24), 12);
+        g.add_root(Rc::new(24), 12);
         assert_eq!(1, g.nb_nodes());
     }
     #[test]
     fn add_root_insert_root_state_in_state_map() {
         let mut g = Graph::new();
         assert!(g.state.is_empty());
-        g.add_root(Arc::new(24), 12);
+        g.add_root(Rc::new(24), 12);
         assert_eq!(1, g.state.len());
     }
     #[test]
@@ -1019,7 +1020,7 @@ mod test_graph {
         // there is no root before there is one
         assert!(g.root().is_err());
 
-        let idx = g.add_root(Arc::new(24), 12);
+        let idx = g.add_root(Rc::new(24), 12);
         assert_eq!(NodeIndex(0), idx);
         assert_eq!(Ok(24),    g.root().map(|r| *r.state));
         assert_eq!(Ok(12),    g.root().map(|r| r.value()));
@@ -1031,7 +1032,7 @@ mod test_graph {
     fn add_root_does_not_override_previous_root() {
         let mut g = Graph::new();
 
-        let idx = g.add_root(Arc::new(24), 12);
+        let idx = g.add_root(Rc::new(24), 12);
         assert_eq!(NodeIndex(0),     idx);
         assert_eq!(Ok(NodeIndex(0)), g.root().map(|r| r.my_id));
         assert_eq!(Ok(24),           g.root().map(|r| *r.state()));
@@ -1040,7 +1041,7 @@ mod test_graph {
         assert_eq!(Ok(false),        g.root().map(|r| r.is_relaxed()));
         assert_eq!(Ok(false),        g.root().map(|r| r.is_feasible()));
 
-        let idx = g.add_root(Arc::new(56), 43);
+        let idx = g.add_root(Rc::new(56), 43);
         assert_eq!(NodeIndex(0),     idx);
         assert_eq!(Ok(NodeIndex(0)), g.root().map(|r| r.my_id));
         assert_eq!(Ok(24),           g.root().map(|r| *r.state()));
@@ -1055,7 +1056,7 @@ mod test_graph {
 
         // there is no root before there is one
         assert!(g.root().is_err());
-        let idx = g.add_root(Arc::new(24), 12);
+        let idx = g.add_root(Rc::new(24), 12);
         assert_eq!(NodeIndex(0),     idx);
         assert_eq!(idx, g.root().unwrap().my_id);
         assert!(std::ptr::eq(&g.nodes[0], g.root().unwrap()));
@@ -1079,7 +1080,7 @@ mod test_graph {
         let mut g = Graph::new();
         assert_eq!(0, g.nb_nodes());
 
-        let r = g.add_root(Arc::new(24), 0);
+        let r = g.add_root(Rc::new(24), 0);
         g.add_layer();
         let n = g.add_node(12);
         g.add_edge(r, n, Decision{variable: Variable(0), value: 4}, 4);
@@ -1094,7 +1095,7 @@ mod test_graph {
         let mut g = Graph::new();
         assert!(g.is_exact());
 
-        let r = g.add_root(Arc::new(24), 0);
+        let r = g.add_root(Rc::new(24), 0);
         g.add_layer();
         assert!(g.is_exact());
 
@@ -1116,7 +1117,7 @@ mod test_graph {
         let mut g = Graph::new();
         assert!(g.is_exact());
 
-        let r = g.add_root(Arc::new(24), 0);
+        let r = g.add_root(Rc::new(24), 0);
         g.add_layer();
         assert!(g.is_exact());
 
@@ -1257,7 +1258,7 @@ mod test_graph {
     #[test]
     fn add_node_adds_a_new_node_when_it_does_not_exists() {
         let mut g = Graph::new();
-        g.add_root(Arc::new('a'), 0);
+        g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         let idx = g.add_node('b');
@@ -1267,7 +1268,7 @@ mod test_graph {
     #[test]
     fn add_node_returns_existing_node_when_one_with_same_state_belongs_to_current_layer() {
         let mut g = Graph::new();
-        g.add_root(Arc::new('a'), 0);
+        g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         let b_idx = g.add_node('b');
@@ -1285,7 +1286,7 @@ mod test_graph {
     #[test]
     fn add_node_performs_no_inter_layer_reduction() {
         let mut g = Graph::new();
-        g.add_root(Arc::new('a'), 0);
+        g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         let b_idx = g.add_node('b');
@@ -1305,7 +1306,7 @@ mod test_graph {
     #[test]
     fn add_edge_just_adds_an_edge_with_given_information() {
         let mut g = Graph::new();
-        let a = g.add_root(Arc::new('a'), 0);
+        let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
         let b = g.add_node('b');
         let c = g.add_node('c');
@@ -1331,7 +1332,7 @@ mod test_graph {
     #[test]
     fn branch_creates_target_node_and_adds_an_edge() {
         let mut g = Graph::new();
-        let a = g.add_root(Arc::new('a'), 0);
+        let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         assert_eq!(1, g.nb_nodes());
@@ -1346,7 +1347,7 @@ mod test_graph {
     #[test]
     fn branch_reuses_target_node_and_adds_an_edge() {
         let mut g = Graph::new();
-        let a = g.add_root(Arc::new('a'), 0);
+        let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         assert_eq!(1, g.nb_nodes());
@@ -1368,7 +1369,7 @@ mod test_graph {
     #[test]
     fn when_branch_reuses_target_node_it_updates_inbound_edge_list() {
         let mut g = Graph::new();
-        let a = g.add_root(Arc::new('a'), 0);
+        let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         assert_eq!(1, g.nb_nodes());
@@ -1398,7 +1399,7 @@ mod test_graph {
     #[test]
     fn branch_will_make_target_node_inexact_if_one_of_the_parents_is_inexact() {
         let mut g = Graph::new();
-        let a = g.add_root(Arc::new('a'), 0);
+        let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         let d1 = Decision{variable: Variable(0), value: 0};
@@ -1422,7 +1423,7 @@ mod test_graph {
     #[test]
     fn branch_will_keep_the_best_parent_and_value_if_it_needs_to_be_updated() {
         let mut g = Graph::new();
-        let a = g.add_root(Arc::new('a'), 0);
+        let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
         let d1 = Decision{variable: Variable(0), value: 0};
@@ -1449,7 +1450,7 @@ mod test_graph {
     #[test]
     fn add_layer_adds_a_new_layer_starting_at_end_of_previous_one() {
         let mut g = Graph::new();
-        g.add_root(Arc::new('a'), 0);
+        g.add_root(Rc::new('a'), 0);
 
         g.add_layer();
         assert_eq!(1, g.layers.last().unwrap().start);
@@ -1463,7 +1464,7 @@ mod test_graph {
     #[test]
     fn add_layer_clears_state_map(){
         let mut g = Graph::new();
-        g.add_root(Arc::new('a'), 0);
+        g.add_root(Rc::new('a'), 0);
         assert_eq!(1, g.state.len());
 
         g.add_layer();
@@ -1480,7 +1481,7 @@ mod test_graph {
     fn current_layer_returns_current_layer() {
         let mut g = Graph::new();
         assert_eq!(LayerData{my_id: LayerIndex(0), start: 0, end:0}, g.current_layer());
-        g.add_root(Arc::new('a'), 0);
+        g.add_root(Rc::new('a'), 0);
         assert_eq!(LayerData{my_id: LayerIndex(0), start: 0, end:1}, g.current_layer());
 
         g.add_layer();
@@ -1561,7 +1562,7 @@ mod test_graph {
     #[test]
     fn longest_path() {
         let (_, g) = example_graph();
-        let x = g.state[&Arc::new('x')];
+        let x = g.state[&Rc::new('x')];
 
         assert_eq!(11, g.nodes[x.0].lp_from_top);
 
@@ -1674,7 +1675,7 @@ mod test_graph {
     #[test]
     fn restrict_last_remembers_the_last_exact_layer_if_needed() {
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -1702,7 +1703,7 @@ mod test_graph {
     #[test]
     fn restrict_last_makes_the_graph_inexact() {
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -1718,7 +1719,7 @@ mod test_graph {
     #[test]
     fn restrict_last_layer_enforces_the_given_width() {
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -1748,7 +1749,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -1779,7 +1780,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -1807,7 +1808,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -1856,7 +1857,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -1886,7 +1887,7 @@ mod test_graph {
     #[test]
     fn relax_last_remembers_the_last_exact_layer_if_needed() {
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -1914,7 +1915,7 @@ mod test_graph {
     #[test]
     fn relax_last_makes_the_graph_inexact() {
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -1945,7 +1946,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -1976,7 +1977,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2007,7 +2008,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2038,7 +2039,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2072,7 +2073,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2106,7 +2107,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2140,7 +2141,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2174,7 +2175,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2204,7 +2205,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2249,7 +2250,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
@@ -2293,7 +2294,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         // edge 0
@@ -2351,7 +2352,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         // edge 0
@@ -2400,7 +2401,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         // edge 0
@@ -2449,7 +2450,7 @@ mod test_graph {
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
         // edge 0
@@ -2477,7 +2478,7 @@ mod test_graph {
     fn relax_last_panics_if_width_is_0() {
         let c = MockConfig::default();
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -2491,7 +2492,7 @@ mod test_graph {
     fn relax_last_panics_if_layer_is_not_broad_enough() {
         let c = MockConfig::default();
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -2505,7 +2506,7 @@ mod test_graph {
     fn restrict_last_panics_if_layer_is_not_broad_enough() {
         let c = MockConfig::default();
         let mut g = Graph::new();
-        let  r_id = g.add_root(Arc::new(33), 3);
+        let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
         g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
@@ -2544,7 +2545,7 @@ mod test_graph {
     fn example_graph() -> (MetroHashMap<char, NodeIndex>, Graph<char>) {
         let mut g = Graph::new();
 
-        let r_id = g.add_root(Arc::new('r'), 0);
+        let r_id = g.add_root(Rc::new('r'), 0);
         g.add_layer();
 
         // L0
@@ -2552,8 +2553,8 @@ mod test_graph {
         g.branch(r_id, 'z', Decision{variable: Variable(0), value: 2}, 0);
 
         // L1
-        let a_id  = g.state[&Arc::new('a')];
-        let z_id  = g.state[&Arc::new('z')];
+        let a_id  = g.state[&Rc::new('a')];
+        let z_id  = g.state[&Rc::new('z')];
         g.add_layer();
 
         g.branch(a_id, 'b', Decision{variable: Variable(1), value: 1}, 3);
@@ -2561,8 +2562,8 @@ mod test_graph {
 
         g.branch(z_id, 'b', Decision{variable: Variable(1), value:26}, 0);
         // L2
-        let b_id  = g.state[&Arc::new('b')];
-        let c_id  = g.state[&Arc::new('c')];
+        let b_id  = g.state[&Rc::new('b')];
+        let c_id  = g.state[&Rc::new('c')];
         g.add_layer();
 
         g.branch(b_id, 'c', Decision{variable: Variable(2), value: 1}, 1);
@@ -2571,9 +2572,9 @@ mod test_graph {
         g.branch(b_id, 'f', Decision{variable: Variable(2), value: 4}, 4);
 
         // L3
-        let d_id  = g.state[&Arc::new('d')];
-        let e_id  = g.state[&Arc::new('e')];
-        let f_id  = g.state[&Arc::new('f')];
+        let d_id  = g.state[&Rc::new('d')];
+        let e_id  = g.state[&Rc::new('e')];
+        let f_id  = g.state[&Rc::new('f')];
         g.add_layer();
 
         g.branch(c_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
@@ -2590,7 +2591,7 @@ mod test_graph {
         ids.insert('d', d_id);
         ids.insert('e', e_id);
         ids.insert('f', f_id);
-        ids.insert('x', g.state[&Arc::new('x')]);
+        ids.insert('x', g.state[&Rc::new('x')]);
 
         (ids, g)
     }

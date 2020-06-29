@@ -429,21 +429,21 @@ mod test_decreasing {
 #[cfg(test)]
 mod test_minlp {
     use std::cmp::Ordering;
-    use std::sync::Arc;
 
     use crate::abstraction::heuristics::NodeSelectionHeuristic;
     use crate::implementation::heuristics::MinLP;
     use crate::implementation::mdd::utils::NodeFlags;
     use crate::implementation::mdd::deep::mddgraph::{NodeData, NodeIndex};
+    use std::rc::Rc;
 
     #[test]
     fn example() {
-        let a = NodeData {state: Arc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
-        let b = NodeData {state: Arc::new('b'), lp_from_top:  2, flags: NodeFlags::new_exact(), my_id: NodeIndex(1), inbound: None, best_parent: None, lp_from_bot: -1};
-        let c = NodeData {state: Arc::new('c'), lp_from_top: 24, flags: NodeFlags::new_exact(), my_id: NodeIndex(2), inbound: None, best_parent: None, lp_from_bot: -1};
-        let d = NodeData {state: Arc::new('d'), lp_from_top: 13, flags: NodeFlags::new_exact(), my_id: NodeIndex(3), inbound: None, best_parent: None, lp_from_bot: -1};
-        let e = NodeData {state: Arc::new('e'), lp_from_top: 65, flags: NodeFlags::new_exact(), my_id: NodeIndex(4), inbound: None, best_parent: None, lp_from_bot: -1};
-        let f = NodeData {state: Arc::new('f'), lp_from_top: 19, flags: NodeFlags::new_exact(), my_id: NodeIndex(5), inbound: None, best_parent: None, lp_from_bot: -1};
+        let a = NodeData {state: Rc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
+        let b = NodeData {state: Rc::new('b'), lp_from_top:  2, flags: NodeFlags::new_exact(), my_id: NodeIndex(1), inbound: None, best_parent: None, lp_from_bot: -1};
+        let c = NodeData {state: Rc::new('c'), lp_from_top: 24, flags: NodeFlags::new_exact(), my_id: NodeIndex(2), inbound: None, best_parent: None, lp_from_bot: -1};
+        let d = NodeData {state: Rc::new('d'), lp_from_top: 13, flags: NodeFlags::new_exact(), my_id: NodeIndex(3), inbound: None, best_parent: None, lp_from_bot: -1};
+        let e = NodeData {state: Rc::new('e'), lp_from_top: 65, flags: NodeFlags::new_exact(), my_id: NodeIndex(4), inbound: None, best_parent: None, lp_from_bot: -1};
+        let f = NodeData {state: Rc::new('f'), lp_from_top: 19, flags: NodeFlags::new_exact(), my_id: NodeIndex(5), inbound: None, best_parent: None, lp_from_bot: -1};
 
         let mut nodes = vec![a, b, c, d, e, f];
         nodes.sort_by(|a, b| MinLP.compare(a, b).reverse());
@@ -452,29 +452,29 @@ mod test_minlp {
 
     #[test]
     fn gt_because_of_lplen() {
-        let a = NodeData {state: Arc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
-        let b = NodeData {state: Arc::new('b'), lp_from_top:  2, flags: NodeFlags::new_exact(), my_id: NodeIndex(1), inbound: None, best_parent: None, lp_from_bot: -1};
+        let a = NodeData {state: Rc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
+        let b = NodeData {state: Rc::new('b'), lp_from_top:  2, flags: NodeFlags::new_exact(), my_id: NodeIndex(1), inbound: None, best_parent: None, lp_from_bot: -1};
 
         assert_eq!(Ordering::Greater, MinLP.compare(&a, &b));
     }
     #[test]
     fn lt_because_of_lplen() {
-        let a = NodeData {state: Arc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
-        let b = NodeData {state: Arc::new('b'), lp_from_top:  2, flags: NodeFlags::new_exact(), my_id: NodeIndex(1), inbound: None, best_parent: None, lp_from_bot: -1};
+        let a = NodeData {state: Rc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
+        let b = NodeData {state: Rc::new('b'), lp_from_top:  2, flags: NodeFlags::new_exact(), my_id: NodeIndex(1), inbound: None, best_parent: None, lp_from_bot: -1};
 
         assert_eq!(Ordering::Less, MinLP.compare(&b, &a));
     }
 
     #[test]
     fn eq_if_all_match_but_state() {
-        let a = NodeData {state: Arc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
-        let b = NodeData {state: Arc::new('b'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
+        let a = NodeData {state: Rc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
+        let b = NodeData {state: Rc::new('b'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
 
         assert_eq!(Ordering::Equal, MinLP.compare(&a, &b));
     }
     #[test]
     fn eq_self() {
-        let a = NodeData {state: Arc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
+        let a = NodeData {state: Rc::new('a'), lp_from_top: 42, flags: NodeFlags::new_exact(), my_id: NodeIndex(0), inbound: None, best_parent: None, lp_from_bot: -1};
 
         assert_eq!(Ordering::Equal, MinLP.compare(&a, &a));
     }

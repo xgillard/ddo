@@ -30,6 +30,7 @@
 //! the transistion and transition cost relations to develop an (approximate) mdd.
 
 use std::hash::Hash;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::abstraction::mdd::{Config, MDD};
@@ -48,7 +49,7 @@ use crate::implementation::mdd::MDDType;
 /// trouble.
 struct MiniNode<T> {
     id     : NodeIndex,
-    state  : Arc<T>,
+    state  : Rc<T>,
     lp_len : isize,
 }
 
@@ -99,7 +100,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
     fn exact(&mut self, node: &FrontierNode<T>, best_lb: isize) {
         self.clear();
 
-        let init_state = Arc::clone(&node.state);
+        let init_state = Rc::new(node.state.as_ref().clone());
         let init_value = node.lp_len;
         let free_vars  = self.config.load_variables(&node);
 
@@ -113,7 +114,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
     fn restricted(&mut self, node: &FrontierNode<T>, best_lb: isize) {
         self.clear();
 
-        let init_state = Arc::clone(&node.state);
+        let init_state = Rc::new(node.state.as_ref().clone());
         let init_value = node.lp_len;
         let free_vars  = self.config.load_variables(&node);
 
@@ -127,7 +128,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
     fn relaxed(&mut self, node: &FrontierNode<T>, best_lb: isize) {
         self.clear();
 
-        let init_state = Arc::clone(&node.state);
+        let init_state = Rc::new(node.state.as_ref().clone());
         let init_value = node.lp_len;
         let free_vars  = self.config.load_variables(&node);
 
@@ -163,7 +164,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
                 let ub_bot = node.lp_from_top.saturating_add(node.lp_from_bot);
                 let ub_est = node.lp_from_top.saturating_add(self.config.estimate(node.state.as_ref()));
                 FrontierNode {
-                    state: Arc::clone(&node.state),
+                    state: Arc::new(node.state.as_ref().clone()),
                     lp_len: node.lp_from_top,
                     ub: ub_bot.min(ub_est),
                     path: Arc::new(self.best_partial_assignment_for(node.my_id))
@@ -303,7 +304,7 @@ impl <T, C> DeepMDD<T, C>
     /// It only considers nodes that are relevant wrt. the given best lower
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
-    fn develop(&mut self, init_state: Arc<T>, init_val: isize, mut vars: VarSet, best_lb: isize) {
+    fn develop(&mut self, init_state: Rc<T>, init_val: isize, mut vars: VarSet, best_lb: isize) {
         self.graph.add_root(init_state, init_val);
 
         while let Some(var) = self.next_var(&vars) {

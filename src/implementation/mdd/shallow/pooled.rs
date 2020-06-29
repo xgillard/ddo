@@ -29,11 +29,11 @@ use metrohash::MetroHashMap;
 
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::{Config, MDD};
-use crate::common::{Decision, FrontierNode, Solution, Variable, VarSet};
-use crate::common::PartialAssignment::SingleExtension;
+use crate::common::{Decision, FrontierNode, Solution, Variable, VarSet, PartialAssignment};
 use crate::implementation::mdd::MDDType;
 use crate::implementation::mdd::utils::NodeFlags;
 use crate::implementation::mdd::shallow::utils::{Node, Edge};
+use std::rc::Rc;
 
 // --- POOLED MDD --------------------------------------------------------------
 /// This structure implements a _pooled_ MDD. This is a kind of bounded width
@@ -111,14 +111,17 @@ pub struct PooledMDD<T, C>
     mddtype: MDDType,
     /// This is the pool of candidate nodes that might possibly participate in
     /// the next layer.
-    pool: MetroHashMap<Arc<T>, Node<T>>,
+    pool: MetroHashMap<Rc<T>, Rc<Node<T>>>,
     /// This set of nodes comprises all nodes that belong to a
     /// _frontier cutset_ (FC).
-    cutset: Vec<Node<T>>,
+    cutset: Vec<Rc<Node<T>>>,
 
     /// A flag indicating whether this mdd is exact
     is_exact: bool,
 
+    /// This is the path in the exact mdd (partial assignment) until the root of
+    /// this mdd.
+    root_pa: Arc<PartialAssignment>,
     /// This is the best known lower bound at the time of the MDD unrolling.
     /// This field is set once before developing mdd.
     best_lb: isize,
@@ -127,7 +130,7 @@ pub struct PooledMDD<T, C>
     max_width: usize,
     /// This field memoizes the best node of the MDD. That is, the node of this
     /// mdd having the longest path from root.
-    best_node: Option<Node<T>>
+    best_node: Option<Rc<Node<T>>>
 }
 /// As the name suggests, `PooledMDD` is an implementation of the `MDD` trait.
 /// See the trait definiton for the documentation related to these methods.
@@ -153,7 +156,7 @@ impl <T, C> MDD<T, C> for PooledMDD<T, C>
     }
 
     fn best_solution(&self) -> Option<Solution> {
-        self.best_node.as_ref().map(|n| Solution::new(n.path()))
+        self.best_node.as_ref().map(|n| Solution::new(self.partial_assignement(n)))
     }
 
     fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
@@ -161,7 +164,7 @@ impl <T, C> MDD<T, C> for PooledMDD<T, C>
             let ub = self.best_value();
             if ub > self.best_lb {
                 self.cutset.iter().for_each(|n| {
-                    let mut frontier_node = FrontierNode::from(n);
+                    let mut frontier_node = n.to_frontier_node(&self.root_pa);
                     frontier_node.ub = ub.min(frontier_node.ub);
                     (func)(frontier_node);
                 });
@@ -211,6 +214,7 @@ impl <T, C> PooledMDD<T, C>
             pool     : Default::default(),
             cutset   : vec![],
             is_exact : true,
+            root_pa  : Arc::new(PartialAssignment::Empty),
             best_lb  : isize::min_value(),
             max_width: usize::max_value(),
             best_node: None
@@ -223,17 +227,20 @@ impl <T, C> PooledMDD<T, C>
         self.pool.clear();
         self.cutset.clear();
         self.is_exact  = true;
+        //self.root_pa   = Arc::new(PartialAssignment::Empty);
         self.best_node = None;
         self.best_lb   = isize::min_value();
     }
+
     /// Develops/Unrolls the requested type of MDD, starting from a given root
     /// node. It only considers nodes that are relevant wrt. the given best lower
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
     fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize) {
+        self.root_pa = Arc::clone(&root.path);
         let root     = Node::from(root);
         self.best_lb = best_lb;
-        self.pool.insert(Arc::clone(&root.this_state), root);
+        self.pool.insert(Rc::clone(&root.this_state), Rc::new(root));
 
         let mut current = vec![];
         while let Some(var) = self.next_var(&vars, &current) {
@@ -269,7 +276,7 @@ impl <T, C> PooledMDD<T, C>
     }
     /// Returns the next variable to branch on (according to the configured
     /// branching heuristic) or None if all variables have been assigned a value.
-    fn next_var(&self, vars: &VarSet, current: &[Node<T>]) -> Option<Variable> {
+    fn next_var(&self, vars: &VarSet, current: &[Rc<Node<T>>]) -> Option<Variable> {
         let mut curr_it = current.iter().map(|n| n.state());
         let mut next_it = self.pool.keys().map(|k| k.as_ref());
 
@@ -278,13 +285,13 @@ impl <T, C> PooledMDD<T, C>
     /// Adds one layer to the mdd and move to it.
     /// In practice, this amounts to selecting the relevant nodes from the pool,
     /// adding them to the current layer and removing them from the pool.
-    fn add_layer(&mut self, var: Variable, current: &mut Vec<Node<T>>) {
+    fn add_layer(&mut self, var: Variable, current: &mut Vec<Rc<Node<T>>>) {
         current.clear();
 
         // Add all selected nodes to the next layer
         for (s, n) in self.pool.iter() {
             if self.config.impacted_by(s, var) {
-                current.push(n.clone());
+                current.push(Rc::clone(n));
             }
         }
 
@@ -302,15 +309,14 @@ impl <T, C> PooledMDD<T, C>
     /// In case where this branching would create a new longest path to an
     /// already existing node, the length and best parent of the pre-existing
     /// node are updated.
-    fn branch(&mut self, node: &Node<T>, dest: T, decision: Decision, weight: isize) {
+    fn branch(&mut self, node: &Rc<Node<T>>, dest: T, decision: Decision, weight: isize) {
         let dst_node = Node {
-            this_state: Arc::new(dest),
-            path: Arc::new(SingleExtension { parent: Arc::clone(&node.path), decision }),
-            value: node.value.saturating_add(weight),
+            this_state: Rc::new(dest),
+            value: node.value + weight,
             estimate: isize::max_value(),
             flags: node.flags, // if its inexact, it will be or relaxed it will be considered inexact or relaxed too
             best_edge: Some(Edge {
-                parent_state: Arc::clone(&node.this_state),
+                parent: Rc::clone(node),
                 weight,
                 decision
             })
@@ -320,21 +326,21 @@ impl <T, C> PooledMDD<T, C>
 
     /// Inserts the given node in the next layer or updates it if needed.
     fn add_node(&mut self, mut node: Node<T>) {
-        match self.pool.entry(Arc::clone(&node.this_state)) {
+        match self.pool.entry(Rc::clone(&node.this_state)) {
             Entry::Vacant(re) => {
                 node.estimate = self.config.estimate(node.state());
                 if node.ub() > self.best_lb {
-                    re.insert(node);
+                    re.insert(Rc::new(node));
                 }
             },
             Entry::Occupied(mut re) => {
                 let old = re.get_mut();
                 if old.is_exact() && !node.is_exact() {
-                    self.cutset.push(old.clone());
+                    self.cutset.push(Rc::clone(old));
                 } else if node.is_exact() && !old.is_exact() {
-                    self.cutset.push(node.clone());
+                    self.cutset.push(Rc::new(node.clone()));
                 }
-                old.merge(node);
+                Self::merge(old, node);
             }
         }
     }
@@ -348,7 +354,7 @@ impl <T, C> PooledMDD<T, C>
     /// # Warning
     /// It is your responsibility to make sure the layer is broad enough to be
     /// relaxed. Failing to do so will not panic... but in the future, it might!
-    fn restrict_last(&mut self, current: &mut Vec<Node<T>>) {
+    fn restrict_last(&mut self, current: &mut Vec<Rc<Node<T>>>) {
         self.is_exact = false;
 
         current.sort_unstable_by(|a, b| self.config.compare(a, b).reverse());
@@ -368,7 +374,7 @@ impl <T, C> PooledMDD<T, C>
     /// # Warning
     /// This function will panic if you request a relaxation that would leave
     /// zero nodes in the current layer.
-    fn relax_last(&mut self, current: &mut Vec<Node<T>>) {
+    fn relax_last(&mut self, current: &mut Vec<Rc<Node<T>>>) {
         self.is_exact = false;
 
         current.sort_unstable_by(|a, b| self.config.compare(a, b).reverse());
@@ -376,38 +382,35 @@ impl <T, C> PooledMDD<T, C>
         let (_keep, squash) = current.split_at_mut(self.max_width - 1);
         for node in squash.iter() {
             if node.is_exact() {
-                self.cutset.push(node.clone());
+                self.cutset.push(Rc::clone(node));
             }
         }
 
         let merged_state = self.config.merge_states(&mut squash.iter().map(|n| n.state()));
-        let mut merged_path  = Arc::clone(&squash[0].path);
         let mut merged_value = isize::min_value();
         let mut merged_edge  = None;
 
         for node in squash {
             let best_edge    = node.best_edge.as_ref().unwrap();
-            let parent_value = node.value.saturating_sub(best_edge.weight);
-            let src          = best_edge.parent_state.as_ref();
+            let parent_value = node.value - best_edge.weight;
+            let src          = best_edge.parent.this_state.as_ref();
             let dst          = node.this_state.as_ref();
             let decision     = best_edge.decision;
             let cost         = best_edge.weight;
             let relax_cost   = self.config.relax_edge(src, dst, &merged_state, decision, cost);
 
-            if parent_value.saturating_add(relax_cost) > merged_value {
-                merged_value = parent_value.saturating_add(relax_cost);
-                merged_path  = Arc::clone(&node.path);
+            if parent_value + relax_cost > merged_value {
+                merged_value = parent_value + relax_cost;
                 merged_edge  = Some(Edge{
-                    parent_state: Arc::clone(&best_edge.parent_state),
-                    weight      : relax_cost,
+                    parent  : Rc::clone(&best_edge.parent),
+                    weight  : relax_cost,
                     decision
                 });
             }
         }
 
         let rlx_node = Node {
-            this_state: Arc::new(merged_state),
-            path      : merged_path,
+            this_state: Rc::new(merged_state),
             value     : merged_value,
             estimate: isize::max_value(),
             flags     : NodeFlags::new_relaxed(),
@@ -419,7 +422,7 @@ impl <T, C> PooledMDD<T, C>
     }
     /// Finds another node in the current layer having the same state as the
     /// given `state` parameter (if there is one such node).
-    fn find_same_state<'b>(state: &T, current: &'b mut[Node<T>]) -> Option<&'b mut Node<T>> {
+    fn find_same_state<'b>(state: &T, current: &'b mut[Rc<Node<T>>]) -> Option<&'b mut Rc<Node<T>>> {
         for n in current.iter_mut() {
             if n.state().eq(state) {
                 return Some(n);
@@ -428,17 +431,17 @@ impl <T, C> PooledMDD<T, C>
         None
     }
     /// Adds a relaxed node into the given current layer.
-    fn add_relaxed(&mut self, mut node: Node<T>, into_current: &mut Vec<Node<T>>) {
+    fn add_relaxed(&mut self, mut node: Node<T>, into_current: &mut Vec<Rc<Node<T>>>) {
         if let Some(old) = Self::find_same_state(node.state(), into_current) {
             if old.is_exact() {
                 //trace!("squash:: there existed an equivalent");
-                self.cutset.push(old.clone());
+                self.cutset.push(Rc::clone(old));
             }
-            old.merge(node);
+            Self::merge(old, node);
         } else {
             node.estimate = self.config.estimate(node.state());
             if node.ub() > self.best_lb {
-                into_current.push(node);
+                into_current.push(Rc::new(node));
             }
         }
     }
@@ -448,13 +451,31 @@ impl <T, C> PooledMDD<T, C>
             .max_by_key(|n| n.value)
             .cloned();
     }
+
+    /// This method yields a partial assignment for the given node
+    fn partial_assignement(&self, n: &Node<T>) -> Arc<PartialAssignment> {
+        let root = &self.root_pa;
+        let path = n.path();
+        Arc::new(PartialAssignment::FragmentExtension {parent: Arc::clone(root), fragment: path})
+    }
+
+    /// This method ensures that a node be effectively merged with the 2nd one
+    /// even though it is shielded behind a shared ref.
+    fn merge(old: &mut Rc<Node<T>>, new: Node<T>) {
+        if let Some(e) = Rc::get_mut(old) {
+            e.merge(new)
+        } else {
+            let mut cpy = old.as_ref().clone();
+            cpy.merge(new);
+            *old = Rc::new(cpy)
+        }
+    }
 }
 
 
 // ############################################################################
 // #### TESTS #################################################################
 // ############################################################################
-
 
 #[cfg(test)]
 mod test_pooledmdd {
@@ -476,7 +497,6 @@ mod test_pooledmdd {
 
         assert_eq!(MDDType::Exact, mdd.mddtype);
     }
-
     #[test]
     fn mdd_type_changes_depending_on_the_requested_type_of_mdd() {
         let root_n = FrontierNode {
@@ -744,29 +764,27 @@ mod test_pooledmdd {
     }
 }
 
-
 #[cfg(test)]
 mod test_private {
     use std::cmp::Ordering;
     use std::hash::Hash;
-    use std::sync::Arc;
 
     use mock_it::verify;
 
     use crate::abstraction::heuristics::SelectableNode;
     use crate::abstraction::mdd::{Config, MDD};
-    use crate::common::{Decision, PartialAssignment, Variable};
+    use crate::common::{Decision, Variable};
     use crate::implementation::mdd::shallow::utils::Node;
     use crate::implementation::mdd::shallow::pooled::PooledMDD;
     use crate::test_utils::{MockConfig, Proxy};
+    use std::rc::Rc;
 
     #[test]
     fn branch_inserts_a_node_with_given_state_when_none_exists() {
         let config  = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
         let node    = Node {
-            this_state: Arc::new(42),
-            path      : Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value     : 42,
             estimate  : isize::max_value(),
             flags     : Default::default(),
@@ -785,15 +803,14 @@ mod test_private {
         assert_eq!(0, mdd.pool.len());
         mdd.branch(&src, dst, dec, wt);
         assert_eq!(1, mdd.pool.len());
-        assert!(mdd.pool.get(&Arc::new(1)).is_some());
+        assert!(mdd.pool.get(&Rc::new(1)).is_some());
     }
     #[test]
     fn branch_wont_update_existing_node_to_remember_last_decision_and_path_if_it_doesnt_improve_value() {
         let config  = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
         let node    = Node {
-            this_state: Arc::new(42),
-            path      : Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value     : 42,
             estimate  : isize::max_value(),
             flags     : Default::default(),
@@ -804,8 +821,7 @@ mod test_private {
         mdd.add_layer(Variable(0), &mut current);
 
         mdd.add_node(Node {
-            this_state: Arc::new(1),
-            path      : Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(1),
             value     : 100,
             estimate  : isize::max_value(),
             flags     : Default::default(),
@@ -818,16 +834,15 @@ mod test_private {
         let wt  = 1;
 
         mdd.branch(&src, dst, dec, wt);
-        assert!(mdd.pool[&Arc::new(1)].best_edge.is_none());
-        assert_eq!(100, mdd.pool[&Arc::new(1)].value);
+        assert!(mdd.pool[&Rc::new(1)].best_edge.is_none());
+        assert_eq!(100, mdd.pool[&Rc::new(1)].value);
     }
     #[test]
     fn branch_updates_existing_node_to_remember_last_decision_and_path_if_it_improves_value() {
         let config  = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
         let node    = Node {
-            this_state: Arc::new(42),
-            path      : Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(42),
             value     : 42,
             estimate  : isize::max_value(),
             flags     : Default::default(),
@@ -838,8 +853,7 @@ mod test_private {
         mdd.add_layer(Variable(0), &mut current);
 
         mdd.add_node(Node {
-            this_state: Arc::new(1),
-            path      : Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(1),
             value     : 1,
             estimate  : isize::max_value(),
             flags     : Default::default(),
@@ -852,15 +866,16 @@ mod test_private {
         let wt  = 1;
 
         mdd.branch(&src, dst, dec, wt);
-        assert!(mdd.pool[&Arc::new(1)].best_edge.is_some());
-        assert_eq!(43, mdd.pool[&Arc::new(1)].value);
+        assert!(mdd.pool[&Rc::new(1)].best_edge.is_some());
+        assert_eq!(43, mdd.pool[&Rc::new(1)].value);
     }
 
 
     macro_rules! get {
         ($curr: expr, $state: expr) => { &$curr.iter().cloned().find(|n| $state == *n.state()).unwrap()};
-        (next $dd: expr, $state: expr) => { &$dd.pool[&Arc::new($state)]};
+        (next $dd: expr, $state: expr) => { &$dd.pool[&Rc::new($state)]};
     }
+
     #[test]
     fn restrict_last_will_not_populate_cutset() { // because it is useless !
         let config  = MockConfig::default();
@@ -1102,7 +1117,6 @@ mod test_private {
         g.relax_last(&mut current);
         assert!(!g.is_exact());
     }
-
     #[test]
     fn relax_last_layer_enforces_the_given_max_width() {
         let c = MockConfig::default();
@@ -1574,12 +1588,12 @@ mod test_private {
         // edge 3
         g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
 
-        assert_eq!(33, *get!(next g, 36).best_edge.as_ref().unwrap().parent_state.as_ref());
+        assert_eq!(33, *get!(next g, 36).best_edge.as_ref().unwrap().parent.this_state.as_ref());
         assert_eq!( 4,  get!(next g, 36).value);
 
         g.add_layer(Variable(5), &mut current);
         g.relax_last(&mut current);
-        assert_eq!(33, *get!(current, 36).best_edge.as_ref().unwrap().parent_state.as_ref());
+        assert_eq!(33, *get!(current, 36).best_edge.as_ref().unwrap().parent.this_state.as_ref());
         assert_eq!(20,  get!(current, 36).value);
     }
     #[test]
@@ -1627,15 +1641,15 @@ mod test_private {
         // edge 3
         g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
 
-        assert_eq!(33, *get!(next g, 36).best_edge.as_ref().unwrap().parent_state.as_ref());
+        assert_eq!(33, *get!(next g, 36).best_edge.as_ref().unwrap().parent.this_state.as_ref());
         assert_eq!( 4,  get!(next g, 36).value);
 
         g.add_layer(Variable(5), &mut current);
         g.relax_last(&mut current);
-        assert_eq!(33, *get!(current, 37).best_edge.as_ref().unwrap().parent_state.as_ref());
+        assert_eq!(33, *get!(current, 37).best_edge.as_ref().unwrap().parent.this_state.as_ref());
         assert_eq!(13,  get!(current, 37).value);
 
-        assert_eq!(33, *get!(current, 36).best_edge.as_ref().unwrap().parent_state.as_ref());
+        assert_eq!(33, *get!(current, 36).best_edge.as_ref().unwrap().parent.this_state.as_ref());
         assert_eq!( 4,  get!(current, 36).value);
     }
     #[test]
@@ -1692,13 +1706,15 @@ mod test_private {
         g.restrict_last(&mut current);
     }
 
+    // TODO: test partial assignment in pooled
+    // TODO: test merge in pooled
+
     fn add_root<T, C>(mdd : &mut PooledMDD<T, C>, s: T, v: isize)
         where T: Eq + Hash + Clone,
               C: Config<T> + Clone
     {
         mdd.add_node(Node{
-            this_state: Arc::new(s),
-            path: Arc::new(PartialAssignment::Empty),
+            this_state: Rc::new(s),
             value: v,
             estimate: isize::max_value(),
             flags: Default::default(),

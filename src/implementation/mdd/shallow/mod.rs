@@ -18,11 +18,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This module and its sub modules provide the structures required to implement
-//! a _shallow_ MDDs (flat or pooled). As we explained in our paper:
-//!
-//! ``Improving the filtering of Branch-And-Bound MDD solver''
-//! Gillard, Schaus, Coppé, in proceedings of 26th International Conference on
-//! Principles and Practice of Constraint Programming 2020, Springer, 2020
+//! a _shallow_ MDDs (flat or pooled).
 //!
 //! A shallow MDD representation is one that only maintains a ”slice” of the
 //! actual DD it stands for. This slice comprises only two layers from the MDD:
