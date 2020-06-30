@@ -34,7 +34,7 @@ as a dependency to your Cargo.toml file and building your project.
 
 ```toml
 [dependencies]
-ddo = "0.2.0"
+ddo = "0.2.2"
 ```
 
 ## Simplistic yet complete example
