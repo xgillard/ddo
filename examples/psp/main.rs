@@ -51,7 +51,7 @@ fn psp(fname: &str, width: usize, threads: Option<usize>) -> isize {
         .with_branch_heuristic(Decreasing)
         .with_max_width(FixedWidth(width))
         .into_deep();
-    let solver    = ParallelSolver::customized(mdd, 2, threads);
+    let mut solver = ParallelSolver::customized(mdd, 2, threads);
 
     let start = SystemTime::now();
     let opt   = -solver.maximize().0;

@@ -127,7 +127,7 @@ impl <T, C, DD> Solver for SequentialSolver<T, C, DD>
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality.
-    fn maximize(mut self) -> (isize, Option<Solution>) {
+    fn maximize(&mut self) -> (isize, Option<Solution>) {
         let root = self.config.root_node();
         self.fringe.push(root);
 
@@ -184,7 +184,16 @@ impl <T, C, DD> Solver for SequentialSolver<T, C, DD>
         if self.verbosity >= 1 {
             println!("Final {}, Explored {}", self.best_lb, self.explored);
         }
-        (self.best_lb, self.best_sol)
+        (self.best_lb, self.best_sol.clone())
+    }
+
+    /// Sets the best known value and/or solution. This solution and value may
+    /// be obtained from any other available means (LP relax for instance).
+    fn set_primal(&mut self, value: isize, best_sol: Option<Solution>) {
+        if value > self.best_lb {
+            self.best_lb = value;
+            self.best_sol= best_sol;
+        }
     }
 }
 
@@ -201,13 +210,14 @@ impl <T, C, DD> Solver for SequentialSolver<T, C, DD>
 
 #[cfg(test)]
 mod test_solver {
-    use crate::common::{Decision, Domain, Variable, VarSet};
+    use crate::common::{Decision, Domain, Variable, VarSet, Solution, PartialAssignment};
     use crate::abstraction::dp::{Problem, Relaxation};
 
     use crate::implementation::mdd::config::mdd_builder;
     use crate::implementation::solver::sequential::SequentialSolver;
     use crate::abstraction::solver::Solver;
     use crate::implementation::heuristics::FixedWidth;
+    use std::sync::Arc;
 
     /// Describe the binary knapsack problem in terms of a dynamic program.
     /// Here, the state of a node, is nothing more than an unsigned integer (usize).
@@ -342,7 +352,7 @@ mod test_solver {
         };
         let  mdd = mdd_builder(&problem, KPRelax).into_deep();
 
-        let solver = SequentialSolver::new(mdd);
+        let mut solver = SequentialSolver::new(mdd);
         let (v, s) = solver.maximize();
 
         assert_eq!(v, 220);
@@ -368,7 +378,7 @@ mod test_solver {
             .with_max_width(FixedWidth(2))
             .into_deep();
 
-        let solver = SequentialSolver::new(mdd);
+        let mut solver = SequentialSolver::new(mdd);
         let (v, s) = solver.maximize();
 
         assert_eq!(v, 220);
@@ -385,5 +395,37 @@ mod test_solver {
             Decision { variable: Variable(5), value: 1 },
             Decision { variable: Variable(6), value: 0 }
         ]);
+    }
+    #[test]
+    fn set_primal_overwrites_best_value_and_sol_if_it_improves() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax).into_deep();
+        let mut solver = SequentialSolver::new(mdd);
+
+        let d1  = Decision{variable: Variable(0), value: 10};
+        let sol = Solution::new(Arc::new(PartialAssignment::SingleExtension {decision: d1, parent: Arc::new(PartialAssignment::Empty)}));
+
+        solver.set_primal(10, Some(sol));
+        assert!(solver.best_sol.is_some());
+        assert_eq!(10, solver.best_lb);
+
+        // in this case, it wont update because there is no improvement
+        solver.set_primal(5, None);
+        assert!(solver.best_sol.is_some());
+        assert_eq!(10, solver.best_lb);
+
+        // but here, it will update as it improves the best known sol
+        solver.set_primal(10000, None);
+        assert!(solver.best_sol.is_none());
+        assert_eq!(10000, solver.best_lb);
+
+        // it wont do much as the primal is better than the actual feasible solution
+        let (val, sol) = solver.maximize();
+        assert_eq!(10000, val);
+        assert!(sol.is_none());
     }
 }

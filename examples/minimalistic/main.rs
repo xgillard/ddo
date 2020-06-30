@@ -102,7 +102,7 @@ fn main() {
     // 3. Create a parllel solver on the basis of this MDD (this is how
     //    you can specify the MDD implementation you wish to use to develop
     //    the relaxed and restricted MDDs).
-    let solver = ParallelSolver::new(mdd);
+    let mut solver = ParallelSolver::new(mdd);
     // 4. Maximize your objective function
     let (optimal, solution) = solver.maximize();
 

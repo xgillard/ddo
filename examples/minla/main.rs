@@ -39,7 +39,7 @@ fn main() {
     let problem = if opt.dimacs { read_dimacs(&opt.fname) } else { read_gra(&opt.fname) }.unwrap();
     let relax   = MinlaRelax::new(&problem);
     let mdd     = mdd_builder(&problem, relax).into_deep();
-    let solver  = ParallelSolver::customized(mdd, opt.verbose, threads);
+    let mut solver  = ParallelSolver::customized(mdd, opt.verbose, threads);
 
     let start = SystemTime::now();
     let (opt, _) = solver.maximize();

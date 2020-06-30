@@ -49,7 +49,7 @@ fn kp(fname: &str, width: usize, threads: Option<usize>) -> isize {
         .with_branch_heuristic(KnapsackOrder::new(&problem))
         .into_deep();
 
-    let solver = ParallelSolver::customized(mdd, 2, threads);
+    let mut solver = ParallelSolver::customized(mdd, 2, threads);
     let start  = SystemTime::now();
     let opt    = solver.maximize().0;
     let end    = SystemTime::now();

@@ -51,8 +51,8 @@ fn misp(fname: &str, threads: Option<usize>) -> isize {
         .with_branch_heuristic(MispVarHeu::new(&problem))
         .build();
 
-    let mdd       = HybridPooledDeep::from(conf);
-    let solver    = ParallelSolver::customized(mdd, 2, threads);
+    let mdd        = HybridPooledDeep::from(conf);
+    let mut solver = ParallelSolver::customized(mdd, 2, threads);
 
     let start = SystemTime::now();
     let opt   = solver.maximize().0;

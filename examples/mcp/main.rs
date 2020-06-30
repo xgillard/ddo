@@ -45,7 +45,7 @@ fn mcp(fname: &str, threads: Option<usize>) -> isize {
     let problem   = File::open(fname).expect("file not found").into();
     let relax     = McpRelax::new(&problem);
     let mdd       = mdd_builder(&problem, relax).into_deep();
-    let solver    = ParallelSolver::customized(mdd, 2, threads);
+    let mut solver= ParallelSolver::customized(mdd, 2, threads);
 
     let start = SystemTime::now();
     let opt   = solver.maximize().0;

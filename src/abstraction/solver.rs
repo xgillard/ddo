@@ -26,5 +26,8 @@ pub trait Solver {
     /// Returns a tuple where the first component is the value of an optimal
     /// solution to the maximization problem, and the second term is the
     /// solution (= the sequence of decisions to reach the optimal value).
-    fn maximize(self) -> (isize, Option<Solution>);
+    fn maximize(&mut self) -> (isize, Option<Solution>);
+
+    /// Sets a primal (best known value and solution) of the problem.
+    fn set_primal(&mut self, value: isize, solution: Option<Solution>);
 }
