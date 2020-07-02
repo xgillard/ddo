@@ -192,6 +192,74 @@ impl WidthHeuristic for NbUnassignedWitdh {
     }
 }
 
+/// This strategy acts as a decorator for an other max width heuristic. It
+/// multiplies the maximum width of the strategy it delegates to by a constant
+/// (configured) factor. It is typically used in conjunction with NbUnassigned
+/// to provide a maximum width that allows a certain number of nodes.
+/// Using a constant factor of 1 means that this decorator will have absolutely
+/// no impact.
+///
+/// # Example
+/// Here is an example of how to use this strategy to allow 5 nodes per
+/// unassigned variable in a layer.
+///
+/// ```
+/// # use ddo::common::{Variable, VarSet};
+/// # use ddo::abstraction::heuristics::WidthHeuristic;
+/// # use ddo::implementation::heuristics::{NbUnassignedWitdh, Times};
+/// #
+/// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
+/// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+/// # var_set.remove(Variable(3));
+/// # var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+/// let custom = Times(5, NbUnassignedWitdh);
+/// assert_eq!(5 * NbUnassignedWitdh.max_width(&var_set), custom.max_width(&var_set));
+/// ```
+#[derive(Clone)]
+pub struct Times<X: WidthHeuristic + Clone>(pub usize, pub X);
+
+impl <X: WidthHeuristic + Clone> WidthHeuristic for Times<X> {
+    fn max_width(&self, free_vars: &VarSet) -> usize {
+        self.0 * self.1.max_width(free_vars)
+    }
+}
+
+/// This strategy acts as a decorator for an other max width heuristic. It
+/// divides the maximum width of the strategy it delegates to by a constant
+/// (configured) factor. It is typically used in conjunction with NbUnassigned
+/// to provide a maximum width that allows a certain number of nodes.
+/// Using a constant factor of 1 means that this decorator will have absolutely
+/// no impact.
+///
+/// # Note
+/// The maximum width is bounded by one at the very minimum. So it is *never*
+/// going to return 0 for a value of the max width.
+///
+/// # Example
+/// Here is an example of how to use this strategy to allow 1 nodes per two
+/// unassigned variables in a layer.
+///
+/// ```
+/// # use ddo::common::{Variable, VarSet};
+/// # use ddo::abstraction::heuristics::WidthHeuristic;
+/// # use ddo::implementation::heuristics::{NbUnassignedWitdh, DivBy};
+/// #
+/// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
+/// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+/// # var_set.remove(Variable(3));
+/// # var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+/// let custom = DivBy(2, NbUnassignedWitdh);
+/// assert_eq!(NbUnassignedWitdh.max_width(&var_set) / 2, custom.max_width(&var_set));
+/// ```
+#[derive(Clone)]
+pub struct DivBy<X: WidthHeuristic + Clone>(pub usize, pub X);
+
+impl <X: WidthHeuristic + Clone> WidthHeuristic for DivBy<X> {
+    fn max_width(&self, free_vars: &VarSet) -> usize {
+        1.max(self.1.max_width(free_vars) / self.0)
+    }
+}
+
 // ----------------------------------------------------------------------------
 // --- LOAD VARIABLES ---------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -360,6 +428,64 @@ mod test_fixedwidth {
         var_set.remove(Variable(4));
 
         assert_eq!(100, FixedWidth(100).max_width(&var_set));
+    }
+}
+#[cfg(test)]
+mod test_adapters {
+    use crate::abstraction::heuristics::WidthHeuristic;
+    use crate::common::{Variable, VarSet};
+    use crate::implementation::heuristics::{Times, FixedWidth, DivBy};
+
+    #[test]
+    fn test_times() {
+        let mut var_set = VarSet::all(5); // assume a problem with 5 variables
+        var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+        var_set.remove(Variable(3));
+        var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+
+        let tested = Times(2, FixedWidth(1));
+        assert_eq!(2, tested.max_width(&var_set));
+
+        let tested = Times(3, FixedWidth(1));
+        assert_eq!(3, tested.max_width(&var_set));
+
+        let tested = Times(1, FixedWidth(10));
+        assert_eq!(10, tested.max_width(&var_set));
+
+        let tested = Times(10, FixedWidth(0));
+        assert_eq!(0, tested.max_width(&var_set));
+
+        let tested = Times(0, FixedWidth(10));
+        assert_eq!(0, tested.max_width(&var_set));
+    }
+    #[test]
+    fn test_div_by() {
+        let mut var_set = VarSet::all(5); // assume a problem with 5 variables
+        var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+        var_set.remove(Variable(3));
+        var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+
+        let tested = DivBy(2, FixedWidth(4));
+        assert_eq!(2, tested.max_width(&var_set));
+
+        let tested = DivBy(3, FixedWidth(9));
+        assert_eq!(3, tested.max_width(&var_set));
+
+        let tested = Times(1, FixedWidth(10));
+        assert_eq!(10, tested.max_width(&var_set));
+
+        let tested = Times(10, FixedWidth(0));
+        assert_eq!(0, tested.max_width(&var_set));
+    }
+    #[test] #[should_panic]
+    fn test_div_by_panics_when_div_by_zero() {
+        let mut var_set = VarSet::all(5); // assume a problem with 5 variables
+        var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+        var_set.remove(Variable(3));
+        var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+
+        let tested = Times(0, FixedWidth(10));
+        assert_eq!(1, tested.max_width(&var_set));
     }
 }
 

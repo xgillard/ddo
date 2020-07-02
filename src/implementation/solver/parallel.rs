@@ -23,19 +23,20 @@
 //! available on the machine.
 use std::clone::Clone;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-use binary_heap_plus::BinaryHeap;
 use parking_lot::{Condvar, Mutex};
 
-use crate::abstraction::mdd::{MDD, Config};
+use crate::abstraction::mdd::{Config, MDD};
 use crate::abstraction::solver::Solver;
 use crate::common::{FrontierNode, Solution};
+use crate::implementation::solver::utils::NoDupPQ;
+use binary_heap_plus::BinaryHeap;
 use crate::implementation::heuristics::MaxUB;
-use std::marker::PhantomData;
 
 /// The shared data that may only be manipulated within critical sections
-struct Critical<T> {
+struct Critical<T : Eq + Hash> {
     /// This is the fringe: the set of nodes that must still be explored before
     /// the problem can be considered 'solved'.
     ///
@@ -46,7 +47,7 @@ struct Critical<T> {
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe   : BinaryHeap<FrontierNode<T>, MaxUB>,
+    fringe   : BinaryHeap<FrontierNode<T>, MaxUB>,//NoDupPQ<T>,//BinaryHeap<FrontierNode<T>, MaxUB>,
     /// This is the number of nodes that are currently being explored.
     ///
     /// # Note
@@ -78,7 +79,7 @@ struct Critical<T> {
 /// The state which is shared among the many running threads: it provides an
 /// access to the critical data (protected by a mutex) as well as a monitor
 /// (condvar) to park threads in case of node-starvation.
-struct Shared<T> {
+struct Shared<T: Eq + Hash> {
     /// This is the shared state data which can only be accessed within critical
     /// sections. Therefore, it is protected by a mutex which prevents concurrent
     /// reads/writes.
@@ -238,7 +239,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
                     ongoing     : 0,
                     explored    : 0,
                     new_best    : false,
-                    fringe      : BinaryHeap::from_vec_cmp(vec![], MaxUB),
+                    fringe      : BinaryHeap::from_vec_cmp(vec![], MaxUB),//NoDupPQ::default(), //BinaryHeap::from_vec_cmp(vec![], MaxUB),
                     upper_bounds: vec![isize::min_value(); nb_threads]
                 })
             }),
@@ -437,18 +438,18 @@ impl <T, C, DD> Solver for ParallelSolver<T, C, DD>
 
 #[cfg(test)]
 mod test_solver {
-    use crate::common::{Decision, Domain, Variable, VarSet, Solution, PartialAssignment};
-    use crate::abstraction::dp::{Problem, Relaxation};
-
-    use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::solver::parallel::ParallelSolver;
-    use crate::abstraction::solver::Solver;
-    use crate::implementation::heuristics::FixedWidth;
     use std::sync::Arc;
 
+    use crate::abstraction::dp::{Problem, Relaxation};
+    use crate::abstraction::solver::Solver;
+    use crate::common::{Decision, Domain, PartialAssignment, Solution, Variable, VarSet};
+    use crate::implementation::heuristics::FixedWidth;
+    use crate::implementation::mdd::config::mdd_builder;
+    use crate::implementation::solver::parallel::ParallelSolver;
+
     /// Describe the binary knapsack problem in terms of a dynamic program.
-    /// Here, the state of a node, is nothing more than an unsigned integer (usize).
-    /// That unsigned integer represents the remaining capacity of our sack.
+        /// Here, the state of a node, is nothing more than an unsigned integer (usize).
+        /// That unsigned integer represents the remaining capacity of our sack.
     #[derive(Debug, Clone)]
     struct Knapsack {
         capacity: usize,
