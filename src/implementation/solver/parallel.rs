@@ -31,12 +31,11 @@ use parking_lot::{Condvar, Mutex};
 use crate::abstraction::mdd::{Config, MDD};
 use crate::abstraction::solver::Solver;
 use crate::common::{FrontierNode, Solution};
-use crate::implementation::solver::utils::NoDupPQ;
-use binary_heap_plus::BinaryHeap;
-use crate::implementation::heuristics::MaxUB;
+use crate::abstraction::frontier::Frontier;
+use crate::implementation::frontier::SimpleFrontier;
 
 /// The shared data that may only be manipulated within critical sections
-struct Critical<T : Eq + Hash> {
+struct Critical<T : Eq + Hash, F: Frontier<T>> {
     /// This is the fringe: the set of nodes that must still be explored before
     /// the problem can be considered 'solved'.
     ///
@@ -47,7 +46,7 @@ struct Critical<T : Eq + Hash> {
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe   : BinaryHeap<FrontierNode<T>, MaxUB>,//NoDupPQ<T>,//BinaryHeap<FrontierNode<T>, MaxUB>,
+    fringe: F,
     /// This is the number of nodes that are currently being explored.
     ///
     /// # Note
@@ -74,16 +73,18 @@ struct Critical<T : Eq + Hash> {
     /// cell.
     upper_bounds: Vec<isize>,
     ///
-    new_best: bool
+    new_best: bool,
+    /// A marker to tell the compiler we use T
+    _phantom: PhantomData<T>
 }
 /// The state which is shared among the many running threads: it provides an
 /// access to the critical data (protected by a mutex) as well as a monitor
 /// (condvar) to park threads in case of node-starvation.
-struct Shared<T: Eq + Hash> {
+struct Shared<T: Eq + Hash, F: Frontier<T>> {
     /// This is the shared state data which can only be accessed within critical
     /// sections. Therefore, it is protected by a mutex which prevents concurrent
     /// reads/writes.
-    critical : Mutex<Critical<T>>,
+    critical : Mutex<Critical<T, F>>,
     /// This is the monitor on which nodes must wait when facing an empty fringe.
     /// The corollary, it that whenever a node has completed the processing of
     /// a subproblem, it must wakeup all parked threads waiting on this monitor.
@@ -106,9 +107,10 @@ enum WorkLoad<T> {
     }
 }
 
-pub struct ParallelSolver<T, C, DD>
+pub struct ParallelSolver<T, C, F, DD>
     where T : Send + Sync + Hash + Eq + Clone,
           C : Send + Sync + Clone + Config<T>,
+          F : Send + Sync + Frontier<T>,
           DD: MDD<T, C> + From<C>
 {
     /// This is the configuration which will be used to drive the behavior of
@@ -116,7 +118,7 @@ pub struct ParallelSolver<T, C, DD>
     config: C,
     /// This is an atomically-reference-counted smart pointer to the shared state.
     /// Again, each thread is going to take its own clone of this smart pointer.
-    shared: Arc<Shared<T>>,
+    shared: Arc<Shared<T, F>>,
     /// This is a configuration parameter to tune the amount of information
     /// logged when solving the problem. So far, there are three levels of verbosity:
     ///
@@ -133,12 +135,10 @@ pub struct ParallelSolver<T, C, DD>
     _phantom: PhantomData<DD>
 }
 
-/// private interface of the parallel solver
-impl <T, C, DD> ParallelSolver<T, C, DD>
+impl <T, C, DD> ParallelSolver<T, C, SimpleFrontier<T>, DD>
     where T : Send + Sync + Hash + Eq + Clone,
           C : Send + Sync + Clone + Config<T>,
-          DD: MDD<T, C> + From<C>
-{
+          DD: MDD<T, C> + From<C>{
     /// This creates a solver that will find the best solution in the problem
     /// described by the given `mdd` (mdd is not expanded yet). This solver will
     /// return the optimal solution from what would be an exact expansion of `mdd`.
@@ -156,51 +156,6 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     /// copies are created when maximizing the objective function.
     pub fn new(mdd: DD) -> Self {
         Self::customized(mdd, 0, num_cpus::get())
-    }
-    /// This creates a solver that will find the best solution in the problem
-    /// described by the given `mdd` (mdd is not expanded yet) and configure that
-    /// solver to be more or less verbose.
-    ///
-    /// When using this constructor, the default number of threads will amount
-    /// to the number of available hardware threads of the platform.
-    ///
-    /// # Return value
-    /// This solver will return the optimal solution from what would be an exact
-    /// expansion of `mdd`.
-    ///
-    /// # Verbosity
-    /// So far, there are three levels of verbosity:
-    ///
-    ///   + *0* which prints nothing
-    ///   + *1* which only prints the final statistics when the problem is solved
-    ///   + *2* which prints progress information every 100 explored nodes.
-    ///
-    /// # Warning
-    /// By passing the given MDD, you are effectively only passing the _type_
-    /// of the mdd to use while developing the restricted and relaxed representations.
-    /// Each thread will instantiate its own fresh copy using a clone of the
-    /// configuration you provided. However, it will *not* clone your mdd. The
-    /// latter will be dropped as soon as the constructor ends. However, clean
-    /// copies are created when maximizing the objective function.
-    pub fn with_verbosity(mdd: DD, verbosity: u8) -> Self {
-        Self::customized(mdd, verbosity, num_cpus::get())
-    }
-    /// This creates a solver that will find the best solution in the problem
-    /// described by the given `mdd` (mdd is not expanded yet) using `nb_threads`.
-    /// This solver will return the optimal solution from what would be an exact
-    /// expansion of `mdd`.
-    ///
-    /// When using this constructor, the verbosity of the solver is set to level 0.
-    ///
-    /// # Warning
-    /// By passing the given MDD, you are effectively only passing the _type_
-    /// of the mdd to use while developing the restricted and relaxed representations.
-    /// Each thread will instantiate its own fresh copy using a clone of the
-    /// configuration you provided. However, it will *not* clone your mdd. The
-    /// latter will be dropped as soon as the constructor ends. However, clean
-    /// copies are created when maximizing the objective function.
-    pub fn with_nb_threads(mdd: DD, nb_threads: usize) -> Self {
-        Self::customized(mdd, 0, nb_threads)
     }
     /// This constructor lets you specify all the configuration parameters of
     /// the solver.
@@ -239,12 +194,54 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
                     ongoing     : 0,
                     explored    : 0,
                     new_best    : false,
-                    fringe      : BinaryHeap::from_vec_cmp(vec![], MaxUB),//NoDupPQ::default(), //BinaryHeap::from_vec_cmp(vec![], MaxUB),
-                    upper_bounds: vec![isize::min_value(); nb_threads]
+                    fringe      : SimpleFrontier::default(),
+                    upper_bounds: vec![isize::min_value(); nb_threads],
+                    _phantom    : PhantomData
                 })
             }),
             verbosity,
             nb_threads,
+            _phantom: PhantomData
+        }
+    }
+}
+
+/// private interface of the parallel solver
+impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
+    where T : Send + Sync + Hash + Eq + Clone,
+          C : Send + Sync + Clone + Config<T>,
+          F : Send + Sync + Frontier<T>,
+          DD: MDD<T, C> + From<C>
+{
+    /// Sets the verbosity of the solver
+    pub fn with_verbosity(mut self, verbosity: u8) -> Self {
+        self.verbosity = verbosity;
+        self
+    }
+    /// Sets the number of threads used by the solver
+    pub fn with_nb_threads(mut self, nb_threads: usize) -> Self {
+        self.nb_threads = nb_threads;
+        self
+    }
+    /// Sets the kind of frontier to use
+    pub fn with_frontier<FF: Frontier<T> + Send + Sync>(self, ff: FF) -> ParallelSolver<T, C, FF, DD> {
+        ParallelSolver {
+            config: self.config,
+            verbosity: self.verbosity,
+            nb_threads: self.nb_threads,
+            shared: Arc::new(Shared {
+                monitor : Condvar::new(),
+                critical: Mutex::new(Critical {
+                    best_sol    : None,
+                    best_lb     : isize::min_value(),
+                    ongoing     : 0,
+                    explored    : 0,
+                    new_best    : false,
+                    fringe      : ff,
+                    upper_bounds: vec![isize::min_value(); self.nb_threads],
+                    _phantom    : PhantomData
+                })
+            }),
             _phantom: PhantomData
         }
     }
@@ -265,7 +262,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     /// best lower bound from the critical data. Then it expands a restricted
     /// and possibly a relaxed mdd rooted in `node`. If that is necessary,
     /// it stores cutset nodes onto the fringe for further parallel processing.
-    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T>>, node: FrontierNode<T>, thread_id: usize) {
+    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T, F>>, node: FrontierNode<T>, thread_id: usize) {
         let mut best_lb = {shared.critical.lock().best_lb};
 
         // 1. RESTRICTION
@@ -290,7 +287,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     /// This private method updates the shared best known node and lower bound in
     /// case the best value of the current `mdd` expansion improves the current
     /// bounds.
-    fn maybe_update_best(mdd: &DD, shared: &Arc<Shared<T>>) {
+    fn maybe_update_best(mdd: &DD, shared: &Arc<Shared<T, F>>) {
         let mut shared = shared.critical.lock();
         if mdd.best_value() > shared.best_lb {
             shared.best_lb   = mdd.best_value();
@@ -300,7 +297,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     }
     /// If necessary, thightens the bound of nodes in the cutset of `mdd` and
     /// then add the relevant nodes to the shared fringe.
-    fn enqueue_cutset(mdd: &mut DD, shared: &Arc<Shared<T>>, ub: isize) {
+    fn enqueue_cutset(mdd: &mut DD, shared: &Arc<Shared<T, F>>, ub: isize) {
         let mut critical = shared.critical.lock();
         let best_lb      = critical.best_lb;
         let fringe       = &mut critical.fringe;
@@ -312,7 +309,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
         });
     }
     /// Acknowledges that a thread finished processing its node.
-    fn notify_node_finished(shared: &Arc<Shared<T>>, thread_id: usize) {
+    fn notify_node_finished(shared: &Arc<Shared<T, F>>, thread_id: usize) {
         let mut critical = shared.critical.lock();
         critical.ongoing -= 1;
         critical.upper_bounds[thread_id] = isize::min_value();
@@ -327,7 +324,7 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     ///     and thus the problem cannot be considered solved).
     ///   + WorkItem, when the thread successfully obtained a subproblem to
     ///     process.
-    fn get_workload(shared: &Arc<Shared<T>>, thread_id: usize) -> WorkLoad<T> {
+    fn get_workload(shared: &Arc<Shared<T, F>>, thread_id: usize) -> WorkLoad<T> {
         let mut critical = shared.critical.lock();
         // Are we done ?
         if critical.ongoing == 0 && critical.fringe.is_empty() {
@@ -372,9 +369,10 @@ impl <T, C, DD> ParallelSolver<T, C, DD>
     }
 }
 
-impl <T, C, DD> Solver for ParallelSolver<T, C, DD>
+impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
     where T : Send + Sync + Hash + Eq + Clone,
           C : Send + Sync + Clone + Config<T>,
+          F : Send + Sync + Frontier<T>,
           DD: MDD<T, C> + From<C>
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
@@ -446,6 +444,7 @@ mod test_solver {
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
     use crate::implementation::solver::parallel::ParallelSolver;
+    use crate::abstraction::frontier::Frontier;
 
     /// Describe the binary knapsack problem in terms of a dynamic program.
         /// Here, the state of a node, is nothing more than an unsigned integer (usize).
@@ -523,7 +522,7 @@ mod test_solver {
             weight  : vec![10,  20,  30]
         };
         let mdd    = mdd_builder(&problem, KPRelax).into_deep();
-        let solver = ParallelSolver::with_verbosity(mdd, 2);
+        let solver = ParallelSolver::new(mdd).with_verbosity(2);
         assert_eq!(2, solver.verbosity);
     }
 
@@ -546,7 +545,7 @@ mod test_solver {
             weight  : vec![10,  20,  30]
         };
         let mdd    = mdd_builder(&problem, KPRelax).into_deep();
-        let solver = ParallelSolver::with_nb_threads(mdd, 1);
+        let solver = ParallelSolver::new(mdd).with_nb_threads(1);
         assert_eq!(1, solver.nb_threads);
     }
     #[test]

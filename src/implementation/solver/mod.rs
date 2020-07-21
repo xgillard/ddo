@@ -24,4 +24,3 @@
 //! the `Solver` trait, but `ParallelSolver` is able to exploit multiple threads.
 pub mod parallel;
 pub mod sequential;
-mod utils;

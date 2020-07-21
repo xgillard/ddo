@@ -20,13 +20,13 @@
 //! This module provides the implementation of a sequential mdd solver. That is
 //! a solver that will solve the problem on one single thread.
 use std::hash::Hash;
+use std::marker::PhantomData;
 
-use binary_heap_plus::BinaryHeap;
-
-use crate::abstraction::mdd::{MDD, Config};
+use crate::abstraction::frontier::Frontier;
+use crate::abstraction::mdd::{Config, MDD};
 use crate::abstraction::solver::Solver;
-use crate::common::{FrontierNode, Solution};
-use crate::implementation::heuristics::MaxUB;
+use crate::common::Solution;
+use crate::implementation::frontier::SimpleFrontier;
 
 /// This is the structure implementing an single-threaded MDD solver.
 ///
@@ -74,22 +74,24 @@ use crate::implementation::heuristics::MaxUB;
 /// // sol is the sequence of decision yielding that optimal value (if sol exists, `sol != None`)
 /// let (val, sol) = solver.maximize();
 /// ```
-pub struct SequentialSolver<T, C, DD>
+pub struct SequentialSolver<T, C, F, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
+          F : Frontier<T>,
           DD: MDD<T, C> + Clone
 {
     config: C,
     mdd: DD,
-    fringe: BinaryHeap<FrontierNode<T>, MaxUB>,
+    fringe: F,
     explored : usize,
     best_ub  : isize,
     best_lb  : isize,
     best_sol : Option<Solution>,
-    verbosity: u8
+    verbosity: u8,
+    _phantom : PhantomData<T>
 }
 // private interface.
-impl <T, C, DD> SequentialSolver<T, C, DD>
+impl <T, C, DD> SequentialSolver<T, C, SimpleFrontier<T>, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
           DD: MDD<T, C> + Clone
@@ -97,19 +99,41 @@ impl <T, C, DD> SequentialSolver<T, C, DD>
     pub fn new(mdd: DD) -> Self {
         Self::customized(mdd, 0)
     }
-    pub fn with_verbosity(mdd: DD, verbosity: u8) -> Self {
-        Self::customized(mdd, verbosity)
-    }
     pub fn customized(mdd: DD, verbosity: u8) -> Self {
         SequentialSolver {
             config: mdd.config().clone(),
             mdd,
-            fringe: BinaryHeap::from_vec_cmp(vec![], MaxUB),
+            fringe: SimpleFrontier::default(),
             explored: 0,
             best_ub: std::isize::MAX,
             best_lb: std::isize::MIN,
             best_sol: None,
-            verbosity
+            verbosity,
+            _phantom : PhantomData
+        }
+    }
+}
+impl <T, C, F, DD> SequentialSolver<T, C, F, DD>
+    where T : Hash + Eq + Clone,
+          C : Config<T> + Clone,
+          F : Frontier<T>,
+          DD: MDD<T, C> + Clone
+{
+    pub fn with_verbosity(mut self, verbosity: u8) -> Self {
+        self.verbosity = verbosity;
+        self
+    }
+    pub fn with_frontier<FF: Frontier<T> + Send + Sync>(self, ff: FF) -> SequentialSolver<T, C, FF, DD> {
+        SequentialSolver {
+            config   : self.config,
+            mdd      : self.mdd,
+            fringe   : ff,
+            explored : self.explored,
+            best_ub  : self.best_ub,
+            best_lb  : self.best_lb,
+            best_sol : self.best_sol,
+            verbosity: self.verbosity,
+            _phantom : PhantomData
         }
     }
     fn maybe_update_best(&mut self) {
@@ -120,9 +144,10 @@ impl <T, C, DD> SequentialSolver<T, C, DD>
     }
 }
 
-impl <T, C, DD> Solver for SequentialSolver<T, C, DD>
+impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
+          F : Frontier<T>,
           DD: MDD<T, C> + Clone
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
@@ -210,18 +235,19 @@ impl <T, C, DD> Solver for SequentialSolver<T, C, DD>
 
 #[cfg(test)]
 mod test_solver {
-    use crate::common::{Decision, Domain, Variable, VarSet, Solution, PartialAssignment};
-    use crate::abstraction::dp::{Problem, Relaxation};
-
-    use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::solver::sequential::SequentialSolver;
-    use crate::abstraction::solver::Solver;
-    use crate::implementation::heuristics::FixedWidth;
     use std::sync::Arc;
 
+    use crate::abstraction::dp::{Problem, Relaxation};
+    use crate::abstraction::solver::Solver;
+    use crate::common::{Decision, Domain, PartialAssignment, Solution, Variable, VarSet};
+    use crate::implementation::heuristics::FixedWidth;
+    use crate::implementation::mdd::config::mdd_builder;
+    use crate::implementation::solver::sequential::SequentialSolver;
+    use crate::abstraction::frontier::Frontier;
+
     /// Describe the binary knapsack problem in terms of a dynamic program.
-    /// Here, the state of a node, is nothing more than an unsigned integer (usize).
-    /// That unsigned integer represents the remaining capacity of our sack.
+        /// Here, the state of a node, is nothing more than an unsigned integer (usize).
+        /// That unsigned integer represents the remaining capacity of our sack.
     #[derive(Debug, Clone)]
     struct Knapsack {
         capacity: usize,
@@ -295,7 +321,7 @@ mod test_solver {
             weight  : vec![10,  20,  30]
         };
         let mdd    = mdd_builder(&problem, KPRelax).into_deep();
-        let solver = SequentialSolver::with_verbosity(mdd, 2);
+        let solver = SequentialSolver::new(mdd).with_verbosity(2);
         assert_eq!(2, solver.verbosity);
     }
     #[test]

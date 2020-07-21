@@ -17,40 +17,61 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module contains the implementation of some data structures that are
-//! useful when implementing a solver. In particular, it provides the NoDupPq
-//! which provides the implementation of a priority queue, but avoid it to
-//! hold two equivalent states.
-
-use std::collections::hash_map::Entry;
-use std::hash::Hash;
-use std::sync::Arc;
+//! This module provides the implementation of usual frontiers.
 
 use binary_heap_plus::BinaryHeap;
-use metrohash::MetroHashMap;
-
 use crate::common::{FrontierNode, PartialAssignment};
 use crate::implementation::heuristics::MaxUB;
+use crate::abstraction::frontier::Frontier;
+use metrohash::MetroHashMap;
+use std::sync::Arc;
+use std::collections::hash_map::Entry;
+use std::hash::Hash;
 
-pub struct NoDupPQ<T> where T: Eq + Hash {
-    states: MetroHashMap<Arc<T>, (isize, Arc<PartialAssignment>)>,
-    queue : BinaryHeap<FrontierNode<T>, MaxUB>,
+/// The simplest frontier implementation you can think of: is basically consists
+/// of a binary heap that pushes an pops frontier nodes
+pub struct SimpleFrontier<T> {
+    heap: BinaryHeap<FrontierNode<T>, MaxUB>
+}
+impl <T> Default for SimpleFrontier<T> {
+    fn default() -> Self {
+        Self{ heap: BinaryHeap::from_vec_cmp(vec![], MaxUB) }
+    }
+}
+impl <T> Frontier<T> for SimpleFrontier<T> {
+    fn push(&mut self, node: FrontierNode<T>) {
+        self.heap.push(node)
+    }
+
+    fn pop(&mut self) -> Option<FrontierNode<T>> {
+        self.heap.pop()
+    }
+
+    fn clear(&mut self) {
+        self.heap.clear()
+    }
+
+    fn len(&self) -> usize {
+        self.heap.len()
+    }
 }
 
-impl <T> NoDupPQ<T>  where T: Eq + Hash {
-    pub fn new() -> Self {
-        NoDupPQ {
+/// A frontier that enforces the requirement that a given state will never be
+/// present twice in the frontier.
+pub struct NoDupFrontier<T> where T: Eq + Hash {
+    states: MetroHashMap<Arc<T>, (isize, Arc<PartialAssignment>)>,
+    queue : SimpleFrontier<T>
+}
+impl <T> Default for NoDupFrontier<T> where T: Eq + Hash {
+    fn default() -> Self {
+        Self {
             states: MetroHashMap::default(),
-            queue : BinaryHeap::from_vec_cmp(vec![], MaxUB),
+            queue : SimpleFrontier::default()
         }
     }
-    pub fn is_empty(&self) -> bool {
-        self.queue.is_empty()
-    }
-    pub fn len(&self) -> usize {
-        self.queue.len()
-    }
-    pub fn push(&mut self, node: FrontierNode<T>) {
+}
+impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash {
+    fn push(&mut self, node: FrontierNode<T>) {
         match self.states.entry(Arc::clone(&node.state)) {
             Entry::Vacant(e) => {
                 e.insert((node.lp_len, Arc::clone(&node.path)));
@@ -65,7 +86,8 @@ impl <T> NoDupPQ<T>  where T: Eq + Hash {
             }
         }
     }
-    pub fn pop(&mut self) -> Option<FrontierNode<T>> {
+
+    fn pop(&mut self) -> Option<FrontierNode<T>> {
         self.queue.pop().map(|mut n| {
             let (val,path) = self.states.remove(&n.state).unwrap();
             n.lp_len = val;
@@ -73,11 +95,13 @@ impl <T> NoDupPQ<T>  where T: Eq + Hash {
             n
         })
     }
-    pub fn clear(&mut self) {
+
+    fn clear(&mut self) {
         self.states.clear();
         self.queue .clear();
     }
-}
-impl <T> Default for NoDupPQ<T>  where T: Eq + Hash {
-    fn default() -> Self { Self::new() }
+
+    fn len(&self) -> usize {
+        self.queue.len()
+    }
 }

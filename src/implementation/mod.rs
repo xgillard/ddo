@@ -22,4 +22,5 @@
 
 pub mod heuristics;
 pub mod mdd;
+pub mod frontier;
 pub mod solver;
