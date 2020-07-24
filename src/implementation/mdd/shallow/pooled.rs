@@ -706,6 +706,7 @@ mod test_pooledmdd {
         fn nb_vars(&self) -> usize { 3 }
         fn initial_state(&self) -> usize { 0 }
         fn initial_value(&self) -> isize { 0 }
+        #[allow(clippy::reversed_empty_ranges)]
         fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
             (0..0).into()
         }
