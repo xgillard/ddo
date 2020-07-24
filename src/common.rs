@@ -810,12 +810,14 @@ mod test_domain {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn from_range_empty_going_negative() {
         let data = 0..-1_isize;
         let domain : Domain<'_> = data.into();
         assert_eq!(Vec::<isize>::new(), domain.into_iter().collect::<Vec<isize>>());
     }
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn from_range_empty_positive() {
         let data = 0..0_isize;
         let domain : Domain<'_> = data.into();
@@ -829,6 +831,7 @@ mod test_domain {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn from_range_inclusive_empty_going_negative() {
         let data = 0..=-1_isize;
         let domain : Domain<'_> = data.into();
