@@ -553,6 +553,7 @@ mod test_decreasing {
 }
 
 #[cfg(test)]
+#[allow(clippy::many_single_char_names)]
 mod test_minlp {
     use std::cmp::Ordering;
 
@@ -607,6 +608,7 @@ mod test_minlp {
 }
 
 #[cfg(test)]
+#[allow(clippy::many_single_char_names)]
 mod test_maxub {
     use std::cmp::Ordering;
     use std::sync::Arc;

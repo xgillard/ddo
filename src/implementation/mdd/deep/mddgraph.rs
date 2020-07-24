@@ -934,6 +934,7 @@ mod test_layerdata {
 }
 
 #[cfg(test)]
+#[allow(clippy::many_single_char_names)]
 mod test_graph {
     use std::cmp::Ordering;
     use std::rc::Rc;

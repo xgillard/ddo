@@ -107,6 +107,7 @@ impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash {
 }
 
 #[cfg(test)]
+#[allow(clippy::many_single_char_names)]
 mod test_simple_frontier {
     use crate::implementation::frontier::SimpleFrontier;
     use crate::abstraction::frontier::Frontier;
@@ -122,7 +123,7 @@ mod test_simple_frontier {
     // when the size is zero, then it is empty
     #[test]
     fn when_the_size_is_zero_then_it_is_empty() {
-        let mut frontier = empty_frontier();
+        let frontier = empty_frontier();
         assert_eq!(frontier.len(), 0);
         assert!(frontier.is_empty());
     } 
@@ -258,8 +259,9 @@ mod test_simple_frontier {
 }
 
 #[cfg(test)]
+#[allow(clippy::many_single_char_names)]
 mod test_no_dup_frontier {
-    use crate::implementation::frontier::{SimpleFrontier, NoDupFrontier};
+    use crate::implementation::frontier::NoDupFrontier;
     use crate::abstraction::frontier::Frontier;
     use crate::common::{FrontierNode, PartialAssignment, Variable, Decision};
     use std::sync::Arc;
@@ -386,7 +388,7 @@ mod test_no_dup_frontier {
         frontier.push(b.clone());
         frontier.push(d.clone());
         frontier.push(c.clone());
-        frontier.push(e.clone());
+        frontier.push(e);
 
         assert_eq!(frontier.pop(), Some(f));
         //assert_eq!(frontier.pop(), Some(e)); // node 'e' will never show up
@@ -422,7 +424,7 @@ mod test_no_dup_frontier {
         };
 
         let mut frontier = empty_frontier();
-        frontier.push(ne.clone());
+        frontier.push(ne);
         frontier.push(nf.clone());
 
         assert_eq!(frontier.pop(), Some(nf));
