@@ -133,4 +133,7 @@ pub trait Config<T> {
     /// Defines an order of 'relevance' over the nodes `a` and `b`. Greater means
     /// that `a` is more important (hence more likely to be kept) than `b`.
     fn compare(&self, a: &dyn SelectableNode<T>, b: &dyn SelectableNode<T>) -> Ordering;
+
+    /// Returns true iff the cutoff criterion is met and the search must stop.
+    fn must_stop(&self) -> bool;
 }

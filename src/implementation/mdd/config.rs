@@ -28,10 +28,10 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::abstraction::dp::{Problem, Relaxation};
-use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic};
+use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::abstraction::mdd::Config;
 use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Variable, VarSet};
-use crate::implementation::heuristics::{LoadVarFromPartialAssignment, MinLP, NaturalOrder, NbUnassignedWitdh};
+use crate::implementation::heuristics::{LoadVarFromPartialAssignment, MinLP, NaturalOrder, NbUnassignedWitdh, NoCutoff};
 use crate::implementation::mdd::deep::mdd::DeepMDD;
 use crate::implementation::mdd::shallow::flat::FlatMDD;
 use crate::implementation::mdd::shallow::pooled::PooledMDD;
@@ -137,6 +137,7 @@ pub fn config_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> ConfigurationBuilder<T, 
         vs : NaturalOrder,
         w  : NbUnassignedWitdh,
         ns : MinLP,
+        cutoff: NoCutoff,
         _phantom: PhantomData
     }
 }
@@ -198,36 +199,40 @@ pub struct ConfigurationBuilder<'x, T, P, R,
     L = LoadVarFromPartialAssignment,
     V = NaturalOrder,
     W = NbUnassignedWitdh,
-    S = MinLP>
+    S = MinLP,
+    C = NoCutoff>
     where T: Hash + Eq + Clone,
           P: Problem<T> + Clone,
           R: Relaxation<T> + Clone,
           L: LoadVars<T> + Clone,
           V: VariableHeuristic<T> + Clone,
           W: WidthHeuristic + Clone,
-          S: NodeSelectionHeuristic<T> + Clone {
+          S: NodeSelectionHeuristic<T> + Clone,
+          C: Cutoff + Clone {
     pb  : &'x P,
     rlx : R,
     lv  : L,
     vs  : V,
     w   : W,
     ns  : S,
+    cutoff: C,
     _phantom : PhantomData<T>
 }
 
 
 /// The following methods define the behavior of an mdd builder.
-impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, WIDTH, NS>
+impl <'x, T, PB, RLX, LV, VS, WIDTH, NS, C> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, WIDTH, NS, C>
     where T    : Eq + Hash + Clone,
           PB   : Problem<T> + Clone,
           RLX  : Relaxation<T> + Clone,
           LV   : LoadVars<T> + Clone,
           VS   : VariableHeuristic<T> + Clone,
           WIDTH: WidthHeuristic + Clone,
-          NS   : NodeSelectionHeuristic<T> + Clone {
+          NS   : NodeSelectionHeuristic<T> + Clone,
+          C    : Cutoff + Clone {
 
     /// This is how you specify the load variable heuristic to use.
-    pub fn with_load_vars<H: LoadVars<T> + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, H, VS, WIDTH, NS> {
+    pub fn with_load_vars<H: LoadVars<T> + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, H, VS, WIDTH, NS, C> {
         ConfigurationBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -235,11 +240,12 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
             vs : self.vs,
             w  : self.w,
             ns : self.ns,
+            cutoff: self.cutoff,
             _phantom: Default::default()
         }
     }
     /// This is how you specify the branch heuristic to use (the variable selection heuristic).
-    pub fn with_branch_heuristic<H: VariableHeuristic<T> + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, LV, H, WIDTH, NS> {
+    pub fn with_branch_heuristic<H: VariableHeuristic<T> + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, LV, H, WIDTH, NS, C> {
         ConfigurationBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -247,12 +253,13 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
             vs : h,
             w  : self.w,
             ns : self.ns,
+            cutoff: self.cutoff,
             _phantom: Default::default()
         }
     }
     /// This is how you specify the maximum width heuristic to use (to constrain
     /// the max width of MDD layers).
-    pub fn with_max_width<H: WidthHeuristic + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, H, NS> {
+    pub fn with_max_width<H: WidthHeuristic + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, H, NS, C> {
         ConfigurationBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -260,12 +267,13 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
             vs : self.vs,
             w  : h,
             ns : self.ns,
+            cutoff: self.cutoff,
             _phantom: Default::default()
         }
     }
     /// This is how you specify the nodes selection heuristic to use (to decide
     /// what nodes to merge/drop in case the layer width is too large).
-    pub fn with_nodes_selection_heuristic<H: NodeSelectionHeuristic<T> + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, WIDTH, H> {
+    pub fn with_nodes_selection_heuristic<H: NodeSelectionHeuristic<T> + Clone>(self, h: H) -> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, WIDTH, H, C> {
         ConfigurationBuilder {
             pb : self.pb,
             rlx: self.rlx,
@@ -273,13 +281,29 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
             vs : self.vs,
             w  : self.w,
             ns : h,
+            cutoff: self.cutoff,
             _phantom: Default::default()
         }
     }
+    /// This is how you specify the nodes selection heuristic to use (to decide
+    /// what nodes to merge/drop in case the layer width is too large).
+    pub fn with_cutoff<X: Cutoff + Clone>(self, c: X) -> ConfigurationBuilder<'x, T, PB, RLX, LV, VS, WIDTH, NS, X> {
+        ConfigurationBuilder {
+            pb : self.pb,
+            rlx: self.rlx,
+            lv : self.lv,
+            vs : self.vs,
+            w  : self.w,
+            ns : self.ns,
+            cutoff: c,
+            _phantom: Default::default()
+        }
+    }
+
     /// This is how you instantiate a configuration object. This is not really
     /// useful per-se, unless you decide to implement your own kind of MDD and
     /// want to be able to reuse a single configuration object.
-    pub fn config(self) -> PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS> {
+    pub fn config(self) -> PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS, C> {
         PassThroughConfig {
             problem  : self.pb,
             relax    : self.rlx,
@@ -287,31 +311,32 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
             var_heu  : self.vs,
             width_heu: self.w,
             select   : self.ns,
+            cutoff   : self.cutoff,
             _phantom : self._phantom
         }
     }
     /// This is how you instantiate an MDD (using the default MDD implementation)
     /// configured with the parameters you specified.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn build(self) -> PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS> {
+    pub fn build(self) -> PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS, C> {
         self.config()
     }
     /// This is how you instantiate a _deep_ MDD from using your desired
     /// configuration.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn into_deep(self) -> DeepMDD<T, PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS>> {
+    pub fn into_deep(self) -> DeepMDD<T, PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS, C>> {
         DeepMDD::new(self.config())
     }
     /// This is how you instantiate a _flat_ MDD from using your desired
     /// configuration.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn into_flat(self) -> FlatMDD<T, PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS>> {
+    pub fn into_flat(self) -> FlatMDD<T, PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS, C>> {
         FlatMDD::new(self.config())
     }
     /// This is how you instantiate a _pooled_ MDD from using your desired
     /// configuration.
     #[allow(clippy::type_complexity)] // as long as type aliases are not supported
-    pub fn into_pooled(self) -> PooledMDD<T, PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS>> {
+    pub fn into_pooled(self) -> PooledMDD<T, PassThroughConfig<'x, T, PB, RLX, LV, VS, WIDTH, NS, C>> {
         PooledMDD::new(self.config())
     }
 }
@@ -319,31 +344,34 @@ impl <'x, T, PB, RLX, LV, VS, WIDTH, NS> ConfigurationBuilder<'x, T, PB, RLX, LV
 /// This structure provides a simple 'umbrella' over the configuration of an MDD.
 /// All it does it to forward calls to the appropriate heuristic.
 #[derive(Debug, Clone)]
-pub struct PassThroughConfig<'x, T, P, R, L, V, W, S>
+pub struct PassThroughConfig<'x, T, P, R, L, V, W, S, C>
     where T: Hash + Eq + Clone,
           P: Problem<T> + Clone,
           R: Relaxation<T> + Clone,
           L: LoadVars<T> + Clone,
           V: VariableHeuristic<T> + Clone,
           W: WidthHeuristic + Clone,
-          S: NodeSelectionHeuristic<T> + Clone {
+          S: NodeSelectionHeuristic<T> + Clone,
+          C: Cutoff + Clone {
     problem  : &'x P,
     relax    : R,
     load_var : L,
     var_heu  : V,
     width_heu: W,
     select   : S,
+    cutoff   : C,
     _phantom : PhantomData<T>
 }
 
-impl <'x, T, P, R, L, V, W, S> Config<T> for PassThroughConfig<'x, T, P, R, L, V, W, S>
+impl <'x, T, P, R, L, V, W, S, C> Config<T> for PassThroughConfig<'x, T, P, R, L, V, W, S, C>
     where T: Hash + Eq + Clone,
           P: Problem<T> + Clone,
           R: Relaxation<T> + Clone,
           L: LoadVars<T> + Clone,
           V: VariableHeuristic<T> + Clone,
           W: WidthHeuristic + Clone,
-          S: NodeSelectionHeuristic<T> + Clone {
+          S: NodeSelectionHeuristic<T> + Clone,
+          C: Cutoff + Clone {
 
     /// Yields the root node of the (exact) MDD standing for the problem to solve.
     #[inline]
@@ -498,6 +526,11 @@ impl <'x, T, P, R, L, V, W, S> Config<T> for PassThroughConfig<'x, T, P, R, L, V
     fn compare(&self, a: &dyn SelectableNode<T>, b: &dyn SelectableNode<T>) -> Ordering {
         self.select.compare(a, b)
     }
+
+    /// Returns true iff the cutoff criterion is met and the search must stop.
+    fn must_stop(&self) -> bool {
+        self.cutoff.must_stop()
+    }
 }
 
 
@@ -516,7 +549,7 @@ mod tests {
     use crate::abstraction::mdd::Config;
     use crate::common::{Decision, Variable, VarSet, FrontierNode};
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::test_utils::{MockLoadVars, MockMaxWidth, MockNodeSelectionHeuristic, MockProblem, MockRelax, MockVariableHeuristic, Nothing, Proxy, MockSelectableNode};
+    use crate::test_utils::{MockLoadVars, MockMaxWidth, MockNodeSelectionHeuristic, MockProblem, MockRelax, MockVariableHeuristic, Nothing, Proxy, MockSelectableNode, MockCutoff};
     use crate::common::PartialAssignment::{Empty, FragmentExtension};
 
     #[test]
@@ -703,6 +736,19 @@ mod tests {
         config.select_var(&vs, curr, next);
         assert!(verify(heu.next_var.was_called_with((vs, data1, data2))))
     }
+
+    #[test]
+    fn must_stop_is_pass_through_to_heuristic() {
+        let prob    = MockProblem::default();
+        let relax   = MockRelax::default();
+        let heu     = MockCutoff::default();
+        let config  = mdd_builder(&prob, Proxy::new(&relax)).with_cutoff(Proxy::new(&heu)).config();
+
+        // empty
+        config.must_stop();
+        assert!(verify(heu.must_stop.was_called_with(())));
+    }
+
 
     #[test]
     fn it_can_build_a_deep_mdd() {

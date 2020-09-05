@@ -24,7 +24,7 @@ use std::cmp::Ordering;
 
 use compare::Compare;
 
-use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic};
+use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::common::{FrontierNode, Variable, VarSet};
 
 // ----------------------------------------------------------------------------
@@ -360,6 +360,13 @@ impl <T> Compare<FrontierNode<T>> for MaxUB {
     }
 }
 
+/// _This is the default cutoff heuristic._ It imposes that the search goes
+/// proves optimality before to stop.
+#[derive(Debug, Default, Copy, Clone)]
+pub struct NoCutoff;
+impl Cutoff for NoCutoff {
+    fn must_stop(&self) -> bool {false}
+}
 
 // ############################################################################
 // #### TESTS #################################################################

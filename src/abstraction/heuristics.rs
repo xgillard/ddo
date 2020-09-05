@@ -26,6 +26,9 @@
 //!    variables are selected (major impact on the size of an MDD).
 //!  - the `LoadVars` which encapsulates a strategy to retrieve the set of
 //!    unassigned variables from a given frontier node.
+//!  - the `Cutoff` which encapsulates a criterion (external to the solver)
+//!    which imposes to stop searching for a better solution. Typically, this is
+//!    done to grant a given time budget to the search.
 
 use crate::common::{FrontierNode, Variable, VarSet};
 use std::cmp::Ordering;
@@ -76,4 +79,12 @@ pub trait LoadVars<T> {
     /// Returns the minimal set of free variables for the given `problem` when
     /// starting an exploration in the given `node`.
     fn variables(&self, node: &FrontierNode<T>) -> VarSet;
+}
+
+/// This trait encapsulates a criterion (external to the solver) which imposes
+/// to stop searching for a better solution. Typically, this is done to grant
+/// a given time budget to the search.
+pub trait Cutoff {
+    /// Returns true iff the criterion is met and the search must stop.
+    fn must_stop(&self) -> bool;
 }

@@ -29,7 +29,7 @@ use std::sync::Arc;
 use mock_it::Mock;
 
 use crate::abstraction::dp::{Problem, Relaxation};
-use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic};
+use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::abstraction::mdd::Config;
 use crate::common::{Decision, Domain, FrontierNode, Variable, VarSet};
 use crate::common::PartialAssignment::Empty;
@@ -146,6 +146,21 @@ impl WidthHeuristic for MockMaxWidth {
 }
 
 #[derive(Clone)]
+pub struct MockCutoff {
+    pub must_stop : Mock<(), bool>
+}
+impl Default for MockCutoff {
+    fn default() -> Self {
+        MockCutoff{must_stop: Mock::new(false)}
+    }
+}
+impl Cutoff for MockCutoff {
+    fn must_stop(&self) -> bool {
+        self.must_stop.called(())
+    }
+}
+
+#[derive(Clone)]
 pub struct MockVariableHeuristic {
     #[allow(clippy::type_complexity)]
     pub next_var: Mock<(VarSet, Vec<usize>, Vec<usize>), Option<Variable>>
@@ -202,7 +217,8 @@ pub struct MockConfig {
     pub select_var      : Mock<(VarSet, Vec<usize>, Vec<usize>), Option<Variable>>,
     pub load_vars       : Mock<FrontierNode<usize>, VarSet>,
     pub max_width       : Mock<VarSet, usize>,
-    pub compare         : Mock<(usize, usize), Ordering>
+    pub compare         : Mock<(usize, usize), Ordering>,
+    pub must_stop       : Mock<(), bool>,
 }
 impl Default for MockConfig {
     fn default() -> Self {
@@ -221,7 +237,8 @@ impl Default for MockConfig {
             select_var:     Mock::new(None),
             load_vars:      Mock::new(VarSet::empty()),
             max_width:      Mock::new(0),
-            compare:        Mock::new(Equal)
+            compare:        Mock::new(Equal),
+            must_stop:      Mock::new(false)
         }
     }
 }
@@ -273,6 +290,10 @@ impl Config<usize> for MockConfig {
     fn compare(&self, a: &dyn SelectableNode<usize>, b: &dyn SelectableNode<usize>) -> Ordering {
         self.compare.called((*a.state(), *b.state()))
     }
+
+    fn must_stop(&self) -> bool {
+        self.must_stop.called(())
+    }
 }
 
 
@@ -317,6 +338,11 @@ impl <X, T: VariableHeuristic<X> + Clone> VariableHeuristic<X> for Proxy<'_, T> 
 impl <X, T: NodeSelectionHeuristic<X> + Clone> NodeSelectionHeuristic<X> for Proxy<'_, T> {
     fn compare(&self, l: &dyn SelectableNode<X>, r: &dyn SelectableNode<X>) -> Ordering {
         self.target.compare(l, r)
+    }
+}
+impl <T: Cutoff + Clone> Cutoff for Proxy<'_, T> {
+    fn must_stop(&self) -> bool {
+        self.target.must_stop()
     }
 }
 impl <X, T: Config<X> + Clone> Config<X> for Proxy<'_, T> {
@@ -366,6 +392,9 @@ impl <X, T: Config<X> + Clone> Config<X> for Proxy<'_, T> {
 
     fn compare(&self, a: &dyn SelectableNode<X>, b: &dyn SelectableNode<X>) -> Ordering {
         self.target.compare(a, b)
+    }
+    fn must_stop(&self) -> bool {
+        self.target.must_stop()
     }
 }
 
