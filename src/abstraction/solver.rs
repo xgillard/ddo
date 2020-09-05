@@ -19,15 +19,21 @@
 
 //! This module defines the `Solver` trait.
 
-use crate::common::Solution;
+use crate::common::{Completion, Solution};
 
 /// The solver trait lets you maximize an objective function.
 pub trait Solver {
     /// Returns a tuple where the first component is the value of an optimal
     /// solution to the maximization problem, and the second term is the
     /// solution (= the sequence of decisions to reach the optimal value).
-    fn maximize(&mut self) -> (isize, Option<Solution>);
+    fn maximize(&mut self) -> Completion;
+
+    /// Returns the best solution that has been identified for this problem.
+    fn best_solution(&self) -> Option<Solution>;
+    /// Returns the value of the best solution that has been identified for
+    /// this problem.
+    fn best_value(&self) -> Option<isize>;
 
     /// Sets a primal (best known value and solution) of the problem.
-    fn set_primal(&mut self, value: isize, solution: Option<Solution>);
+    fn set_primal(&mut self, value: isize, solution: Solution);
 }

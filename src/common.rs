@@ -388,6 +388,25 @@ impl Iterator for PartialAssignmentIter<'_> {
 }
 
 // ----------------------------------------------------------------------------
+// --- Results ----------------------------------------------------------------
+// ----------------------------------------------------------------------------
+/// A reason explaining why the mdd stopped developing
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum Reason {
+    /// It stopped because the configured cutoff criterion was met
+    CutoffOccurred
+}
+/// The outcome of an mdd development
+#[derive(Debug, Clone)]
+pub struct Completion {
+    /// is the given solution exact (proved optimal for the given [sub-]problem)?
+    /// or is it an approximation ?
+    pub is_exact: bool,
+    /// if present the value of the best solution derived from this mdd
+    pub best_value: Option<isize>,
+}
+
+// ----------------------------------------------------------------------------
 // --- FRONTIER NODE ----------------------------------------------------------
 // ----------------------------------------------------------------------------
 /// Frontier nodes describes the subproblems that have been enumerated and must

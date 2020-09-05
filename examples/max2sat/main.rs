@@ -53,7 +53,7 @@ fn max2sat(fname: &str, threads: Option<usize>) -> isize {
 
     let mut solver = ParallelSolver::customized(mdd, 2, threads);
     let start  = SystemTime::now();
-    let opt    = solver.maximize().0;
+    let opt    = solver.maximize().best_value.unwrap_or(isize::min_value());
     let end    = SystemTime::now();
     println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
     opt

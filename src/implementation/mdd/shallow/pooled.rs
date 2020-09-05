@@ -29,7 +29,7 @@ use metrohash::MetroHashMap;
 
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::{Config, MDD};
-use crate::common::{Decision, FrontierNode, Solution, Variable, VarSet, PartialAssignment};
+use crate::common::{Completion, Decision, FrontierNode, Reason, Solution, Variable, VarSet, PartialAssignment};
 use crate::implementation::mdd::MDDType;
 use crate::implementation::mdd::utils::NodeFlags;
 use crate::implementation::mdd::shallow::utils::{Node, Edge};
@@ -172,34 +172,34 @@ impl <T, C> MDD<T, C> for PooledMDD<T, C>
         }
     }
 
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) {
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Exact;
         self.max_width= usize::max_value();
 
-        self.develop(root, free_vars, best_lb);
+        self.develop(root, free_vars, best_lb)
     }
 
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) {
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Restricted;
         self.max_width= self.config.max_width(&free_vars);
 
-        self.develop(root, free_vars, best_lb);
+        self.develop(root, free_vars, best_lb)
     }
 
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) {
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Relaxed;
         self.max_width= self.config.max_width(&free_vars);
 
-        self.develop(root, free_vars, best_lb);
+        self.develop(root, free_vars, best_lb)
     }
 }
 impl <T, C> PooledMDD<T, C>
@@ -236,7 +236,7 @@ impl <T, C> PooledMDD<T, C>
     /// node. It only considers nodes that are relevant wrt. the given best lower
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
-    fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize) {
+    fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize) -> Result<Completion, Reason> {
         self.root_pa = Arc::clone(&root.path);
         let root     = Node::from(root);
         self.best_lb = best_lb;
@@ -244,6 +244,11 @@ impl <T, C> PooledMDD<T, C>
 
         let mut current = vec![];
         while let Some(var) = self.next_var(&vars, &current) {
+            // Did the cutoff kick in ?
+            if self.config.must_stop() {
+                return Err(Reason::CutoffOccurred);
+            }
+
             self.add_layer(var, &mut current);
             vars.remove(var);
 
@@ -272,7 +277,7 @@ impl <T, C> PooledMDD<T, C>
             }
         }
 
-        self.finalize()
+        Ok(self.finalize())
     }
     /// Returns the next variable to branch on (according to the configured
     /// branching heuristic) or None if all variables have been assigned a value.
@@ -446,10 +451,15 @@ impl <T, C> PooledMDD<T, C>
         }
     }
     /// Finalizes the computation of the MDD: it identifies the best terminal node.
-    fn finalize(&mut self) {
+    fn finalize(&mut self) -> Completion {
         self.best_node = self.pool.values()
             .max_by_key(|n| n.value)
             .cloned();
+
+        Completion {
+            is_exact   : self.is_exact(),
+            best_value : self.best_node.as_ref().map(|n| n.value)
+        }
     }
 
     /// This method yields a partial assignment for the given node
@@ -492,12 +502,13 @@ mod test_pooledmdd {
 
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::mdd::{MDD, Config};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
     use crate::implementation::mdd::MDDType;
     use crate::implementation::mdd::shallow::pooled::PooledMDD;
-    use crate::test_utils::MockConfig;
+    use crate::test_utils::{MockConfig, MockCutoff, Proxy};
+    use mock_it::verify;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -518,13 +529,13 @@ mod test_pooledmdd {
         let config = MockConfig::default();
         let mut mdd = PooledMDD::new(config);
 
-        mdd.relaxed(&root_n, 0);
+        assert!(mdd.relaxed(&root_n, 0).is_ok());
         assert_eq!(MDDType::Relaxed, mdd.mddtype);
 
-        mdd.restricted(&root_n, 0);
+        assert!(mdd.restricted(&root_n, 0).is_ok());
         assert_eq!(MDDType::Restricted, mdd.mddtype);
 
-        mdd.exact(&root_n, 0);
+        assert!(mdd.exact(&root_n, 0).is_ok());
         assert_eq!(MDDType::Exact, mdd.mddtype);
     }
 
@@ -560,7 +571,105 @@ mod test_pooledmdd {
             50
         }
     }
+    #[test]
+    fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .into_pooled();
 
+        let root   = mdd.config().root_node();
+        let result = mdd.exact(&root, 0);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .into_pooled();
+
+        let root   = mdd.config().root_node();
+        let result = mdd.restricted(&root, 0);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .into_pooled();
+
+        let root   = mdd.config().root_node();
+        let result = mdd.relaxed(&root, 0);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn exact_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let cutoff  = MockCutoff::default();
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&cutoff))
+            .into_pooled();
+
+        cutoff.must_stop.given(()).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.exact(&root, 0);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+        assert!(verify(cutoff.must_stop.was_called_with(())));
+    }
+    #[test]
+    fn restricted_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let cutoff  = MockCutoff::default();
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&cutoff))
+            .into_pooled();
+
+        cutoff.must_stop.given(()).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.restricted(&root, 0);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+        assert!(verify(cutoff.must_stop.was_called_with(())));
+    }
+    #[test]
+    fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let cutoff  = MockCutoff::default();
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&cutoff))
+            .into_pooled();
+
+        cutoff.must_stop.given(()).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.relaxed(&root, 0);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+        assert!(verify(cutoff.must_stop.was_called_with(())));
+    }
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
     #[test]
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
@@ -572,7 +681,7 @@ mod test_pooledmdd {
 
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -594,7 +703,7 @@ mod test_pooledmdd {
 
         let root = mdd.config().root_node();
 
-        mdd.restricted(&root, 0);
+        assert!(mdd.restricted(&root, 0).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -615,7 +724,7 @@ mod test_pooledmdd {
             .into_pooled();
 
         let root = mdd.config().root_node();
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 42);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -637,7 +746,7 @@ mod test_pooledmdd {
 
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -648,7 +757,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -659,7 +768,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
     #[test]
@@ -669,7 +778,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
 
         let mut cut = vec![];
         mdd.for_each_cutset_node(|n| cut.push(*n.state.as_ref()));
@@ -684,7 +793,7 @@ mod test_pooledmdd {
         let rlx = DummyRelax;
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).into_pooled();
         let root = mdd.config().root_node();
-        mdd.restricted(&root, 0);
+        assert!(mdd.restricted(&root, 0).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -695,7 +804,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.restricted(&root, 0);
+        assert!(mdd.restricted(&root, 0).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -725,7 +834,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -736,7 +845,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert_eq!(isize::min_value(), mdd.best_value())
     }
 
@@ -747,7 +856,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 100);
+        assert!(mdd.exact(&root, 100).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -758,7 +867,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.relaxed(&root, 100);
+        assert!(mdd.relaxed(&root, 100).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -769,7 +878,7 @@ mod test_pooledmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_pooled();
         let root = mdd.config().root_node();
 
-        mdd.restricted(&root, 100);
+        assert!(mdd.restricted(&root, 100).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 }

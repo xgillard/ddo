@@ -200,10 +200,18 @@
 //! //    the relaxed and restricted MDDs).
 //! let mut solver = ParallelSolver::new(mdd);
 //! // 4. Maximize your objective function
-//! let (optimal, solution) = solver.maximize();
+//! // the outcome provides the value of the best solution that was found for
+//! // the problem (if one was found) along with a flag indicating whether or
+//! // not the solution was proven optimal. Hence an unsatisfiable problem
+//! // would have `outcome.best_value == None` and `outcome.is_exact` true.
+//! // The `is_exact` flag will only be false if you explicitly decide to stop
+//! // searching with an arbitrary cutoff.
+//! let outcome    = solver.maximize();
+//! // The best solution (if one exist) is retrieved with
+//! let solution   = solver.best_solution();
 //!
 //! // 5. Do whatever you like with the optimal solution.
-//! assert_eq!(220, optimal);
+//! assert_eq!(Some(220), outcome.best_value);
 //! println!("Solution");
 //! for decision in solution.unwrap().iter() {
 //!     if decision.value == 1 {

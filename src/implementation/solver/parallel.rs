@@ -30,7 +30,7 @@ use parking_lot::{Condvar, Mutex};
 
 use crate::abstraction::mdd::{Config, MDD};
 use crate::abstraction::solver::Solver;
-use crate::common::{FrontierNode, Solution};
+use crate::common::{FrontierNode, Solution, Reason, Completion};
 use crate::abstraction::frontier::Frontier;
 use crate::implementation::frontier::SimpleFrontier;
 
@@ -64,6 +64,9 @@ struct Critical<T : Eq + Hash, F: Frontier<T>> {
     best_lb  : isize,
     /// If set, this keeps the info about the best solution so far.
     best_sol : Option<Solution>,
+    /// If we decide not to go through a complete proof of optimality, this is
+    /// the reason why we took that decision.
+    abort_proof: Option<Reason>,
     /// This vector is used to store the upper bound on the node which is
     /// currently processed by each thread.
     ///
@@ -196,6 +199,7 @@ impl <T, C, DD> ParallelSolver<T, C, SimpleFrontier<T>, DD>
                     new_best    : false,
                     fringe      : SimpleFrontier::default(),
                     upper_bounds: vec![isize::min_value(); nb_threads],
+                    abort_proof : None,
                     _phantom    : PhantomData
                 })
             }),
@@ -238,6 +242,7 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
                     explored    : 0,
                     new_best    : false,
                     fringe      : ff,
+                    abort_proof : None,
                     upper_bounds: vec![isize::min_value(); self.nb_threads],
                     _phantom    : PhantomData
                 })
@@ -262,27 +267,26 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
     /// best lower bound from the critical data. Then it expands a restricted
     /// and possibly a relaxed mdd rooted in `node`. If that is necessary,
     /// it stores cutset nodes onto the fringe for further parallel processing.
-    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T, F>>, node: FrontierNode<T>, thread_id: usize) {
+    fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T, F>>, node: FrontierNode<T>) -> Result<(), Reason> {
         let mut best_lb = {shared.critical.lock().best_lb};
 
         // 1. RESTRICTION
-        mdd.restricted(&node, best_lb);
+        let restriction = mdd.restricted(&node, best_lb)?;
         Self::maybe_update_best(mdd, shared);
-        if mdd.is_exact() {
-            Self::notify_node_finished(shared, thread_id);
-            return;
+        if restriction.is_exact {
+            return Ok(());
         }
 
         // 2. RELAXATION
         best_lb = shared.critical.lock().best_lb;
-        mdd.relaxed(&node, best_lb);
-        if mdd.is_exact() {
+        let relaxation = mdd.relaxed(&node, best_lb)?;
+        if relaxation.is_exact {
             Self::maybe_update_best(mdd, shared);
         } else {
             Self::enqueue_cutset(mdd, shared, node.ub);
         }
 
-        Self::notify_node_finished(shared, thread_id);
+        Ok(())
     }
     /// This private method updates the shared best known node and lower bound in
     /// case the best value of the current `mdd` expansion improves the current
@@ -359,6 +363,13 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
             node      : nn
         }
     }
+
+    fn abort_search(shared: &Arc<Shared<T, F>>, reason: Reason) {
+        let mut critical = shared.critical.lock();
+        critical.abort_proof = Some(reason);
+        critical.fringe.clear();
+    }
+
     /// Depending on the verbosity configuration and the number of nodes that
     /// have been processed, prints a message showing the current progress of
     /// the problem resolution.
@@ -379,7 +390,7 @@ impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers
     /// (long running threads); each of which will continually get a workload
     /// and process it until the problem is solved.
-    fn maximize(&mut self) -> (isize, Option<Solution>) {
+    fn maximize(&mut self) -> Completion {
         self.initialize();
 
         crossbeam::thread::scope(|s|{
@@ -396,7 +407,14 @@ impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
                             WorkLoad::Starvation => continue,
                             WorkLoad::WorkItem {must_log, explored, fringe_sz, best_lb, current_ub, node} => {
                                 Self::maybe_log(verbosity, must_log, explored, fringe_sz, best_lb, current_ub);
-                                Self::process_one_node(&mut mdd, &shared, node, i);
+                                let outcome = Self::process_one_node(&mut mdd, &shared, node);
+                                if let Err(reason) = outcome {
+                                    Self::abort_search(&shared, reason);
+                                    Self::notify_node_finished(&shared, i);
+                                    break;
+                                } else {
+                                    Self::notify_node_finished(&shared, i);
+                                }
                             }
                         }
                     }
@@ -404,21 +422,37 @@ impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
             }
         }).expect("Something went wrong with the worker threads");
 
-        let shared    = self.shared.critical.lock();
+        let shared = self.shared.critical.lock();
         // return
         if self.verbosity >= 1 {
             println!("Final {}, Explored {}", shared.best_lb, shared.explored);
         }
-        (shared.best_lb, shared.best_sol.clone())
+
+        Completion {
+            is_exact: shared.abort_proof.is_none(),
+            best_value: shared.best_sol.as_ref().map(|_| shared.best_lb)
+        }
+    }
+
+
+    /// Returns the best solution that has been identified for this problem.
+    fn best_solution(&self) -> Option<Solution> {
+        self.shared.critical.lock().best_sol.clone()
+    }
+    /// Returns the value of the best solution that has been identified for
+    /// this problem.
+    fn best_value(&self) -> Option<isize> {
+        let critical = self.shared.critical.lock();
+        critical.best_sol.as_ref().map(|_sol| critical.best_lb)
     }
 
     /// Sets the best known value and/or solution. This solution and value may
     /// be obtained from any other available means (LP relax for instance).
-    fn set_primal(&mut self, value: isize, best_sol: Option<Solution>) {
+    fn set_primal(&mut self, value: isize, best_sol: Solution) {
         let mut critical = self.shared.critical.lock();
         if value > critical.best_lb {
             critical.best_lb = value;
-            critical.best_sol= best_sol;
+            critical.best_sol= Some(best_sol);
         }
     }
 }
@@ -604,12 +638,13 @@ mod test_solver {
         let        mdd = mdd_builder(&problem, KPRelax).into_deep();
 
         let mut solver = ParallelSolver::new(mdd);
-        let (v, s) = solver.maximize();
+        let maximized = solver.maximize();
 
-        assert_eq!(v, 220);
-        assert!(s.is_some());
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
 
-        let mut sln = s.unwrap().iter().collect::<Vec<Decision>>();
+        let mut sln = solver.best_solution().unwrap().iter().collect::<Vec<Decision>>();
         sln.sort_unstable_by_key(|d| d.variable.id());
         assert_eq!(sln, vec![
             Decision{variable: Variable(0), value: 0},
@@ -630,12 +665,13 @@ mod test_solver {
             .into_deep();
 
         let mut solver = ParallelSolver::new(mdd);
-        let (v, s) = solver.maximize();
+        let maximized = solver.maximize();
 
-        assert_eq!(v, 220);
-        assert!(s.is_some());
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
 
-        let mut sln = s.unwrap().iter().collect::<Vec<Decision>>();
+        let mut sln = solver.best_solution().unwrap().iter().collect::<Vec<Decision>>();
         sln.sort_unstable_by_key(|d| d.variable.id());
         assert_eq!(sln, vec![
             Decision { variable: Variable(0), value: 0 },
@@ -661,23 +697,25 @@ mod test_solver {
         let d1  = Decision{variable: Variable(0), value: 10};
         let sol = Solution::new(Arc::new(PartialAssignment::SingleExtension {decision: d1, parent: Arc::new(PartialAssignment::Empty)}));
 
-        solver.set_primal(10, Some(sol));
+        solver.set_primal(10, sol.clone());
         assert!(solver.shared.critical.lock().best_sol.is_some());
         assert_eq!(10, solver.shared.critical.lock().best_lb);
 
         // in this case, it wont update because there is no improvement
-        solver.set_primal(5, None);
+        solver.set_primal(5, sol.clone());
         assert!(solver.shared.critical.lock().best_sol.is_some());
         assert_eq!(10, solver.shared.critical.lock().best_lb);
 
         // but here, it will update as it improves the best known sol
-        solver.set_primal(10000, None);
-        assert!(solver.shared.critical.lock().best_sol.is_none());
+        solver.set_primal(10000, sol);
+        assert!(solver.shared.critical.lock().best_sol.is_some());
         assert_eq!(10000, solver.shared.critical.lock().best_lb);
 
         // it wont do much as the primal is better than the actual feasible solution
-        let (val, sol) = solver.maximize();
-        assert_eq!(10000, val);
-        assert!(sol.is_none());
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(10000));
+        assert!(solver.best_solution().is_some());
     }
 }

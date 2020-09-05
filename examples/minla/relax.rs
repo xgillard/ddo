@@ -4,6 +4,7 @@ use ddo::abstraction::dp::{Problem, Relaxation};
 use ddo::common::{BitSetIter, Decision};
 
 use crate::model::{Minla, State};
+use std::cmp::Reverse;
 
 #[derive(Debug, Clone)]
 pub struct MinlaRelax<'a> {
@@ -43,7 +44,7 @@ impl <'a> MinlaRelax<'a> {
         }
 
         // sort decreasingly
-        cuts.sort_by(|a, b| b.cmp(a));
+        cuts.sort_by_key(|&b| Reverse(b));
 
         // cut weights in optimistic order
         let mut cut_lb = 0;

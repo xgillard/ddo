@@ -104,7 +104,12 @@ fn main() {
     //    the relaxed and restricted MDDs).
     let mut solver = ParallelSolver::new(mdd);
     // 4. Maximize your objective function
-    let (optimal, solution) = solver.maximize();
+    let outcome = solver.maximize();
+    // The completion outcome tells you the optimum value + a boolean that
+    // indicate if you prooved the optimum solution. This flag is only
+    // going to be false if you use a cutoff to kill the search at some point.
+    let optimal = outcome.best_value.unwrap_or(isize::min_value());
+    let solution= solver.best_solution();
 
     // 5. Do whatever you like with the optimal solution.
     assert_eq!(220, optimal);

@@ -34,7 +34,7 @@ as a dependency to your Cargo.toml file and building your project.
 
 ```toml
 [dependencies]
-ddo = "0.2.2"
+ddo = "0.3.0"
 ```
 
 ## Simplistic yet complete example
@@ -151,8 +151,19 @@ fn main() {
     //    the relaxed and restricted MDDs).
     let mut solver = ParallelSolver::new(mdd);
     // 4. Maximize your objective function
-    let (optimal, solution) = solver.maximize();
-    // 5. Do whatever you like with the optimal solution.
+    //    The `outcome` object provides the value of the best solution that was 
+    //    found for the problem (if one was found) along with a flag indicating 
+    //    whether or not the solution was proven optimal. Hence an unsatisfiable 
+    //    problem would have `outcome.best_value == None` and `outcome.is_exact`
+    //    true. The `is_exact` flag will only be false if you explicitly decide 
+    //    to stop searching for the optimum with an arbitrary cutoff.
+    let outcome    = solver.maximize();
+    // The best solution (if one exist) is retrieved with.
+    let solution   = solver.best_solution();
+    // You can also retrieve the value of the best solution as shown per the
+    // following line. The value it returns will be the same as the value of
+    // `outcome.best_value`. 
+    let value      = solver.best_value();
 }
 ```
 
@@ -192,6 +203,9 @@ please cite:
     note         = {Available from \url{https://github.com/xgillard/ddo}},
 }
 ```
+
+## Changelog
++ Version 0.3.0 adds a cutoff mechanism which may force the solver to stop trying to prove the optimum. Some return types have been adapted to take that possibility into account.
 
 ## References
 +   David Bergman, Andre A. Cire, Ashish Sabharwal, Samulowitz Horst, Saraswat Vijay, and Willem-Jan and van Hoeve. [Parallel combinatorial optimization with decision diagrams.](https://link.springer.com/chapter/10.1007/978-3-319-07046-9_25) In Helmut Simonis, editor, Integration of AI and OR Techniques in Constraint Programming, volume 8451, pages 351–367. Springer, 2014.

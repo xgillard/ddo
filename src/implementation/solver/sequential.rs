@@ -25,7 +25,7 @@ use std::marker::PhantomData;
 use crate::abstraction::frontier::Frontier;
 use crate::abstraction::mdd::{Config, MDD};
 use crate::abstraction::solver::Solver;
-use crate::common::Solution;
+use crate::common::{Solution, Reason, Completion};
 use crate::implementation::frontier::SimpleFrontier;
 
 /// This is the structure implementing an single-threaded MDD solver.
@@ -70,9 +70,15 @@ use crate::implementation::frontier::SimpleFrontier;
 /// let mdd        = mdd_builder(&problem, relaxation).into_deep();
 /// // the solver is created using an mdd.
 /// let mut solver = SequentialSolver::new(mdd);
-/// // val is the optimal value of the objective function,
-/// // sol is the sequence of decision yielding that optimal value (if sol exists, `sol != None`)
-/// let (val, sol) = solver.maximize();
+/// // the outcome provides the value of the best solution that was found for
+/// // the problem (if one was found) along with a flag indicating whether or
+/// // not the solution was proven optimal. Hence an unsatisfiable problem
+/// // would have `outcome.best_value == None` and `outcome.is_exact` true.
+/// // The `is_exact` flag will only be false if you explicitly decide to stop
+/// // searching with an arbitrary cutoff.
+/// let outcome    = solver.maximize();
+/// // The best solution (if one exist) is retrieved with
+/// let solution   = solver.best_solution();
 /// ```
 pub struct SequentialSolver<T, C, F, DD>
     where T : Hash + Eq + Clone,
@@ -142,17 +148,8 @@ impl <T, C, F, DD> SequentialSolver<T, C, F, DD>
             self.best_sol = self.mdd.best_solution();
         }
     }
-}
 
-impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
-    where T : Hash + Eq + Clone,
-          C : Config<T> + Clone,
-          F : Frontier<T>,
-          DD: MDD<T, C> + Clone
-{
-    /// Applies the branch and bound algorithm proposed by Bergman et al. to
-    /// solve the problem to optimality.
-    fn maximize(&mut self) -> (isize, Option<Solution>) {
+    fn try_maximize(&mut self) -> Result<(), Reason> {
         let root = self.config.root_node();
         self.fringe.push(root);
 
@@ -181,15 +178,15 @@ impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
             }
 
             // 1. RESTRICTION
-            self.mdd.restricted(&node, self.best_lb);
+            let restriction = self.mdd.restricted(&node, self.best_lb)?;
             self.maybe_update_best();
-            if self.mdd.is_exact() {
+            if restriction.is_exact {
                 continue;
             }
 
             // 2. RELAXATION
-            self.mdd.relaxed(&node, self.best_lb);
-            if self.mdd.is_exact() {
+            let relaxation = self.mdd.relaxed(&node, self.best_lb)?;
+            if relaxation.is_exact {
                 self.maybe_update_best();
             } else {
                 let best_ub= self.best_ub;
@@ -209,15 +206,47 @@ impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
         if self.verbosity >= 1 {
             println!("Final {}, Explored {}", self.best_lb, self.explored);
         }
-        (self.best_lb, self.best_sol.clone())
+
+        Ok(())
+    }
+}
+
+impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
+    where T : Hash + Eq + Clone,
+          C : Config<T> + Clone,
+          F : Frontier<T>,
+          DD: MDD<T, C> + Clone
+{
+    /// Applies the branch and bound algorithm proposed by Bergman et al. to
+    /// solve the problem to optimality.
+    fn maximize(&mut self) -> Completion {
+        let outcome = self.try_maximize();
+        if outcome.is_ok() { // We proved optimality
+            Completion {
+                is_exact: true,
+                best_value: self.best_value()
+            }
+        } else { // We did not prove the optimality of our solution
+            Completion {
+                is_exact  : false,
+                best_value: self.best_value()
+            }
+        }
+    }
+
+    fn best_value(&self) -> Option<isize> {
+        self.best_sol.as_ref().map(|_| self.best_lb)
+    }
+    fn best_solution(&self) -> Option<Solution> {
+        self.best_sol.clone()
     }
 
     /// Sets the best known value and/or solution. This solution and value may
     /// be obtained from any other available means (LP relax for instance).
-    fn set_primal(&mut self, value: isize, best_sol: Option<Solution>) {
+    fn set_primal(&mut self, value: isize, best_sol: Solution) {
         if value > self.best_lb {
             self.best_lb = value;
-            self.best_sol= best_sol;
+            self.best_sol= Some(best_sol);
         }
     }
 }
@@ -379,12 +408,13 @@ mod test_solver {
         let  mdd = mdd_builder(&problem, KPRelax).into_deep();
 
         let mut solver = SequentialSolver::new(mdd);
-        let (v, s) = solver.maximize();
+        let maximized = solver.maximize();
 
-        assert_eq!(v, 220);
-        assert!(s.is_some());
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
 
-        let mut sln = s.unwrap().iter().collect::<Vec<Decision>>();
+        let mut sln = solver.best_solution().unwrap().iter().collect::<Vec<Decision>>();
         sln.sort_unstable_by_key(|d| d.variable.id());
         assert_eq!(sln, vec![
             Decision{variable: Variable(0), value: 0},
@@ -405,12 +435,13 @@ mod test_solver {
             .into_deep();
 
         let mut solver = SequentialSolver::new(mdd);
-        let (v, s) = solver.maximize();
+        let maximized = solver.maximize();
 
-        assert_eq!(v, 220);
-        assert!(s.is_some());
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
 
-        let mut sln = s.unwrap().iter().collect::<Vec<Decision>>();
+        let mut sln = solver.best_solution().unwrap().iter().collect::<Vec<Decision>>();
         sln.sort_unstable_by_key(|d| d.variable.id());
         assert_eq!(sln, vec![
             Decision { variable: Variable(0), value: 0 },
@@ -435,23 +466,24 @@ mod test_solver {
         let d1  = Decision{variable: Variable(0), value: 10};
         let sol = Solution::new(Arc::new(PartialAssignment::SingleExtension {decision: d1, parent: Arc::new(PartialAssignment::Empty)}));
 
-        solver.set_primal(10, Some(sol));
+        solver.set_primal(10, sol.clone());
         assert!(solver.best_sol.is_some());
         assert_eq!(10, solver.best_lb);
 
         // in this case, it wont update because there is no improvement
-        solver.set_primal(5, None);
+        solver.set_primal(5, sol.clone());
         assert!(solver.best_sol.is_some());
         assert_eq!(10, solver.best_lb);
 
         // but here, it will update as it improves the best known sol
-        solver.set_primal(10000, None);
-        assert!(solver.best_sol.is_none());
+        solver.set_primal(10000, sol);
+        assert!(solver.best_sol.is_some());
         assert_eq!(10000, solver.best_lb);
 
         // it wont do much as the primal is better than the actual feasible solution
-        let (val, sol) = solver.maximize();
-        assert_eq!(10000, val);
-        assert!(sol.is_none());
+        let maximized = solver.maximize();
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(10000));
+        assert!(solver.best_solution().is_some());
     }
 }

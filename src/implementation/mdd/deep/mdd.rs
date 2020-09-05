@@ -34,7 +34,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::abstraction::mdd::{Config, MDD};
-use crate::common::{Decision, FrontierNode, PartialAssignment, Solution, Variable, VarSet};
+use crate::common::{Completion, Decision, FrontierNode, PartialAssignment, Reason, Solution, Variable, VarSet};
 use crate::common::PartialAssignment::Empty;
 use crate::implementation::mdd::deep::mddgraph::{Graph, LayerData, LayerIndex, NodeData, NodeIndex};
 use crate::implementation::mdd::MDDType;
@@ -97,7 +97,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         &self.config
     }
 
-    fn exact(&mut self, node: &FrontierNode<T>, best_lb: isize) {
+    fn exact(&mut self, node: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let init_state = Rc::new(node.state.as_ref().clone());
@@ -111,7 +111,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         self.develop(init_state, init_value, free_vars, best_lb)
     }
 
-    fn restricted(&mut self, node: &FrontierNode<T>, best_lb: isize) {
+    fn restricted(&mut self, node: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let init_state = Rc::new(node.state.as_ref().clone());
@@ -125,7 +125,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         self.develop(init_state, init_value, free_vars, best_lb)
     }
 
-    fn relaxed(&mut self, node: &FrontierNode<T>, best_lb: isize) {
+    fn relaxed(&mut self, node: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let init_state = Rc::new(node.state.as_ref().clone());
@@ -304,12 +304,16 @@ impl <T, C> DeepMDD<T, C>
     /// It only considers nodes that are relevant wrt. the given best lower
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
-    fn develop(&mut self, init_state: Rc<T>, init_val: isize, mut vars: VarSet, best_lb: isize) {
+    fn develop(&mut self, init_state: Rc<T>, init_val: isize, mut vars: VarSet, best_lb: isize) -> Result<Completion, Reason> {
         self.graph.add_root(init_state, init_val);
 
         while let Some(var) = self.next_var(&vars) {
-            let current = self.graph.current_layer();
+            // Did the cutoff kick in ?
+            if self.config.must_stop() {
+                return Err(Reason::CutoffOccurred);
+            }
 
+            let current = self.graph.current_layer();
             self.graph.add_layer();
             vars.remove(var);
 
@@ -353,17 +357,22 @@ impl <T, C> DeepMDD<T, C>
             }
         }
 
-        self.finalize()
+        Ok(self.finalize())
     }
     /// Finalizes the computation of the MDD: it identifies the best terminal
     /// node, checks if the MDD is exact and computes the local bounds of the
     /// cutset nodes.
-    fn finalize(&mut self) {
+    fn finalize(&mut self) -> Completion {
         self.best = self.graph.find_best_terminal_node();
         self.compute_is_exact();
 
         if self.mddtype == MDDType::Relaxed {
             self.compute_local_bounds()
+        }
+
+        Completion{
+            is_exact     : self.is_exact(),
+            best_value   : self.best.map(|nid| self.graph.nodes[nid.0].lp_from_top)
         }
     }
     /// Checks if the mdd is exact or if the best terminal node has an exact
@@ -437,12 +446,13 @@ mod test_deepmdd {
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode};
     use crate::abstraction::mdd::{Config, MDD};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
     use crate::implementation::mdd::deep::mdd::DeepMDD;
     use crate::implementation::mdd::MDDType;
-    use crate::test_utils::MockConfig;
+    use crate::test_utils::{MockConfig, MockCutoff, Proxy};
+    use mock_it::verify;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -462,13 +472,13 @@ mod test_deepmdd {
         let config  = MockConfig::default();
         let mut mdd = DeepMDD::new(config);
 
-        mdd.relaxed(&root_n, 0);
+        assert!(mdd.relaxed(&root_n, 0).is_ok());
         assert_eq!(MDDType::Relaxed, mdd.mddtype);
 
-        mdd.restricted(&root_n, 0);
+        assert!(mdd.restricted(&root_n, 0).is_ok());
         assert_eq!(MDDType::Restricted, mdd.mddtype);
 
-        mdd.exact(&root_n, 0);
+        assert!(mdd.exact(&root_n, 0).is_ok());
         assert_eq!(MDDType::Exact, mdd.mddtype);
     }
     #[test]
@@ -482,15 +492,15 @@ mod test_deepmdd {
         let config  = MockConfig::default();
         let mut mdd = DeepMDD::new(config);
 
-        mdd.exact(&root_n, 0);
+        assert!(mdd.exact(&root_n, 0).is_ok());
         assert!(mdd.root.is_some());
         assert!(std::ptr::eq(root_n.path.as_ref(), mdd.root.as_ref().unwrap().as_ref()));
 
-        mdd.restricted(&root_n, 0);
+        assert!(mdd.restricted(&root_n, 0).is_ok());
         assert!(mdd.root.is_some());
         assert!(std::ptr::eq(root_n.path.as_ref(), mdd.root.as_ref().unwrap().as_ref()));
 
-        mdd.relaxed(&root_n, 0);
+        assert!(mdd.relaxed(&root_n, 0).is_ok());
         assert!(mdd.root.is_some());
         assert!(std::ptr::eq(root_n.path.as_ref(), mdd.root.as_ref().unwrap().as_ref()));
     }
@@ -535,7 +545,7 @@ mod test_deepmdd {
 
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -556,7 +566,7 @@ mod test_deepmdd {
 
         let root = mdd.config().root_node();
 
-        mdd.restricted(&root, 0);
+        assert!(mdd.restricted(&root, 0).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -567,6 +577,107 @@ mod test_deepmdd {
                    ]
         );
     }
+
+    #[test]
+    fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .into_deep();
+
+        let root   = mdd.config().root_node();
+        let result = mdd.exact(&root, 0);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .into_deep();
+
+        let root   = mdd.config().root_node();
+        let result = mdd.restricted(&root, 0);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .into_deep();
+
+        let root   = mdd.config().root_node();
+        let result = mdd.relaxed(&root, 0);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn exact_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let cutoff  = MockCutoff::default();
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&cutoff))
+            .into_deep();
+
+        cutoff.must_stop.given(()).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.exact(&root, 0);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+        assert!(verify(cutoff.must_stop.was_called_with(())));
+    }
+    #[test]
+    fn restricted_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let cutoff  = MockCutoff::default();
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&cutoff))
+            .into_deep();
+
+        cutoff.must_stop.given(()).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.restricted(&root, 0);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+        assert!(verify(cutoff.must_stop.was_called_with(())));
+    }
+    #[test]
+    fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let cutoff  = MockCutoff::default();
+        let mut mdd = mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&cutoff))
+            .into_deep();
+
+        cutoff.must_stop.given(()).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.relaxed(&root, 0);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+        assert!(verify(cutoff.must_stop.was_called_with(())));
+    }
+
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
         let pb = DummyProblem;
@@ -576,7 +687,7 @@ mod test_deepmdd {
             .into_deep();
 
         let root = mdd.config().root_node();
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 42);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -596,7 +707,7 @@ mod test_deepmdd {
             .into_deep();
 
         let root = mdd.config().root_node();
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
 
         let mut cutset = vec![];
         mdd.for_each_cutset_node(|n| cutset.push(n));
@@ -612,7 +723,7 @@ mod test_deepmdd {
 
         let root = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
     #[test]
@@ -622,7 +733,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
     #[test]
@@ -632,7 +743,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
     #[test]
@@ -641,7 +752,7 @@ mod test_deepmdd {
         let rlx     = DummyRelax;
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).into_deep();
         let root    = mdd.config().root_node();
-        mdd.restricted(&root, 0);
+        assert!(mdd.restricted(&root, 0).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
     #[test]
@@ -651,7 +762,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.restricted(&root, 0);
+        assert!(mdd.restricted(&root, 0).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -679,7 +790,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert!(mdd.best_solution().is_none())
     }
     #[test]
@@ -689,7 +800,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.exact(&root, 0);
+        assert!(mdd.exact(&root, 0).is_ok());
         assert_eq!(isize::min_value(), mdd.best_value())
     }
     #[test]
@@ -699,7 +810,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.exact(&root, 100);
+        assert!(mdd.exact(&root, 100).is_ok());
         assert!(mdd.best_solution().is_none())
     }
     #[test]
@@ -709,7 +820,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.relaxed(&root, 100);
+        assert!(mdd.relaxed(&root, 100).is_ok());
         assert!(mdd.best_solution().is_none())
     }
     #[test]
@@ -719,7 +830,7 @@ mod test_deepmdd {
         let mut mdd = mdd_builder(&pb, rlx).into_deep();
         let root    = mdd.config().root_node();
 
-        mdd.restricted(&root, 100);
+        assert!(mdd.restricted(&root, 100).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -817,7 +928,7 @@ mod test_deepmdd {
             .into_deep();
 
         let root = mdd.config.root_node();
-        mdd.relaxed(&root, 0);
+        assert!(mdd.relaxed(&root, 0).is_ok());
 
         assert_eq!(false, mdd.is_exact());
         assert_eq!(104,   mdd.best_value());

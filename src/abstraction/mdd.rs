@@ -19,7 +19,7 @@
 
 //! This module defines traits for implementations of an MDD.
 
-use crate::common::{Solution, FrontierNode, VarSet, Variable, Domain, Decision};
+use crate::common::{Solution, FrontierNode, VarSet, Variable, Domain, Decision, Completion, Reason};
 use std::cmp::Ordering;
 use crate::abstraction::heuristics::SelectableNode;
 
@@ -33,13 +33,13 @@ pub trait MDD<T, C: Config<T>> {
     fn config(&self) -> &C;
 
     /// Expands this MDD into  an exact MDD
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb : isize);
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;
     /// Expands this MDD into a restricted (lower bound approximation)
     /// version of the exact MDD.
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb : isize);
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;
     /// Expands this MDD into a relaxed (upper bound approximation)
     /// version of the exact MDD.
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb : isize);
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;
 
     /// Return true iff this `MDD` is exact. That is to say, it returns true if
     /// no nodes have been merged (because of relaxation) or suppressed (because

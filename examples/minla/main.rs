@@ -42,7 +42,7 @@ fn main() {
     let mut solver  = ParallelSolver::customized(mdd, opt.verbose, threads);
 
     let start = SystemTime::now();
-    let (opt, _) = solver.maximize();
+    let opt = solver.maximize().best_value.unwrap_or(isize::min_value());
     let end = SystemTime::now();
 
     println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);

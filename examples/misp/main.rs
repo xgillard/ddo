@@ -18,7 +18,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use std::fs::File;
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 
 use structopt::StructOpt;
 
@@ -29,6 +29,7 @@ use ddo::implementation::solver::parallel::ParallelSolver;
 use crate::heuristics::{MispVarHeu, VarsFromMispState};
 use crate::relax::MispRelax;
 use ddo::implementation::mdd::hybrid::HybridPooledDeep;
+use ddo::implementation::heuristics::TimeBudget;
 
 mod instance;
 mod model;
@@ -38,16 +39,19 @@ mod heuristics;
 #[derive(StructOpt)]
 pub struct Args {
     pub fname: String,
+    #[structopt(name="cutoff", short, long)]
+    pub cutoff: Option<u64>,
     #[structopt(name="threads", short, long)]
     threads: Option<usize>,
 }
 
-fn misp(fname: &str, threads: Option<usize>) -> isize {
+fn misp(fname: &str, cutoff: Option<u64>, threads: Option<usize>) -> isize {
     let threads   = threads.unwrap_or_else(num_cpus::get);
     let problem   = File::open(fname).expect("file not found").into();
     let relax     = MispRelax::new(&problem);
     let conf      = mdd_builder(&problem, relax)
         .with_load_vars(VarsFromMispState)
+        .with_cutoff(TimeBudget::new(Duration::from_secs(cutoff.unwrap_or(u64::max_value()))))
         .with_branch_heuristic(MispVarHeu::new(&problem))
         .build();
 
@@ -55,7 +59,7 @@ fn misp(fname: &str, threads: Option<usize>) -> isize {
     let mut solver = ParallelSolver::customized(mdd, 2, threads);
 
     let start = SystemTime::now();
-    let opt   = solver.maximize().0;
+    let opt   = solver.maximize().best_value.unwrap_or(isize::min_value());
     let end   = SystemTime::now();
     println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
     opt
@@ -63,7 +67,7 @@ fn misp(fname: &str, threads: Option<usize>) -> isize {
 
 fn main() {
     let args  = Args::from_args();
-    let value = misp(&args.fname, args.threads);
+    let value = misp(&args.fname, args.cutoff, args.threads);
 
     println!("best value = {}", value);
 }

@@ -26,6 +26,11 @@ use compare::Compare;
 
 use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::common::{FrontierNode, Variable, VarSet};
+use std::time::Duration;
+use std::thread::JoinHandle;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 
 // ----------------------------------------------------------------------------
 // --- VARIABLE SELECTION -----------------------------------------------------
@@ -360,12 +365,57 @@ impl <T> Compare<FrontierNode<T>> for MaxUB {
     }
 }
 
+// ----------------------------------------------------------------------------
+// --- CUTOFF -----------------------------------------------------------------
+// ----------------------------------------------------------------------------
 /// _This is the default cutoff heuristic._ It imposes that the search goes
 /// proves optimality before to stop.
 #[derive(Debug, Default, Copy, Clone)]
 pub struct NoCutoff;
 impl Cutoff for NoCutoff {
     fn must_stop(&self) -> bool {false}
+}
+/// This cutoff allows one to specify a maximum time budget to solve the problem.
+/// Once the time budget is elapsed, the optimization stops and the best solution
+/// that has been found (so far) is returned.
+///
+/// # Example
+/// ```
+/// # use ddo::test_utils::{MockProblem, MockRelax};
+/// # use ddo::implementation::mdd::config::mdd_builder;
+/// use ddo::implementation::heuristics::TimeBudget;
+/// use std::time::Duration;
+/// #
+/// # let problem = MockProblem::default();
+/// # let relax   = MockRelax::default();
+/// #
+/// let mdd = mdd_builder(&problem, relax)
+///         .with_cutoff(TimeBudget::new(Duration::from_secs(10)))
+///         .into_deep();
+/// let mut solver = ParallelSolver::new(mdd);
+/// let optimum = solver.maximize(); // will run for maximum 10 seconds
+/// ```
+#[derive(Debug, Clone)]
+pub struct TimeBudget {
+    timer : Arc<JoinHandle<()>>,
+    stop  : Arc<AtomicBool>
+}
+impl TimeBudget {
+    pub fn new(budget: Duration) -> Self {
+        let stop   = Arc::new(AtomicBool::new(false));
+        let t_flag = Arc::clone(&stop);
+        let timer  = Arc::new(std::thread::spawn(move || {
+            std::thread::sleep(budget);
+            t_flag.store(true, Relaxed);
+        }));
+
+        TimeBudget { stop, timer }
+    }
+}
+impl Cutoff for TimeBudget {
+    fn must_stop(&self) -> bool {
+        self.stop.load(Relaxed)
+    }
 }
 
 // ############################################################################
