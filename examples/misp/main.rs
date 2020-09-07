@@ -89,7 +89,7 @@ mod test_misp {
 
     fn solve_id(id: &str) -> isize {
         let fname = locate(id);
-        misp(fname.to_str().unwrap(), None)
+        misp(fname.to_str().unwrap(), None, None)
     }
 
     /// This test takes > 60s to solve on my machine
