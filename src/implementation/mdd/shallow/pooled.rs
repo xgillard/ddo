@@ -141,6 +141,9 @@ impl <T, C> MDD<T, C> for PooledMDD<T, C>
     fn config(&self) -> &C {
         &self.config
     }
+    fn config_mut(&mut self) -> &mut C {
+        &mut self.config
+    }
 
     fn is_exact(&self) -> bool {
         self.is_exact

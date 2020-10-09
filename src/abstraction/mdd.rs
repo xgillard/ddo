@@ -31,6 +31,7 @@ use crate::abstraction::heuristics::SelectableNode;
 pub trait MDD<T, C: Config<T>> {
     /// Returns a reference to the configuration of this MDD.
     fn config(&self) -> &C;
+    fn config_mut(&mut self) -> &mut C;
 
     /// Expands this MDD into  an exact MDD
     fn exact(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;

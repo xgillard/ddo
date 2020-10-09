@@ -96,6 +96,9 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
     fn config(&self) -> &C {
         &self.config
     }
+    fn config_mut(&mut self) -> &mut C {
+        &mut self.config
+    }
 
     fn exact(&mut self, node: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.clear();

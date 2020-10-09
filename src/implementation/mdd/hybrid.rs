@@ -78,6 +78,9 @@ impl <T, C, X, Y> MDD<T, C> for CompositeMDD<T, C, X, Y>
     fn config(&self) -> &C {
         self.relaxed.config()
     }
+    fn config_mut(&mut self) -> &mut C {
+        self.relaxed.config_mut()
+    }
 
     fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.mddtype = MDDType::Exact;
@@ -172,6 +175,9 @@ impl <T, C> MDD<T, C> for HybridFlatDeep<T, C>
     fn config(&self) -> &C {
         self.composite.config()
     }
+    fn config_mut(&mut self) -> &mut C {
+        self.composite.config_mut()
+    }
 
     fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
         self.composite.exact(root, best_lb)
@@ -257,6 +263,9 @@ impl <T, C> MDD<T, C> for HybridPooledDeep<T, C>
 {
     fn config(&self) -> &C {
         self.composite.config()
+    }
+    fn config_mut(&mut self) -> &mut C {
+        self.composite.config_mut()
     }
 
     fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
