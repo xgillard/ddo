@@ -6,8 +6,11 @@ use std::time::SystemTime;
 use structopt::StructOpt;
 
 use ddo::abstraction::solver::Solver;
-use ddo::implementation::mdd::config::mdd_builder;
+use ddo::implementation::mdd::config::config_builder;
 use ddo::implementation::solver::parallel::ParallelSolver;
+
+use ddo::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
+use ddo::implementation::frontier::NoDupFrontier;
 
 use crate::graph::Graph;
 use crate::model::Minla;
@@ -38,8 +41,10 @@ fn main() {
     let threads = opt.threads.unwrap_or_else(num_cpus::get);
     let problem = if opt.dimacs { read_dimacs(&opt.fname) } else { read_gra(&opt.fname) }.unwrap();
     let relax   = MinlaRelax::new(&problem);
-    let mdd     = mdd_builder(&problem, relax).into_deep();
-    let mut solver  = ParallelSolver::customized(mdd, opt.verbose, threads);
+    let config  = config_builder(&problem, relax).build();
+    let mdd     = AggressivelyBoundedMDD::from(config);
+    let mut solver  = ParallelSolver::customized(mdd, opt.verbose, threads)
+        .with_frontier(NoDupFrontier::default());
 
     let start = SystemTime::now();
     let opt = solver.maximize().best_value.unwrap_or(isize::min_value());
