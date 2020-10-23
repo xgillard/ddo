@@ -43,6 +43,52 @@ use crate::implementation::mdd::hybrid::CompositeMDD;
 
 /// This structure implements an MDD which is aggressively bounded when 
 /// developing a restricted MDD and DeepMDD 
+///
+/// # Example Usage
+/// ```
+/// # use ddo::common::{Variable, Domain, VarSet, Decision};
+/// # use ddo::abstraction::dp::{Problem, Relaxation};
+/// # use ddo::abstraction::solver::Solver;
+/// # use ddo::implementation::mdd::config::config_builder;
+/// # use ddo::implementation::solver::parallel::ParallelSolver;
+/// use ddo::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
+/// #
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         (0..=1).into()
+/// #     }
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
+/// #     }
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
+/// #         42
+/// #     }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #         *n.next().unwrap()
+/// #     }
+/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
+/// #        cost
+/// #     }
+/// # }
+/// let verbosity  = 2;
+/// let nb_threads = 4;
+/// let problem    = MockProblem;
+/// let relaxation = MockRelax;
+/// let config     = config_builder(&problem, relaxation).build();
+/// let mdd        = AggressivelyBoundedMDD::from(config);
+/// // the solver is created using an mdd.
+/// let mut solver = ParallelSolver::customized(mdd, verbosity, nb_threads);
+/// solver.maximize();
+/// ```
 #[derive(Clone)]
 pub struct AggressivelyBoundedMDD<T, C>
     where T: Eq + Hash + Clone,
