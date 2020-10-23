@@ -31,7 +31,7 @@
 /// * `Restricted` if it is an under approximation of the problem state space.
 /// * `Relaxed` if it is an over approximation of the problem state space.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum MDDType {
+pub enum MDDType {
     Relaxed,
     Restricted,
     Exact
@@ -43,3 +43,4 @@ pub mod config;
 pub mod deep;
 pub mod shallow;
 pub mod hybrid;
+pub mod aggressively_bounded;

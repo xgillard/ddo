@@ -37,6 +37,6 @@
 //! dramatic ! -- you should instead use the deep mdd representation which is
 //! the default in this crate.
 
-mod utils;
+pub mod utils;
 pub mod flat;
 pub mod pooled;

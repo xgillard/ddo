@@ -381,14 +381,42 @@ impl Cutoff for NoCutoff {
 ///
 /// # Example
 /// ```
-/// # use ddo::test_utils::{MockProblem, MockRelax};
+/// # use ddo::common::{Variable, Domain, Decision, VarSet};
+/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
+/// # use crate::ddo::abstraction::solver::Solver;
 /// # use ddo::implementation::mdd::config::mdd_builder;
+/// # use ddo::implementation::solver::parallel::ParallelSolver;
 /// use ddo::implementation::heuristics::TimeBudget;
 /// use std::time::Duration;
 /// #
-/// # let problem = MockProblem::default();
-/// # let relax   = MockRelax::default();
-/// #
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         (0..=1).into()
+/// #     }
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
+/// #     }
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
+/// #         42
+/// #     }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #         *n.next().unwrap()
+/// #     }
+/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
+/// #        cost
+/// #     }
+/// # }
+/// # let problem = MockProblem;
+/// # let relax   = MockRelax;
 /// let mdd = mdd_builder(&problem, relax)
 ///         .with_cutoff(TimeBudget::new(Duration::from_secs(10)))
 ///         .into_deep();
