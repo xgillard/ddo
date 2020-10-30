@@ -9,7 +9,7 @@ use ddo::abstraction::solver::Solver;
 use ddo::implementation::mdd::config::config_builder;
 use ddo::implementation::solver::parallel::ParallelSolver;
 // Uncomment this line if you intend to use the AggressivelyBoundedMDD
-// use ddo::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
+use ddo::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
 //
 // You should use the NoDupFrontier whenever you can. It is inexpensive and
 // brings massive perf improvement to the overall problem resolution.
@@ -53,14 +53,14 @@ fn main() {
     // -> Instanciate the parallel solver with a nodup pq (because this helps
     //    a lot!)
     // =======================================================================
-    //let config  = config_builder(&problem, relax).build();
-    //let mdd     = AggressivelyBoundedMDD::from(config);
+    let config  = config_builder(&problem, relax).build();
+    let mdd     = AggressivelyBoundedMDD::from(config);
     // =======================================================================
     // Simple and plain method (typically more performant) 
     // -> Use a DeepMDD with local bounds 
     // -> And use a NoDupFrontier (this is where the miracle occurs)
     // =======================================================================
-    let mdd = config_builder(&problem, relax).into_deep();
+    //let mdd = config_builder(&problem, relax).into_deep();
     // =======================================================================
     let mut solver  = ParallelSolver::customized(mdd, opt.verbose, threads)
         .with_frontier(NoDupFrontier::default()); // miracle !

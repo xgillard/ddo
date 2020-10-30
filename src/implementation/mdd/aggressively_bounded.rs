@@ -212,12 +212,17 @@ struct RestrictedOnly<T, C>
     max_width: usize,
     /// This field memoizes the best node of the MDD. That is, the node of this
     /// mdd having the longest path from root.
-    best_node: Option<Rc<Node<T>>>
+    best_node: Option<Rc<Node<T>>>,
+
+    /// Transient field to store references to the nodes of the current layer
+    /// and be able to efficiently develop the nodes from the parent layer
+    /// starting with the most relevant
+    buffer: Vec<Rc<Node<T>>>
 }
 
 /// As the name suggests, `AggressivelyBoundedFlatMDD` is an implementation of
 /// the `MDD` trait.
-/// See the trait definiton for the documentation related to these methods.
+/// See the trait definition for the documentation related to these methods.
 impl <T, C> MDD<T, C> for RestrictedOnly<T, C>
     where T: Eq + Hash + Clone,
           C: Config<T> + Clone
@@ -243,7 +248,7 @@ impl <T, C> MDD<T, C> for RestrictedOnly<T, C>
     }
 
     fn best_solution(&self) -> Option<Solution> {
-        self.best_node.as_ref().map(|n| Solution::new(self.partial_assignement(n)))
+        self.best_node.as_ref().map(|n| Solution::new(self.partial_assignment(n)))
     }
 
     fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
@@ -315,7 +320,8 @@ impl <T, C> RestrictedOnly<T, C>
             is_exact : true,
             max_width: usize::max_value(),
             best_lb  : isize::min_value(),
-            best_node: None
+            best_node: None,
+            buffer   : vec![]
         }
     }
     /// Resets the state of the mdd to make it reusable and ready to explore an
@@ -331,6 +337,8 @@ impl <T, C> RestrictedOnly<T, C>
         self.best_node = None;
         self.best_lb   = isize::min_value();
         self.layers.iter_mut().for_each(|l|l.clear());
+        //
+        self.buffer.clear();
     }
     /// Develops/Unrolls the requested type of MDD, starting from a given root
     /// node. It only considers nodes that are relevant wrt. the given best lower
@@ -354,7 +362,16 @@ impl <T, C> RestrictedOnly<T, C>
             depth += 1;
 
             let mut next_layer_squashed = false;
-            for node in current_layer!(self).values() {
+
+            // This unsafe block really does not hurt: buffer is only a member
+            // of self to avoid repeated reallocation. Otherwise, it has
+            // absolutely no role to play
+            let buffer = unsafe{ &mut *(&mut self.buffer as *mut Vec<Rc<Node<T>>>) };
+            buffer.clear();
+            current_layer!(self).values().for_each(|n| buffer.push(Rc::clone(&n)));
+            buffer.sort_unstable_by(|a, b| self.config.compare(a, b).reverse());
+
+            for node in buffer.iter() {
                 // Do I need to squash the next layer (aggressively bound
                 // the max-width of the MDD) ?
                 if next_layer_squashed || self.must_squash(depth) {
@@ -501,7 +518,7 @@ impl <T, C> RestrictedOnly<T, C>
         }
     }
     /// This method yields a partial assignment for the given node
-    fn partial_assignement(&self, n: &Node<T>) -> Arc<PartialAssignment> {
+    fn partial_assignment(&self, n: &Node<T>) -> Arc<PartialAssignment> {
         let root = &self.root_pa;
         let path = n.path();
         Arc::new(PartialAssignment::FragmentExtension {parent: Arc::clone(root), fragment: path})
@@ -838,7 +855,7 @@ mod test_restricted_only {
     }
 
     #[test]
-    fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+    fn a_relaxed_mdd_is_not_exact_when_a_merge_occurred() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
         let mut mdd = config_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
@@ -861,7 +878,7 @@ mod test_restricted_only {
     }
 
     #[test]
-    fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+    fn a_restricted_mdd_is_not_exact_when_a_restriction_occurred() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
         let cfg = config_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
@@ -1253,7 +1270,7 @@ mod test_aggressively_bounded_width {
     }
 
     #[test]
-    fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+    fn a_relaxed_mdd_is_not_exact_when_a_merge_occurred() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
@@ -1275,7 +1292,7 @@ mod test_aggressively_bounded_width {
     }
 
     #[test]
-    fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+    fn a_restricted_mdd_is_not_exact_when_a_restriction_occurred() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
