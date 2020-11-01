@@ -251,15 +251,12 @@ impl <T, C> MDD<T, C> for RestrictedOnly<T, C>
         self.best_node.as_ref().map(|n| Solution::new(self.partial_assignment(n)))
     }
 
-    fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
+    fn for_each_cutset_node<F>(&self, func: F) where F: FnMut(FrontierNode<T>) {
         if !self.is_exact {
-            let ub = self.best_value();
-            if ub > self.best_lb {
-                self.layers[self.lel].values().for_each(|n| {
-                    let mut frontier_node = n.to_frontier_node(&self.root_pa);
-                    frontier_node.ub = ub.min(frontier_node.ub);
-                    (func)(frontier_node);
-                });
+            match self.mddtype {
+                MDDType::Exact      => {/* nothing to do */},
+                MDDType::Relaxed    => self.for_each_relaxed_cutset_node(func),
+                MDDType::Restricted => self.for_each_restricted_cutset_node(func),
             }
         }
     }
@@ -421,7 +418,7 @@ impl <T, C> RestrictedOnly<T, C>
             MDDType::Exact      =>
                 false,
             MDDType::Restricted =>
-                self.layers[self.next].len() >= self.max_width,
+                depth > 1 && self.layers[self.next].len() >= self.max_width,
             MDDType::Relaxed    =>
                 depth > 1 && self.layers[self.next].len() >= self.max_width - 1
         }
@@ -533,6 +530,24 @@ impl <T, C> RestrictedOnly<T, C>
             let mut cpy = old.as_ref().clone();
             cpy.merge(new);
             *old = Rc::new(cpy)
+        }
+    }
+
+
+    fn for_each_restricted_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
+        self.layers[self.lel].values().for_each(|n| {
+            let frontier_node = n.to_frontier_node(&self.root_pa);
+            (func)(frontier_node);
+        });
+    }
+    fn for_each_relaxed_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
+        let ub = self.best_value();
+        if ub > self.best_lb {
+            self.layers[self.lel].values().for_each(|n| {
+                let mut frontier_node = n.to_frontier_node(&self.root_pa);
+                frontier_node.ub = ub.min(frontier_node.ub);
+                (func)(frontier_node);
+            });
         }
     }
 }
