@@ -268,18 +268,17 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
     /// and possibly a relaxed mdd rooted in `node`. If that is necessary,
     /// it stores cutset nodes onto the fringe for further parallel processing.
     fn process_one_node(mdd: &mut DD, shared: &Arc<Shared<T, F>>, node: FrontierNode<T>) -> Result<(), Reason> {
-        let mut best_lb = {shared.critical.lock().best_lb};
-
         // 1. RESTRICTION
-        let restriction = mdd.restricted(&node, best_lb)?;
+        let (best_lb, best_ub) = Self::refresh_bounds(shared);
+        let restriction = mdd.restricted(&node, best_lb, best_ub)?;
         Self::maybe_update_best(mdd, shared);
         if restriction.is_exact {
             return Ok(());
         }
 
         // 2. RELAXATION
-        best_lb = shared.critical.lock().best_lb;
-        let relaxation = mdd.relaxed(&node, best_lb)?;
+        let (best_lb, best_ub) = Self::refresh_bounds(shared);
+        let relaxation = mdd.relaxed(&node, best_lb, best_ub)?;
         if relaxation.is_exact {
             Self::maybe_update_best(mdd, shared);
         } else {
@@ -369,7 +368,13 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
         critical.abort_proof = Some(reason);
         critical.fringe.clear();
     }
+    fn refresh_bounds(shared: &Arc<Shared<T, F>>) -> (isize, isize) {
+        let lock = shared.critical.lock();
+        let lb   = lock.best_lb;
+        let ub   = lock.upper_bounds.iter().copied().max().unwrap_or(isize::max_value());
 
+        (lb, ub)
+    }
     /// Depending on the verbosity configuration and the number of nodes that
     /// have been processed, prints a message showing the current progress of
     /// the problem resolution.

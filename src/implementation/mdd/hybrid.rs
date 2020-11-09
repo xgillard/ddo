@@ -99,19 +99,19 @@ impl <T, C, X, Y> MDD<T, C> for CompositeMDD<T, C, X, Y>
         self.relaxed.config_mut()
     }
 
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.mddtype = MDDType::Exact;
-        self.restricted.exact(root, best_lb)
+        self.restricted.exact(root, best_lb, ub)
     }
 
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.mddtype = MDDType::Restricted;
-        self.restricted.restricted(root, best_lb)
+        self.restricted.restricted(root, best_lb, ub)
     }
 
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.mddtype = MDDType::Relaxed;
-        self.relaxed.relaxed(root, best_lb)
+        self.relaxed.relaxed(root, best_lb, ub)
     }
 
     fn is_exact(&self) -> bool {
@@ -191,16 +191,16 @@ impl <T, C> MDD<T, C> for HybridFlatDeep<T, C>
         self.composite.config_mut()
     }
 
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.exact(root, best_lb)
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.exact(root, best_lb, ub)
     }
 
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.restricted(root, best_lb)
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.restricted(root, best_lb, ub)
     }
 
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.relaxed(root, best_lb)
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.relaxed(root, best_lb, ub)
     }
 
     fn is_exact(&self) -> bool {
@@ -275,16 +275,16 @@ impl <T, C> MDD<T, C> for HybridPooledDeep<T, C>
         self.composite.config_mut()
     }
 
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.exact(root, best_lb)
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.exact(root, best_lb, ub)
     }
 
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.restricted(root, best_lb)
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.restricted(root, best_lb, ub)
     }
 
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.relaxed(root, best_lb)
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.relaxed(root, best_lb, ub)
     }
 
     fn is_exact(&self) -> bool {
@@ -357,13 +357,13 @@ mod test_hybrid_flat_deep {
         let config = MockConfig::default();
         let mut mdd = DD::new(config);
 
-        assert!(mdd.relaxed(&root_n, 0).is_ok());
+        assert!(mdd.relaxed(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Relaxed, mdd.composite.mddtype);
 
-        assert!(mdd.restricted(&root_n, 0).is_ok());
+        assert!(mdd.restricted(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Restricted, mdd.composite.mddtype);
 
-        assert!(mdd.exact(&root_n, 0).is_ok());
+        assert!(mdd.exact(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Exact, mdd.composite.mddtype);
     }
 
@@ -410,7 +410,7 @@ mod test_hybrid_flat_deep {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.exact(&root, 0);
+        let result   = mdd.exact(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -426,7 +426,7 @@ mod test_hybrid_flat_deep {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.restricted(&root, 0);
+        let result   = mdd.restricted(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -442,7 +442,7 @@ mod test_hybrid_flat_deep {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.relaxed(&root, 0);
+        let result   = mdd.relaxed(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -462,7 +462,7 @@ mod test_hybrid_flat_deep {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.exact(&root, 0);
+        let result = mdd.exact(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -481,7 +481,7 @@ mod test_hybrid_flat_deep {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.restricted(&root, 0);
+        let result = mdd.restricted(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -499,7 +499,7 @@ mod test_hybrid_flat_deep {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.relaxed(&root, 0);
+        let result = mdd.relaxed(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -515,7 +515,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -537,7 +537,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -558,7 +558,7 @@ mod test_hybrid_flat_deep {
             .build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 42);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -579,7 +579,7 @@ mod test_hybrid_flat_deep {
             .build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
 
         let mut cutset = vec![];
         mdd.for_each_cutset_node(|n| cutset.push(n));
@@ -596,7 +596,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -607,7 +607,7 @@ mod test_hybrid_flat_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -618,7 +618,7 @@ mod test_hybrid_flat_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -629,7 +629,7 @@ mod test_hybrid_flat_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -640,7 +640,7 @@ mod test_hybrid_flat_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
         let mut mdd = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -671,7 +671,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -683,7 +683,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(isize::min_value(), mdd.best_value())
     }
 
@@ -695,7 +695,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 100).is_ok());
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -707,7 +707,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.relaxed(&root, 100).is_ok());
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -719,7 +719,7 @@ mod test_hybrid_flat_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 100).is_ok());
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 }
@@ -761,13 +761,13 @@ mod test_hybrid_pooled_deep {
         let config = MockConfig::default();
         let mut mdd = DD::new(config);
 
-        assert!(mdd.relaxed(&root_n, 0).is_ok());
+        assert!(mdd.relaxed(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Relaxed, mdd.composite.mddtype);
 
-        assert!(mdd.restricted(&root_n, 0).is_ok());
+        assert!(mdd.restricted(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Restricted, mdd.composite.mddtype);
 
-        assert!(mdd.exact(&root_n, 0).is_ok());
+        assert!(mdd.exact(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Exact, mdd.composite.mddtype);
     }
 
@@ -814,7 +814,7 @@ mod test_hybrid_pooled_deep {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.exact(&root, 0);
+        let result   = mdd.exact(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -830,7 +830,7 @@ mod test_hybrid_pooled_deep {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.restricted(&root, 0);
+        let result   = mdd.restricted(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -846,7 +846,7 @@ mod test_hybrid_pooled_deep {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.relaxed(&root, 0);
+        let result   = mdd.relaxed(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -868,7 +868,7 @@ mod test_hybrid_pooled_deep {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.exact(&root, 0);
+        let result = mdd.exact(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -887,7 +887,7 @@ mod test_hybrid_pooled_deep {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.restricted(&root, 0);
+        let result = mdd.restricted(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -905,7 +905,7 @@ mod test_hybrid_pooled_deep {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.relaxed(&root, 0);
+        let result = mdd.relaxed(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -921,7 +921,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -943,7 +943,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -964,7 +964,7 @@ mod test_hybrid_pooled_deep {
             .build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 42);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -985,7 +985,7 @@ mod test_hybrid_pooled_deep {
             .build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
 
         let mut cutset = vec![];
         mdd.for_each_cutset_node(|n| cutset.push(n));
@@ -1002,7 +1002,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -1013,7 +1013,7 @@ mod test_hybrid_pooled_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -1024,7 +1024,7 @@ mod test_hybrid_pooled_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -1035,7 +1035,7 @@ mod test_hybrid_pooled_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -1046,7 +1046,7 @@ mod test_hybrid_pooled_deep {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
         let mut mdd = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -1077,7 +1077,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -1089,7 +1089,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(isize::min_value(), mdd.best_value())
     }
 
@@ -1101,7 +1101,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 100).is_ok());
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -1113,7 +1113,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.relaxed(&root, 100).is_ok());
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -1125,7 +1125,7 @@ mod test_hybrid_pooled_deep {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 100).is_ok());
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 }

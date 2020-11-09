@@ -178,14 +178,14 @@ impl <T, C, F, DD> SequentialSolver<T, C, F, DD>
             }
 
             // 1. RESTRICTION
-            let restriction = self.mdd.restricted(&node, self.best_lb)?;
+            let restriction = self.mdd.restricted(&node, self.best_lb, self.best_ub)?;
             self.maybe_update_best();
             if restriction.is_exact {
                 continue;
             }
 
             // 2. RELAXATION
-            let relaxation = self.mdd.relaxed(&node, self.best_lb)?;
+            let relaxation = self.mdd.relaxed(&node, self.best_lb, self.best_ub)?;
             if relaxation.is_exact {
                 self.maybe_update_best();
             } else {

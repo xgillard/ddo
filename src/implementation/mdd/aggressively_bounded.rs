@@ -118,16 +118,16 @@ impl <T, C> MDD<T, C> for AggressivelyBoundedMDD<T, C>
         self.composite.config_mut()
     }
 
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.exact(root, best_lb)
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.exact(root, best_lb, ub)
     }
 
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.restricted(root, best_lb)
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.restricted(root, best_lb, ub)
     }
 
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
-        self.composite.relaxed(root, best_lb)
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.composite.relaxed(root, best_lb, ub)
     }
 
     fn is_exact(&self) -> bool {
@@ -261,35 +261,35 @@ impl <T, C> MDD<T, C> for RestrictedOnly<T, C>
         }
     }
 
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Exact;
         self.max_width= usize::max_value();
 
-        self.develop(root, free_vars, best_lb)
+        self.develop(root, free_vars, best_lb, ub)
     }
 
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Restricted;
         self.max_width= self.config.max_width(&free_vars);
 
-        self.develop(root, free_vars, best_lb)
+        self.develop(root, free_vars, best_lb, ub)
     }
 
     /// Do **NOT** use for now...
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.clear();
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Relaxed;
         self.max_width= self.config.max_width(&free_vars);
 
-        self.develop(root, free_vars, best_lb)
+        self.develop(root, free_vars, best_lb, ub)
     }
 }
 /// This macro wraps a tiny bit of unsafe code that lets us borrow the current
@@ -341,8 +341,7 @@ impl <T, C> RestrictedOnly<T, C>
     /// node. It only considers nodes that are relevant wrt. the given best lower
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
-    fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize) -> Result<Completion, Reason> {
-        let ub       = root.ub;
+    fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.root_pa = Arc::clone(&root.path);
         let root     = Node::from(root);
         self.best_lb = best_lb;
@@ -604,10 +603,10 @@ mod test_restricted_only {
         //assert!(mdd.relaxed(&root_n, 0).is_ok());
         //assert_eq!(MDDType::Relaxed, mdd.mddtype);
 
-        assert!(mdd.restricted(&root_n, 0).is_ok());
+        assert!(mdd.restricted(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Restricted, mdd.mddtype);
 
-        assert!(mdd.exact(&root_n, 0).is_ok());
+        assert!(mdd.exact(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Exact, mdd.mddtype);
     }
 
@@ -654,7 +653,7 @@ mod test_restricted_only {
         let mut mdd = RestrictedOnly::from(cfg);
 
         let root   = mdd.config().root_node();
-        let result = mdd.exact(&root, 0);
+        let result = mdd.exact(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -670,7 +669,7 @@ mod test_restricted_only {
         let mut mdd = RestrictedOnly::from(cfg);
 
         let root   = mdd.config().root_node();
-        let result = mdd.restricted(&root, 0);
+        let result = mdd.restricted(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -708,7 +707,7 @@ mod test_restricted_only {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.exact(&root, 0);
+        let result = mdd.exact(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -726,7 +725,7 @@ mod test_restricted_only {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.restricted(&root, 0);
+        let result = mdd.restricted(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -765,7 +764,7 @@ mod test_restricted_only {
 
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -788,7 +787,7 @@ mod test_restricted_only {
 
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 2);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -850,7 +849,7 @@ mod test_restricted_only {
 
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -885,7 +884,7 @@ mod test_restricted_only {
         let cfg = config_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd = RestrictedOnly::from(cfg);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -898,7 +897,7 @@ mod test_restricted_only {
 
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -929,7 +928,7 @@ mod test_restricted_only {
         let mut mdd = RestrictedOnly::from(cfg);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -941,7 +940,7 @@ mod test_restricted_only {
         let mut mdd = RestrictedOnly::from(cfg);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(isize::min_value(), mdd.best_value())
     }
 
@@ -953,7 +952,7 @@ mod test_restricted_only {
         let mut mdd = RestrictedOnly::from(cfg);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 100).is_ok());
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -979,7 +978,7 @@ mod test_restricted_only {
 
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 100).is_ok());
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 }
@@ -1021,13 +1020,13 @@ mod test_aggressively_bounded_width {
         let config = MockConfig::default();
         let mut mdd = DD::new(config);
 
-        assert!(mdd.relaxed(&root_n, 0).is_ok());
+        assert!(mdd.relaxed(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Relaxed, mdd.composite.mddtype);
 
-        assert!(mdd.restricted(&root_n, 0).is_ok());
+        assert!(mdd.restricted(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Restricted, mdd.composite.mddtype);
 
-        assert!(mdd.exact(&root_n, 0).is_ok());
+        assert!(mdd.exact(&root_n, 0, 1000).is_ok());
         assert_eq!(MDDType::Exact, mdd.composite.mddtype);
     }
 
@@ -1074,7 +1073,7 @@ mod test_aggressively_bounded_width {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.exact(&root, 0);
+        let result   = mdd.exact(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -1090,7 +1089,7 @@ mod test_aggressively_bounded_width {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.restricted(&root, 0);
+        let result   = mdd.restricted(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -1106,7 +1105,7 @@ mod test_aggressively_bounded_width {
 
         let mut mdd  = DD::from(config);
         let root     = mdd.config().root_node();
-        let result   = mdd.relaxed(&root, 0);
+        let result   = mdd.relaxed(&root, 0, 1000);
         assert!(result.is_ok());
         let completion = result.unwrap();
         assert_eq!(completion.is_exact  , mdd.is_exact());
@@ -1126,7 +1125,7 @@ mod test_aggressively_bounded_width {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.exact(&root, 0);
+        let result = mdd.exact(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -1145,7 +1144,7 @@ mod test_aggressively_bounded_width {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.restricted(&root, 0);
+        let result = mdd.restricted(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -1163,7 +1162,7 @@ mod test_aggressively_bounded_width {
         cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
-        let result = mdd.relaxed(&root, 0);
+        let result = mdd.relaxed(&root, 0, 1000);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
     }
@@ -1179,7 +1178,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 6);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -1201,7 +1200,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 2);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -1222,7 +1221,7 @@ mod test_aggressively_bounded_width {
             .build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_some());
         assert_eq!(mdd.best_value(), 42);
         assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
@@ -1243,7 +1242,7 @@ mod test_aggressively_bounded_width {
             .build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
 
         let mut cutset = vec![];
         mdd.for_each_cutset_node(|n| cutset.push(n));
@@ -1260,7 +1259,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -1271,7 +1270,7 @@ mod test_aggressively_bounded_width {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -1282,7 +1281,7 @@ mod test_aggressively_bounded_width {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.relaxed(&root, 0).is_ok());
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -1293,7 +1292,7 @@ mod test_aggressively_bounded_width {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build();
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(true, mdd.is_exact())
     }
 
@@ -1304,7 +1303,7 @@ mod test_aggressively_bounded_width {
         let config = mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build();
         let mut mdd = DD::from(config);
         let root = mdd.config().root_node();
-        assert!(mdd.restricted(&root, 0).is_ok());
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
         assert_eq!(false, mdd.is_exact())
     }
 
@@ -1335,7 +1334,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -1347,7 +1346,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 0).is_ok());
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
         assert_eq!(isize::min_value(), mdd.best_value())
     }
 
@@ -1359,7 +1358,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.exact(&root, 100).is_ok());
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -1371,7 +1370,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.relaxed(&root, 100).is_ok());
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 
@@ -1383,7 +1382,7 @@ mod test_aggressively_bounded_width {
         let mut mdd  = DD::from(config);
         let root = mdd.config().root_node();
 
-        assert!(mdd.restricted(&root, 100).is_ok());
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
     }
 }

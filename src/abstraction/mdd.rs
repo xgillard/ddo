@@ -34,13 +34,13 @@ pub trait MDD<T, C: Config<T>> {
     fn config_mut(&mut self) -> &mut C;
 
     /// Expands this MDD into  an exact MDD
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb : isize, ub: isize) -> Result<Completion, Reason>;
     /// Expands this MDD into a restricted (lower bound approximation)
     /// version of the exact MDD.
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb : isize, ub: isize) -> Result<Completion, Reason>;
     /// Expands this MDD into a relaxed (upper bound approximation)
     /// version of the exact MDD.
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb : isize) -> Result<Completion, Reason>;
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb : isize, ub: isize) -> Result<Completion, Reason>;
 
     /// Return true iff this `MDD` is exact. That is to say, it returns true if
     /// no nodes have been merged (because of relaxation) or suppressed (because
