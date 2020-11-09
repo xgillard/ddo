@@ -86,5 +86,8 @@ pub trait LoadVars<T> {
 /// a given time budget to the search.
 pub trait Cutoff {
     /// Returns true iff the criterion is met and the search must stop.
-    fn must_stop(&self) -> bool;
+    ///
+    /// - lb is supposed to be the best known lower bound
+    /// - ub is supposed to be the best known upper bound
+    fn must_stop(&self, lb: isize, ub: isize) -> bool;
 }

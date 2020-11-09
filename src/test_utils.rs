@@ -26,13 +26,14 @@ use std::cmp::Ordering;
 use std::cmp::Ordering::Equal;
 use std::sync::Arc;
 
-use mock_it::Mock;
+use mock_it::{Mock, Matcher};
 
 use crate::abstraction::dp::{Problem, Relaxation};
 use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::abstraction::mdd::Config;
 use crate::common::{Decision, Domain, FrontierNode, Variable, VarSet};
 use crate::common::PartialAssignment::Empty;
+use mock_it::Matcher::Val;
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Copy, Clone)]
 pub struct Nothing;
@@ -147,7 +148,7 @@ impl WidthHeuristic for MockMaxWidth {
 
 #[derive(Clone)]
 pub struct MockCutoff {
-    pub must_stop : Mock<(), bool>
+    pub must_stop : Mock<Matcher<(isize, isize)>, bool>
 }
 impl Default for MockCutoff {
     fn default() -> Self {
@@ -155,8 +156,8 @@ impl Default for MockCutoff {
     }
 }
 impl Cutoff for MockCutoff {
-    fn must_stop(&self) -> bool {
-        self.must_stop.called(())
+    fn must_stop(&self, lb: isize, ub: isize) -> bool {
+        self.must_stop.called(Val((lb, ub)))
     }
 }
 
@@ -218,7 +219,7 @@ pub struct MockConfig {
     pub load_vars       : Mock<FrontierNode<usize>, VarSet>,
     pub max_width       : Mock<VarSet, usize>,
     pub compare         : Mock<(usize, usize), Ordering>,
-    pub must_stop       : Mock<(), bool>,
+    pub must_stop       : Mock<Matcher<(isize, isize)>, bool>,
 }
 impl Default for MockConfig {
     fn default() -> Self {
@@ -291,8 +292,8 @@ impl Config<usize> for MockConfig {
         self.compare.called((*a.state(), *b.state()))
     }
 
-    fn must_stop(&self) -> bool {
-        self.must_stop.called(())
+    fn must_stop(&self, lb: isize, ub: isize) -> bool {
+        self.must_stop.called(Val((lb, ub)))
     }
 }
 
@@ -341,8 +342,8 @@ impl <X, T: NodeSelectionHeuristic<X> + Clone> NodeSelectionHeuristic<X> for Pro
     }
 }
 impl <T: Cutoff + Clone> Cutoff for Proxy<'_, T> {
-    fn must_stop(&self) -> bool {
-        self.target.must_stop()
+    fn must_stop(&self, lb: isize, ub: isize) -> bool {
+        self.target.must_stop(lb, ub)
     }
 }
 impl <X, T: Config<X> + Clone> Config<X> for Proxy<'_, T> {
@@ -393,8 +394,8 @@ impl <X, T: Config<X> + Clone> Config<X> for Proxy<'_, T> {
     fn compare(&self, a: &dyn SelectableNode<X>, b: &dyn SelectableNode<X>) -> Ordering {
         self.target.compare(a, b)
     }
-    fn must_stop(&self) -> bool {
-        self.target.must_stop()
+    fn must_stop(&self, lb: isize, ub: isize) -> bool {
+        self.target.must_stop(lb, ub)
     }
 }
 

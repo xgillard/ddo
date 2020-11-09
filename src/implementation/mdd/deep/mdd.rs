@@ -111,7 +111,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         self.root      = Some(Arc::clone(&node.path));
         self.max_width = usize::max_value();
 
-        self.develop(init_state, init_value, free_vars, best_lb)
+        self.develop(init_state, init_value, free_vars, best_lb, node.ub)
     }
 
     fn restricted(&mut self, node: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
@@ -125,7 +125,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         self.root      = Some(Arc::clone(&node.path));
         self.max_width = self.config.max_width(&free_vars);
 
-        self.develop(init_state, init_value, free_vars, best_lb)
+        self.develop(init_state, init_value, free_vars, best_lb, node.ub)
     }
 
     fn relaxed(&mut self, node: &FrontierNode<T>, best_lb: isize) -> Result<Completion, Reason> {
@@ -139,7 +139,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         self.root      = Some(Arc::clone(&node.path));
         self.max_width = self.config.max_width(&free_vars);
 
-        self.develop(init_state, init_value, free_vars, best_lb)
+        self.develop(init_state, init_value, free_vars, best_lb, node.ub)
     }
 
     fn is_exact(&self) -> bool {
@@ -307,12 +307,12 @@ impl <T, C> DeepMDD<T, C>
     /// It only considers nodes that are relevant wrt. the given best lower
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
-    fn develop(&mut self, init_state: Rc<T>, init_val: isize, mut vars: VarSet, best_lb: isize) -> Result<Completion, Reason> {
+    fn develop(&mut self, init_state: Rc<T>, init_val: isize, mut vars: VarSet, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.graph.add_root(init_state, init_val);
 
         while let Some(var) = self.next_var(&vars) {
             // Did the cutoff kick in ?
-            if self.config.must_stop() {
+            if self.config.must_stop(best_lb, ub) {
                 return Err(Reason::CutoffOccurred);
             }
 
@@ -455,7 +455,7 @@ mod test_deepmdd {
     use crate::implementation::mdd::deep::mdd::DeepMDD;
     use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
-    use mock_it::verify;
+    use mock_it::Matcher;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -636,13 +636,12 @@ mod test_deepmdd {
             .with_cutoff(Proxy::new(&cutoff))
             .into_deep();
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.exact(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
@@ -654,13 +653,12 @@ mod test_deepmdd {
             .with_cutoff(Proxy::new(&cutoff))
             .into_deep();
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.restricted(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
@@ -672,13 +670,12 @@ mod test_deepmdd {
             .with_cutoff(Proxy::new(&cutoff))
             .into_deep();
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.relaxed(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
 
     #[test]

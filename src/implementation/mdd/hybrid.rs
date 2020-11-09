@@ -333,7 +333,7 @@ mod test_hybrid_flat_deep {
     use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use crate::implementation::mdd::hybrid::HybridFlatDeep;
-    use mock_it::verify;
+    use mock_it::Matcher;
 
     type DD<T, C> = HybridFlatDeep<T, C>;
 
@@ -459,13 +459,12 @@ mod test_hybrid_flat_deep {
             .build();
         let mut mdd = DD::from(config);
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.exact(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
@@ -479,13 +478,12 @@ mod test_hybrid_flat_deep {
         let mut mdd = DD::from(config);
 
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.restricted(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
@@ -498,13 +496,12 @@ mod test_hybrid_flat_deep {
             .build();
         let mut mdd = DD::from(config);
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.relaxed(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
 
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
@@ -740,7 +737,7 @@ mod test_hybrid_pooled_deep {
     use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use crate::implementation::mdd::hybrid::HybridPooledDeep;
-    use mock_it::verify;
+    use mock_it::Matcher;
 
     type DD<T, C> = HybridPooledDeep<T, C>;
 
@@ -868,13 +865,12 @@ mod test_hybrid_pooled_deep {
             .build();
         let mut mdd = DD::from(config);
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.exact(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
@@ -888,13 +884,12 @@ mod test_hybrid_pooled_deep {
         let mut mdd = DD::from(config);
 
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.restricted(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
@@ -907,13 +902,12 @@ mod test_hybrid_pooled_deep {
             .build();
         let mut mdd = DD::from(config);
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.relaxed(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
 
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level

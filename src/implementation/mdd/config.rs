@@ -528,8 +528,8 @@ impl <'x, T, P, R, L, V, W, S, C> Config<T> for PassThroughConfig<'x, T, P, R, L
     }
 
     /// Returns true iff the cutoff criterion is met and the search must stop.
-    fn must_stop(&self) -> bool {
-        self.cutoff.must_stop()
+    fn must_stop(&self, lb: isize, ub: isize) -> bool {
+        self.cutoff.must_stop(lb, ub)
     }
 }
 
@@ -551,6 +551,7 @@ mod tests {
     use crate::implementation::mdd::config::mdd_builder;
     use crate::test_utils::{MockLoadVars, MockMaxWidth, MockNodeSelectionHeuristic, MockProblem, MockRelax, MockVariableHeuristic, Nothing, Proxy, MockSelectableNode, MockCutoff};
     use crate::common::PartialAssignment::{Empty, FragmentExtension};
+    use mock_it::Matcher::Val;
 
     #[test]
     fn root_node_uses_problem_initial_state_value_and_relaxation_estimate_on_root_state() {
@@ -745,8 +746,8 @@ mod tests {
         let config  = mdd_builder(&prob, Proxy::new(&relax)).with_cutoff(Proxy::new(&heu)).config();
 
         // empty
-        config.must_stop();
-        assert!(verify(heu.must_stop.was_called_with(())));
+        config.must_stop(isize::min_value(), isize::max_value());
+        assert!(verify(heu.must_stop.was_called_with(Val((isize::min_value(), isize::max_value())))));
     }
 
 

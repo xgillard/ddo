@@ -373,7 +373,7 @@ impl <T> Compare<FrontierNode<T>> for MaxUB {
 #[derive(Debug, Default, Copy, Clone)]
 pub struct NoCutoff;
 impl Cutoff for NoCutoff {
-    fn must_stop(&self) -> bool {false}
+    fn must_stop(&self, _lb: isize, _ub: isize) -> bool {false}
 }
 /// This cutoff allows one to specify a maximum time budget to solve the problem.
 /// Once the time budget is elapsed, the optimization stops and the best solution
@@ -441,8 +441,148 @@ impl TimeBudget {
     }
 }
 impl Cutoff for TimeBudget {
-    fn must_stop(&self) -> bool {
+    fn must_stop(&self, _lb: isize, _ub: isize) -> bool {
         self.stop.load(Relaxed)
+    }
+}
+
+/// This cutoff allows one to specify that the solver must stop searching as
+/// soon as it has found a first valid solution.
+///
+/// # Example
+/// ```
+/// # use ddo::common::{Variable, Domain, Decision, VarSet};
+/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
+/// # use crate::ddo::abstraction::solver::Solver;
+/// # use ddo::implementation::mdd::config::mdd_builder;
+/// # use ddo::implementation::solver::parallel::ParallelSolver;
+/// use ddo::implementation::heuristics::FindFirst;
+/// use std::time::Duration;
+/// #
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         (0..=1).into()
+/// #     }
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
+/// #     }
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
+/// #         42
+/// #     }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #         *n.next().unwrap()
+/// #     }
+/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
+/// #        cost
+/// #     }
+/// # }
+/// # let problem = MockProblem;
+/// # let relax   = MockRelax;
+/// let mdd = mdd_builder(&problem, relax)
+///         .with_cutoff(FindFirst::default())
+///         .into_deep();
+/// let mut solver = ParallelSolver::new(mdd);
+/// let optimum = solver.maximize(); // stops whenever a first solution was found
+/// ```
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FindFirst;
+
+impl Cutoff for FindFirst {
+    fn must_stop(&self, lb: isize, _ub: isize) -> bool {
+        lb > isize::min_value()
+    }
+}
+
+/// This cutoff allows one to specify that the solver must stop searching new
+/// solutions as soon the gap between the best lower and upper bounds falls
+/// within a given percentage of the optimum.
+///
+/// # Example
+/// ```
+/// # use ddo::common::{Variable, Domain, Decision, VarSet};
+/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
+/// # use crate::ddo::abstraction::solver::Solver;
+/// # use ddo::implementation::mdd::config::mdd_builder;
+/// # use ddo::implementation::solver::parallel::ParallelSolver;
+/// use ddo::implementation::heuristics::FindFirst;
+/// use std::time::Duration;
+/// #
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         (0..=1).into()
+/// #     }
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
+/// #     }
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
+/// #         42
+/// #     }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #         *n.next().unwrap()
+/// #     }
+/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
+/// #        cost
+/// #     }
+/// # }
+/// # let problem = MockProblem;
+/// # let relax   = MockRelax;
+/// let mdd = mdd_builder(&problem, relax)
+///         .with_cutoff(FindFirst::default())
+///         .into_deep();
+/// let mut solver = ParallelSolver::new(mdd);
+/// // stops whenever the best solution so far is guaranteed to be close enough
+/// // from the optimal solution.
+/// let optimum = solver.maximize();
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct GapCutoff{
+    tolerance: f32
+}
+
+impl GapCutoff {
+    pub fn new(tolerance: f32) -> Self {
+        Self { tolerance }
+    }
+
+    #[inline]
+    fn gap(lb: isize, ub: isize) -> f32 {
+        if lb == ub {
+            0.0_f32
+        } else {
+            let mut a = lb.abs().min(ub.abs());
+            let mut b = lb.abs().max(ub.abs());
+
+            if a == 0 {
+                a += 1;
+                b += 1;
+            }
+
+            (b - a) as f32 / a as f32
+        }
+    }
+}
+
+impl Cutoff for GapCutoff {
+    fn must_stop(&self, lb: isize, ub: isize) -> bool {
+        Self::gap(lb, ub) <= self.tolerance
     }
 }
 
@@ -450,6 +590,42 @@ impl Cutoff for TimeBudget {
 // #### TESTS #################################################################
 // ############################################################################
 
+#[cfg(test)]
+mod test_find_first {
+    use crate::implementation::heuristics::FindFirst;
+    use crate::abstraction::heuristics::Cutoff;
+
+    #[test]
+    fn find_first_stops_whenever_the_lb_is_better_than_min_infty() {
+        let cutoff = FindFirst::default();
+        assert_eq!(true,  cutoff.must_stop(0, isize::max_value()));
+    }
+    #[test]
+    fn find_first_wont_stop_when_the_lb_is_min_infty() {
+        let cutoff = FindFirst::default();
+        assert_eq!(false, cutoff.must_stop(isize::min_value(), 0));
+    }
+}
+#[cfg(test)]
+mod test_gap_cutoff {
+    use crate::implementation::heuristics::GapCutoff;
+    use crate::abstraction::heuristics::Cutoff;
+
+    #[test]
+    fn gap_cutoff_stops_when_the_gap_is_within_tolerance() {
+        let cutoff = GapCutoff::new(0.1);
+        assert_eq!(true, cutoff.must_stop( 1000, 1001));
+        assert_eq!(true, cutoff.must_stop(-1001,-1000));
+    }
+    #[test]
+    fn gap_cutoff_wont_stop_when_the_gap_is_greater_than_tolerance() {
+        let cutoff = GapCutoff::new(0.1);
+        println!("{}", GapCutoff::gap( 1000,  1101));
+        println!("{}", GapCutoff::gap(-1101, -1000));
+        assert_eq!(false, cutoff.must_stop( 1000, 1101));
+        assert_eq!(false, cutoff.must_stop(-1101,-1000));
+    }
+}
 
 #[cfg(test)]
 mod test_nbunassigned {

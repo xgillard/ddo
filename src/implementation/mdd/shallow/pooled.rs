@@ -240,6 +240,7 @@ impl <T, C> PooledMDD<T, C>
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
     fn develop(&mut self, root: &FrontierNode<T>, mut vars: VarSet, best_lb: isize) -> Result<Completion, Reason> {
+        let ub       = root.ub;
         self.root_pa = Arc::clone(&root.path);
         let root     = Node::from(root);
         self.best_lb = best_lb;
@@ -248,7 +249,7 @@ impl <T, C> PooledMDD<T, C>
         let mut current = vec![];
         while let Some(var) = self.next_var(&vars, &current) {
             // Did the cutoff kick in ?
-            if self.config.must_stop() {
+            if self.config.must_stop(best_lb, ub) {
                 return Err(Reason::CutoffOccurred);
             }
 
@@ -511,7 +512,7 @@ mod test_pooledmdd {
     use crate::implementation::mdd::MDDType;
     use crate::implementation::mdd::shallow::pooled::PooledMDD;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
-    use mock_it::verify;
+    use mock_it::Matcher;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -629,13 +630,12 @@ mod test_pooledmdd {
             .with_cutoff(Proxy::new(&cutoff))
             .into_pooled();
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.exact(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
@@ -647,13 +647,12 @@ mod test_pooledmdd {
             .with_cutoff(Proxy::new(&cutoff))
             .into_pooled();
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.restricted(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
@@ -665,13 +664,12 @@ mod test_pooledmdd {
             .with_cutoff(Proxy::new(&cutoff))
             .into_pooled();
 
-        cutoff.must_stop.given(()).will_return(true);
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
 
         let root   = mdd.config().root_node();
         let result = mdd.relaxed(&root, 0);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
-        assert!(verify(cutoff.must_stop.was_called_with(())));
     }
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
     #[test]

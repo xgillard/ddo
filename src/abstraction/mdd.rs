@@ -136,5 +136,5 @@ pub trait Config<T> {
     fn compare(&self, a: &dyn SelectableNode<T>, b: &dyn SelectableNode<T>) -> Ordering;
 
     /// Returns true iff the cutoff criterion is met and the search must stop.
-    fn must_stop(&self) -> bool;
+    fn must_stop(&self, lb: isize, ub: isize) -> bool;
 }
