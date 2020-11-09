@@ -513,7 +513,7 @@ impl Cutoff for FindFirst {
 /// # use crate::ddo::abstraction::solver::Solver;
 /// # use ddo::implementation::mdd::config::mdd_builder;
 /// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// use ddo::implementation::heuristics::FindFirst;
+/// use ddo::implementation::heuristics::GapCutoff;
 /// use std::time::Duration;
 /// #
 /// # #[derive(Copy, Clone)]
@@ -545,11 +545,11 @@ impl Cutoff for FindFirst {
 /// # let problem = MockProblem;
 /// # let relax   = MockRelax;
 /// let mdd = mdd_builder(&problem, relax)
-///         .with_cutoff(FindFirst::default())
+///         .with_cutoff(GapCutoff::new(0.05))
 ///         .into_deep();
 /// let mut solver = ParallelSolver::new(mdd);
 /// // stops whenever the best solution so far is guaranteed to be close enough
-/// // from the optimal solution.
+/// // (5 percent) from the optimal solution.
 /// let optimum = solver.maximize();
 /// ```
 #[derive(Debug, Clone, Copy)]
