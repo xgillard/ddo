@@ -17,7 +17,8 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module defines some utility types
+//! This module defines some utility types used to help provide concrete
+//! implementations of the objects in the abstraction layer.
 
 use crate::common::FrontierNode;
 use std::sync::Arc;
@@ -31,8 +32,8 @@ use std::cmp::Ordering;
 use crate::implementation::heuristics::MaxUB;
 
 /// This is a type-safe identifier for some node in the queue.
-/// Basically, this NodeId equates to the position of the identified node in the
-/// `nodes` list from the `VecBackedHeap`.
+/// Basically, this NodeId equates to the position of the identified
+/// node in the `nodes` list from the `NoDupHeap`.
 #[derive(Debug, Copy, Clone)]
 struct NodeId(usize);
 
@@ -59,12 +60,13 @@ pub struct NoDupHeap<T>
     /// The actual payload (nodes) ordered in the list
     nodes: Vec<FrontierNode<T>>,
     /// The position of the items in the heap
-    pos  : Vec<usize>,
+    pos: Vec<usize>,
     /// This is the actual heap which orders nodes.
     heap: Vec<NodeId>,
-    /// The positions that can be recycled.
+    /// The positions in the `nodes` vector that can be recycled.
     recycle_bin: Vec<NodeId>
 }
+/// Construction of a Default NoDupHeap
 impl <T> Default for NoDupHeap<T>
     where T: Eq + Hash + Clone
 {
@@ -87,13 +89,17 @@ impl <T> NoDupHeap<T>
             recycle_bin: vec![]
         }
     }
-
+    /// Returns the 'length' of the heap. That is, the number of items that
+    /// can still be popped out of the heap.
     pub fn len(&self) -> usize {
         self.heap.len()
     }
+    /// Returns true iff the heap is empty (len() == 0)
     pub fn is_empty(&self) -> bool {
         self.heap.is_empty()
     }
+    /// Clears the content of the heap to reset it to a state equivalent to
+    /// a fresh instantiation of the heap.
     pub fn clear(&mut self) {
         self.states.clear();
         self.nodes.clear();
@@ -101,6 +107,15 @@ impl <T> NoDupHeap<T>
         self.heap.clear();
         self.recycle_bin.clear();
     }
+    /// Pushes one node onto the heap while ensuring that only one copy of the
+    /// node (identified by its state) is kept in the heap.
+    ///
+    /// # Note:
+    /// In the event where the heap already contains a copy `x` of a node having
+    /// the same state as the `node` being pushed. The priority of the node
+    /// left in the heap might be affected. If `node` has a longer longest path
+    /// to the target state, the priority of the node increases when the UB is
+    /// greater or equal to the priority of the pre-existing copy.
     pub fn push(&mut self, node: FrontierNode<T>) {
         let state = Arc::clone(&node.state);
 
@@ -148,7 +163,8 @@ impl <T> NoDupHeap<T>
         // restore the invariants
         self.process_action(action);
     }
-
+    /// Pops the best node out of the heap. Here, the best is defined as the
+    /// node having the best upper bound, with the longest `lp_len`.
     pub fn pop(&mut self) -> Option<FrontierNode<T>> {
         if self.is_empty() {
             return None;
@@ -171,7 +187,8 @@ impl <T> NoDupHeap<T>
 
         Some(node)
     }
-
+    /// Internal helper method to bubble a node up or down, depending of the
+    /// specified action.
     fn process_action(&mut self, action: Action) {
         match action {
             BubbleUp(id)   => self.bubble_up(id),
@@ -179,16 +196,18 @@ impl <T> NoDupHeap<T>
             DoNothing      => {/* sweet life */},
         }
     }
-
-
+    /// Internal helper method to return the position of a node in the heap.
     fn position(&self, n: NodeId) -> usize {
         self.pos[n.0]
     }
+    /// Internal helper method to compare the nodes identified by the ids found
+    /// at the given positions in the heap.
     fn compare_at_pos(&self, x: usize, y: usize) -> Ordering {
         let node_x = &self.nodes[self.heap[x].0];
         let node_y = &self.nodes[self.heap[y].0];
         self.cmp.compare(node_x, node_y)
     }
+    /// Internal method to bubble a node up and restore the heap invariant.
     fn bubble_up(&mut self, id: NodeId) {
         let mut me = self.position(id);
         let mut parent = self.parent(me);
@@ -205,6 +224,7 @@ impl <T> NoDupHeap<T>
             parent = self.parent(me);
         }
     }
+    /// Internal method to sink a node down so as to restor the heap invariant.
     fn bubble_down(&mut self, id: NodeId) {
         let mut me  = self.position(id);
         let mut kid = self.max_child_of(me);
@@ -221,7 +241,8 @@ impl <T> NoDupHeap<T>
             kid = self.max_child_of(me);
         }
     }
-
+    /// Internal helper method that returns the position of the node which is
+    /// the parent of the node at `pos` in the heap.
     fn parent(&self, pos: usize) -> usize {
         if self.is_root(pos) {
             pos
@@ -231,6 +252,14 @@ impl <T> NoDupHeap<T>
             pos / 2 - 1
         }
     }
+    /// Internal helper method that returns the position of the child of the
+    /// node at position `pos` which is considered to be the maximum of the
+    /// children of that node.
+    ///
+    /// # Warning
+    /// When the node at `pos` is a leaf, this method returns **0** for the
+    /// position of the child. This value 0 acts as a marker to tell that no
+    /// child is to be found.
     fn max_child_of(&self, pos: usize) -> usize {
         let size = self.len();
         let left = self.left_child(pos);
@@ -244,20 +273,29 @@ impl <T> NoDupHeap<T>
             _       => right
         }
     }
+    /// Internal helper method to return the position of the left child of
+    /// the node at the given `pos`.
     fn left_child(&self, pos: usize) -> usize {
         pos * 2 + 1
     }
+    /// Internal helper method to return the position of the right child of
+    /// the node at the given `pos`.
     fn right_child(&self, pos: usize) -> usize {
         pos * 2 + 2
     }
-
+    /// Internal helper method which returns true iff the node at `pos` is the
+    /// root of the binary heap (position is zero).
     fn is_root(&self, pos: usize) -> bool {
         pos == 0
     }
+    /// Internal helper method which returns true iff the node at `pos` is the
+    /// left child of its parent.
     fn is_left(&self, pos: usize) -> bool {
         pos % 2 == 1
     }
     /*
+    /// Internal helper method which returns true iff the node at `pos` is the
+    /// right child of its parent.
     fn is_right(&self, pos: usize) -> bool {
         pos % 2 == 0
     }
