@@ -18,7 +18,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
-      - name: Compute Coverage Results
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
