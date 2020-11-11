@@ -20,13 +20,11 @@
 //! This module provides the implementation of usual frontiers.
 
 use binary_heap_plus::BinaryHeap;
-use crate::common::{FrontierNode, PartialAssignment};
+use crate::common::FrontierNode;
 use crate::implementation::heuristics::MaxUB;
 use crate::abstraction::frontier::Frontier;
-use metrohash::MetroHashMap;
-use std::sync::Arc;
-use std::collections::hash_map::Entry;
 use std::hash::Hash;
+use crate::implementation::utils::NoDupHeap;
 
 /// The simplest frontier implementation you can think of: is basically consists
 /// of a binary heap that pushes an pops frontier nodes
@@ -58,51 +56,35 @@ impl <T> Frontier<T> for SimpleFrontier<T> {
 
 /// A frontier that enforces the requirement that a given state will never be
 /// present twice in the frontier.
-pub struct NoDupFrontier<T> where T: Eq + Hash {
-    states: MetroHashMap<Arc<T>, (isize, Arc<PartialAssignment>)>,
-    queue : SimpleFrontier<T>
+#[derive(Clone)]
+pub struct NoDupFrontier<T> where T: Eq + Hash + Clone {
+    heap: NoDupHeap<T>
 }
-impl <T> Default for NoDupFrontier<T> where T: Eq + Hash {
-    fn default() -> Self {
-        Self {
-            states: MetroHashMap::default(),
-            queue : SimpleFrontier::default()
-        }
+impl <T> NoDupFrontier<T> where T: Eq + Hash + Clone {
+    pub fn new() -> Self {
+        Self{heap: NoDupHeap::default()}
     }
 }
-impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash {
+impl <T> Default for NoDupFrontier<T> where T: Eq + Hash + Clone {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash + Clone {
     fn push(&mut self, node: FrontierNode<T>) {
-        match self.states.entry(Arc::clone(&node.state)) {
-            Entry::Vacant(e) => {
-                e.insert((node.lp_len, Arc::clone(&node.path)));
-                self.queue.push(node);
-            },
-            Entry::Occupied(mut e) => {
-                let (val, path) = e.get_mut();
-                if node.lp_len > *val {
-                    *val = node.lp_len;
-                    *path= Arc::clone(&node.path);
-                }
-            }
-        }
+        self.heap.push(node)
     }
 
     fn pop(&mut self) -> Option<FrontierNode<T>> {
-        self.queue.pop().map(|mut n| {
-            let (val,path) = self.states.remove(&n.state).unwrap();
-            n.lp_len = val;
-            n.path   = path;
-            n
-        })
+        self.heap.pop()
     }
 
     fn clear(&mut self) {
-        self.states.clear();
-        self.queue .clear();
+        self.heap.clear()
     }
 
     fn len(&self) -> usize {
-        self.queue.len()
+        self.heap.len()
     }
 }
 

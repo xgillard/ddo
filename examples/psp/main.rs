@@ -28,6 +28,7 @@ use ddo::implementation::mdd::config::mdd_builder;
 use ddo::implementation::solver::parallel::ParallelSolver;
 
 use crate::idee2::{Pb2, Rlx2};
+use ddo::implementation::frontier::NoDupFrontier;
 
 pub mod parsing;
 pub mod model;
@@ -51,7 +52,9 @@ fn psp(fname: &str, width: usize, threads: Option<usize>) -> isize {
         .with_branch_heuristic(Decreasing)
         .with_max_width(FixedWidth(width))
         .into_deep();
-    let mut solver = ParallelSolver::customized(mdd, 2, threads);
+
+    let mut solver = ParallelSolver::customized(mdd, 2, threads)
+        .with_frontier(NoDupFrontier::default());
 
     let start = SystemTime::now();
     let opt   = -solver.maximize().best_value.unwrap_or(isize::min_value());
