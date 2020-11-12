@@ -105,8 +105,6 @@ fn read_dimacs(fname: &str) -> Result<Minla, io::Error> {
     Ok(Minla::new(g))
 }
 
-// FIXME: @vcoppe: maybe give variables n,g,x longer names to be more explicit
-#[allow(clippy::many_single_char_names)]
 fn read_mtx(fname: &str) -> Result<Minla, io::Error> {
     let file = File::open(fname).expect("File not found.");
     let buffered = BufReader::new(file);
@@ -120,14 +118,14 @@ fn read_mtx(fname: &str) -> Result<Minla, io::Error> {
             continue;
         }
 
-        let x: Vec<f32> = line.trim().split_whitespace().map(|s| s.parse::<f32>().unwrap()).collect();
+        let data: Vec<f32> = line.trim().split_whitespace().map(|s| s.parse::<f32>().unwrap()).collect();
 
         if n == 0 {
-            n = x[0] as usize;
+            n = data[0] as usize;
             g = vec![vec![0; n]; n];
         } else {
-            let i = (x[0] as usize)-1;
-            let j = (x[1] as usize)-1;
+            let i = (data[0] as usize)-1;
+            let j = (data[1] as usize)-1;
             g[i][j] = 1;
             g[j][i] = 1;
         }
