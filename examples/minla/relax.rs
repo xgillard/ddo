@@ -1,7 +1,7 @@
 use bitset_fixed::BitSet;
 
 use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{BitSetIter, Decision};
+use ddo::common::Decision;
 
 use crate::model::{Minla, State};
 use std::cmp::Reverse;
@@ -17,17 +17,24 @@ impl <'a> MinlaRelax<'a> {
     }
 
     fn edge_ub(&self, free : &BitSet) -> isize {
-        let n_free = free.count_ones();
+        let n_free = free.count_ones() as isize;
+
+        if n_free == 0 {
+            return 0;
+        }
 
         // edge weights multiplied by optimistic distance
         let mut lb = 0;
         let mut index = 0;
         for k in 1..n_free {
-            for _l in 0..k {
+            for _l in 0..(n_free-k) {
                 while !free[self.pb.edges[index].1] || !free[self.pb.edges[index].2] {
                     index += 1;
                 }
-                lb += (n_free - k) as isize * self.pb.edges[index].0;
+                lb += k * self.pb.edges[index].0;
+                if self.pb.edges[index].0 == 0 {
+                    return lb;
+                }
                 index += 1;
             }
         }
@@ -35,21 +42,25 @@ impl <'a> MinlaRelax<'a> {
         lb
     }
 
-    fn cut_ub(&self, vertices : &BitSet, state : &State) -> isize {
-        let mut cuts = vec![];
+    fn cut_ub(&self, free : &BitSet, state : &State) -> isize {
+        let n_free = free.count_ones();
 
-        // gather cut weights to free vertices
-        for i in BitSetIter::new(&vertices) {
-            cuts.push(state.cut[i]);
+        if n_free == 0 {
+            return 0;
         }
 
+        let mut cuts = state.cut.clone();
+
         // sort decreasingly
-        cuts.sort_by_key(|&b| Reverse(b));
+        cuts.sort_unstable_by_key(|&b| Reverse(b));
 
         // cut weights in optimistic order
         let mut cut_lb = 0;
         for (dist, cut) in cuts.into_iter().enumerate() {
             cut_lb += dist as isize * cut;
+            if cut == 0 {
+                break;
+            }
         }
 
         cut_lb

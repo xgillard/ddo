@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+use std::cmp::Reverse;
 use std::ops::Not;
 
 use bitset_fixed::BitSet;
@@ -38,7 +39,7 @@ impl Minla {
                 }
             }
         }
-        edges.sort_unstable();
+        edges.sort_unstable_by_key(|&b| Reverse(b.0));
         Minla {
             g,
             edges
@@ -82,6 +83,7 @@ impl Problem<State> for Minla {
 
         if i != self.no_vertex() {
             result.free.set(i as usize, false);
+            result.cut[i] = 0;
 
             for j in BitSetIter::new(&result.free) {
                 result.cut[j] += self.g[i][j];
