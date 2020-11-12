@@ -105,6 +105,8 @@ fn read_dimacs(fname: &str) -> Result<Minla, io::Error> {
     Ok(Minla::new(g))
 }
 
+// FIXME: @vcoppe: maybe give variables n,g,x longer names to be more explicit
+#[allow(clippy::many_single_char_names)]
 fn read_mtx(fname: &str) -> Result<Minla, io::Error> {
     let file = File::open(fname).expect("File not found.");
     let buffered = BufReader::new(file);
@@ -114,7 +116,7 @@ fn read_mtx(fname: &str) -> Result<Minla, io::Error> {
     for line in buffered.lines() {
         let line = line?;
 
-        if line.starts_with("%") {
+        if line.starts_with('%') {
             continue;
         }
 
