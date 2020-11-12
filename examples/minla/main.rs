@@ -114,18 +114,18 @@ fn read_mtx(fname: &str) -> Result<Minla, io::Error> {
     for line in buffered.lines() {
         let line = line?;
 
-        if line.starts_with("%") {
+        if line.starts_with('%') {
             continue;
         }
 
-        let x: Vec<f32> = line.trim().split_whitespace().map(|s| s.parse::<f32>().unwrap()).collect();
+        let data: Vec<f32> = line.trim().split_whitespace().map(|s| s.parse::<f32>().unwrap()).collect();
 
         if n == 0 {
-            n = x[0] as usize;
+            n = data[0] as usize;
             g = vec![vec![0; n]; n];
         } else {
-            let i = (x[0] as usize)-1;
-            let j = (x[1] as usize)-1;
+            let i = (data[0] as usize)-1;
+            let j = (data[1] as usize)-1;
             g[i][j] = 1;
             g[j][i] = 1;
         }

@@ -1,7 +1,7 @@
 use bitset_fixed::BitSet;
 
 use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{BitSetIter, Decision};
+use ddo::common::Decision;
 
 use crate::model::{Minla, State};
 
@@ -31,17 +31,6 @@ impl <'a> MinlaRelax<'a> {
         }
 
         edge_lb
-    }
-
-    fn degree_lb(&self, vertices : &BitSet, state : &State) -> isize {
-        let mut deg_lb = 0;
-
-        for k in BitSetIter::new(&vertices) {
-            let d = self.pb.deg[k] - state.cut[k];
-            deg_lb += (d * d + 2 * d + d % 1) / 4;
-        }
-
-        deg_lb / 2
     }
 
     fn cut_lb(&self, state : &State) -> isize {
