@@ -1,5 +1,4 @@
 use std::hash::{Hash, Hasher};
-use std::cmp::Reverse;
 use std::ops::Not;
 
 use bitset_fixed::BitSet;
@@ -10,7 +9,8 @@ use ddo::abstraction::dp::Problem;
 #[derive(Debug, Clone)]
 pub struct State {
     pub free : BitSet,
-    pub cut  : Vec<isize>
+    pub cut  : Vec<isize>,
+    pub m    : isize
 }
 impl PartialEq for State {
     fn eq(&self, other: &Self) -> bool {
@@ -27,23 +27,24 @@ impl Hash for State {
 #[derive(Debug, Clone)]
 pub struct Minla {
     pub g : Vec<Vec<isize>>,
-    pub edges : Vec<(isize,usize,usize)>
+    pub deg : Vec<isize>,
+    pub m : isize
 }
 impl Minla {
     pub fn new(g : Vec<Vec<isize>>) -> Minla {
-        let mut edges = vec![];
-        for (i, is) in g.iter().enumerate() {
-            for (j, js) in is.iter().enumerate() {
-                if i < j {
-                    edges.push((*js, i, j));
+        let n = g.len();
+        let mut deg = vec![0; n];
+        let mut m = 0;
+        for i in 0..n {
+            for j in 0..n {
+                if i != j {
+                    m += g[i][j];
+                    deg[i] += g[i][j];
                 }
             }
         }
-        edges.sort_unstable_by_key(|&b| Reverse(b.0));
-        Minla {
-            g,
-            edges
-        }
+        m /= 2;
+        Minla { g, deg, m }
     }
 
     fn no_vertex(&self) -> usize {
@@ -58,7 +59,8 @@ impl Problem<State> for Minla {
     fn initial_state(&self) -> State {
         State {
             free: BitSet::new(self.nb_vars()).not(),
-            cut: vec![0; self.nb_vars()]
+            cut: vec![0; self.nb_vars()],
+            m: self.m
         }
     }
 
@@ -87,6 +89,7 @@ impl Problem<State> for Minla {
 
             for j in BitSetIter::new(&result.free) {
                 result.cut[j] += self.g[i][j];
+                result.m -= self.g[i][j];
             }
         }
 

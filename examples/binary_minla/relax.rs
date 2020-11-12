@@ -1,9 +1,10 @@
 use bitset_fixed::BitSet;
 
 use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::Decision;
+use ddo::common::{BitSetIter, Decision};
 
 use crate::model::{Minla, State};
+
 use std::cmp::Reverse;
 
 #[derive(Debug, Clone)]
@@ -16,65 +17,66 @@ impl <'a> MinlaRelax<'a> {
         MinlaRelax{pb}
     }
 
-    fn edge_ub(&self, free : &BitSet) -> isize {
-        let n_free = free.count_ones() as isize;
+    fn edge_lb(&self, n : isize, m : isize) -> isize {
+        let mut edge_lb = 0;
+        let mut edges = m;
 
-        if n_free == 0 {
-            return 0;
-        }
-
-        // edge weights multiplied by optimistic distance
-        let mut lb = 0;
-        let mut index = 0;
-        for k in 1..n_free {
-            for _l in 0..(n_free-k) {
-                while !free[self.pb.edges[index].1] || !free[self.pb.edges[index].2] {
-                    index += 1;
-                }
-                lb += k * self.pb.edges[index].0;
-                if self.pb.edges[index].0 == 0 {
-                    return lb;
-                }
-                index += 1;
+        for k in 1..n {
+            if edges <= 0 {
+                break;
+            } else {
+                edge_lb += edges;
+                edges -= n - k;
             }
         }
 
-        lb
+        edge_lb
     }
 
-    fn cut_ub(&self, free : &BitSet, state : &State) -> isize {
-        let n_free = free.count_ones();
+    fn degree_lb(&self, vertices : &BitSet, state : &State) -> isize {
+        let mut deg_lb = 0;
 
-        if n_free == 0 {
-            return 0;
+        for k in BitSetIter::new(&vertices) {
+            let d = self.pb.deg[k] - state.cut[k];
+            deg_lb += (d * d + 2 * d + d % 1) / 4;
         }
 
+        deg_lb / 2
+    }
+
+    fn cut_lb(&self, state : &State) -> isize {
         let mut cuts = state.cut.clone();
 
         // sort decreasingly
-        cuts.sort_unstable_by_key(|&b| Reverse(b));
+        cuts.sort_by_key(|&b| Reverse(b));
 
         // cut weights in optimistic order
         let mut cut_lb = 0;
         for (dist, cut) in cuts.into_iter().enumerate() {
-            cut_lb += dist as isize * cut;
             if cut == 0 {
                 break;
             }
+            cut_lb += dist as isize * cut;
         }
 
         cut_lb
     }
 
     fn ub(&self, vertices : &BitSet, state : &State) -> isize {
-        - self.edge_ub(&vertices) - self.cut_ub(&vertices, &state)
+        let n = vertices.count_ones() as isize;
+        if n == 0 {
+            0
+        } else {
+            - self.cut_lb(state) - self.edge_lb(n, state.m)
+        }
     }
 }
 impl <'a> Relaxation<State> for MinlaRelax<'a> {
     fn merge_states(&self, _states: &mut dyn Iterator<Item=&State>) -> State {
         State {
             free: BitSet::new(0),
-            cut: vec![0; self.pb.nb_vars()]
+            cut: vec![0; self.pb.nb_vars()],
+            m: 0
         }
     }
 

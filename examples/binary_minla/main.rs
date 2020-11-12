@@ -33,8 +33,8 @@ fn main() {
 
     let threads = opt.threads.unwrap_or_else(num_cpus::get);
     let problem = read_file(&opt.fname).unwrap();
-    let relax   = MinlaRelax::new(&problem);
-    let mdd  = config_builder(&problem, relax)
+    let relax = MinlaRelax::new(&problem);
+    let mdd = config_builder(&problem, relax)
         .with_max_width(NbUnassignedWitdh)
         .into_deep();
     let mut solver  = ParallelSolver::customized(mdd, 2, threads)
