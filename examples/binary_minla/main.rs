@@ -8,7 +8,7 @@ use structopt::StructOpt;
 use ddo::abstraction::solver::Solver;
 use ddo::implementation::mdd::config::config_builder;
 use ddo::implementation::solver::parallel::ParallelSolver;
-use ddo::implementation::frontier::NoDupFrontier;
+use ddo::implementation::frontier::NoForgetFrontier;
 use ddo::implementation::heuristics::NbUnassignedWitdh;
 
 use crate::graph::Graph;
@@ -38,7 +38,7 @@ fn main() {
         .with_max_width(NbUnassignedWitdh)
         .into_deep();
     let mut solver  = ParallelSolver::customized(mdd, 2, threads)
-        .with_frontier(NoDupFrontier::default()); // miracle !
+        .with_frontier(NoForgetFrontier::default());
 
     let start = SystemTime::now();
     let opt = solver.maximize().best_value.unwrap_or(isize::min_value());

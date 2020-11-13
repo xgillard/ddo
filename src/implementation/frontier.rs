@@ -22,9 +22,12 @@
 use binary_heap_plus::BinaryHeap;
 use crate::common::FrontierNode;
 use crate::implementation::heuristics::MaxUB;
+use crate::implementation::utils::NoDupHeap;
 use crate::abstraction::frontier::Frontier;
 use std::hash::Hash;
-use crate::implementation::utils::NoDupHeap;
+use metrohash::MetroHashMap;
+use std::collections::hash_map::Entry;
+use std::sync::Arc;
 
 /// The simplest frontier implementation you can think of: is basically consists
 /// of a binary heap that pushes an pops frontier nodes
@@ -81,6 +84,59 @@ impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash + Clone {
 
     fn clear(&mut self) {
         self.heap.clear()
+    }
+
+    fn len(&self) -> usize {
+        self.heap.len()
+    }
+}
+
+/// A frontier that enforces the requirement that a given state will never be
+/// enqueued again, unless it improves the longest path length.
+#[derive(Clone)]
+pub struct NoForgetFrontier<T> where T: Eq + Hash + Clone {
+    /// The frontier itself
+    heap: NoDupHeap<T>,
+    /// The collection of enqueued states with their respective longest path length
+    states: MetroHashMap<Arc<T>,isize>
+}
+impl <T> NoForgetFrontier<T> where T: Eq + Hash + Clone {
+    pub fn new() -> Self {
+        Self{
+            heap: NoDupHeap::default(),
+            states : MetroHashMap::default()
+        }
+    }
+}
+impl <T> Default for NoForgetFrontier<T> where T: Eq + Hash + Clone {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl <T> Frontier<T> for NoForgetFrontier<T> where T: Eq + Hash + Clone {
+    fn push(&mut self, node: FrontierNode<T>) {
+        match self.states.entry(Arc::clone(&node.state)) {
+            Entry::Vacant(e) => {
+                e.insert(node.lp_len);
+                self.heap.push(node);
+            },
+            Entry::Occupied(mut e) => {
+                let lp_len = e.get_mut();
+                if node.lp_len > *lp_len {
+                    *lp_len = node.lp_len;
+                    self.heap.push(node);
+                }
+            }
+        }
+    }
+
+    fn pop(&mut self) -> Option<FrontierNode<T>> {
+        self.heap.pop()
+    }
+
+    fn clear(&mut self) {
+        self.heap.clear();
+        self.states.clear();
     }
 
     fn len(&self) -> usize {
@@ -435,6 +491,253 @@ mod test_no_dup_frontier {
     }
     fn non_empty_frontier() -> NoDupFrontier<usize> {
         let mut frontier = NoDupFrontier::default();
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 0,
+            ub: 0
+        });
+        frontier
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::many_single_char_names)]
+mod test_no_forget_frontier {
+    use crate::implementation::frontier::NoForgetFrontier;
+    use crate::abstraction::frontier::Frontier;
+    use crate::common::{FrontierNode, PartialAssignment, Variable, Decision};
+    use std::sync::Arc;
+
+    // by default, it is empty
+    #[test]
+    fn by_default_it_is_empty() {
+        assert!(NoForgetFrontier::<usize>::default().is_empty())
+    }
+
+    // when the size is zero, then it is empty
+    #[test]
+    fn when_the_size_is_zero_then_it_is_empty() {
+        let frontier = empty_frontier();
+        assert_eq!(frontier.len(), 0);
+        assert!(frontier.is_empty());
+    }
+
+    // when the size is greater than zero, it it not empty
+    #[test]
+    fn when_the_size_is_greater_than_zero_it_is_not_empty() {
+        let frontier = non_empty_frontier();
+        assert_eq!(frontier.len(), 1);
+        assert!(!frontier.is_empty());
+    }
+
+    // when I push a non existing node onto the frontier then the length increases
+    #[test]
+    fn when_i_push_a_non_existing_node_onto_the_frontier_then_the_length_increases() {
+        let mut frontier = empty_frontier();
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 0,
+            ub: 0
+        });
+        assert_eq!(frontier.len(), 1);
+        frontier.push(FrontierNode{
+            state: Arc::new(43),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 0,
+            ub: 0
+        });
+        assert_eq!(frontier.len(), 2);
+    }
+    // when I push an existing node onto the frontier then the length wont increases
+    #[test]
+    fn when_i_push_an_existing_node_onto_the_frontier_then_the_length_does_not_increases() {
+        let mut frontier = empty_frontier();
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 0,
+            ub: 0
+        });
+        assert_eq!(frontier.len(), 1);
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 12,
+            ub: 5
+        });
+        assert_eq!(frontier.len(), 1);
+    }
+    // when I push a node which state was already visited while improving lp_len onto the frontier then the length wont increases
+    #[test]
+    fn when_i_push_a_better_visited_node_onto_the_frontier_then_the_length_increases() {
+        let mut frontier = empty_frontier();
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 10,
+            ub: 0
+        });
+        assert_eq!(frontier.len(), 1);
+        frontier.pop();
+        assert_eq!(frontier.len(), 0);
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 12,
+            ub: 5
+        });
+        assert_eq!(frontier.len(), 1);
+    }
+    // when I push a node which state was already visited while not improving lp_len onto the frontier then the length wont increases
+    #[test]
+    fn when_i_push_a_worse_visited_node_onto_the_frontier_then_the_length_does_not_increases() {
+        let mut frontier = empty_frontier();
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 15,
+            ub: 0
+        });
+        assert_eq!(frontier.len(), 1);
+        frontier.pop();
+        assert_eq!(frontier.len(), 0);
+        frontier.push(FrontierNode{
+            state: Arc::new(42),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 12,
+            ub: 5
+        });
+        assert_eq!(frontier.len(), 0);
+    }
+    // when I pop a node off the frontier then the length decreases
+    #[test]
+    fn when_i_pop_a_node_off_the_frontier_then_the_length_decreases() {
+        let mut frontier = non_empty_frontier();
+        assert_eq!(frontier.len(), 1);
+        frontier.pop();
+        assert_eq!(frontier.len(), 0);
+    }
+
+    // when I try to pop a node off an empty frontier, I get none
+    #[test]
+    fn when_i_try_to_pop_a_node_off_an_empty_frontier_i_get_none() {
+        let mut frontier = empty_frontier();
+        assert_eq!(frontier.pop(), None);
+    }
+
+    // when I pop a node, it is always the one with the largest ub (then lp_len)
+    #[test]
+    fn when_i_pop_a_node_it_is_always_the_one_with_the_largest_ub_then_lp() {
+        let mut frontier = empty_frontier();
+        let a = FrontierNode{
+            state: Arc::new(1),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 1,
+            ub: 1
+        };
+        let b = FrontierNode{
+            state: Arc::new(2),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 2,
+            ub: 2
+        };
+        let c = FrontierNode{
+            state: Arc::new(3),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 3,
+            ub: 3
+        };
+        let d = FrontierNode{
+            state: Arc::new(4),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 4,
+            ub: 4
+        };
+        let e = FrontierNode{
+            state: Arc::new(5),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 4,
+            ub: 5
+        };
+        let f = FrontierNode{
+            state: Arc::new(5),
+            path: Arc::new(PartialAssignment::Empty),
+            lp_len: 5,
+            ub: 5
+        };
+
+        frontier.push(a.clone());
+        frontier.push(f.clone());
+        frontier.push(b.clone());
+        frontier.push(d.clone());
+        frontier.push(c.clone());
+        frontier.push(e);
+
+        assert_eq!(frontier.pop(), Some(f));
+        //assert_eq!(frontier.pop(), Some(e)); // node 'e' will never show up
+        assert_eq!(frontier.pop(), Some(d));
+        assert_eq!(frontier.pop(), Some(c));
+        assert_eq!(frontier.pop(), Some(b));
+        assert_eq!(frontier.pop(), Some(a));
+    }
+
+    // when I pop a node off the frontier, for which multiple copies have been added
+    // I retrieve the one with the longest path
+    #[test]
+    fn when_i_pop_a_node_off_the_frontier_for_which_multiple_copies_have_been_added_then_i_retrieve_the_one_with_longest_path(){
+        let pe = Arc::new(PartialAssignment::SingleExtension {
+            decision: Decision {variable: Variable(0), value: 4},
+            parent: Arc::new(PartialAssignment::Empty) });
+
+        let pf = Arc::new(PartialAssignment::SingleExtension {
+            decision: Decision {variable: Variable(1), value: 5},
+            parent: Arc::new(PartialAssignment::Empty) });
+
+        let ne = FrontierNode{
+            state: Arc::new(5),
+            path: Arc::clone(&pe),
+            lp_len: 4,
+            ub: 5
+        };
+        let nf = FrontierNode{
+            state: Arc::new(5),
+            path: Arc::clone(&pf),
+            lp_len: 5,
+            ub: 5
+        };
+
+        let mut frontier = empty_frontier();
+        frontier.push(ne);
+        frontier.push(nf.clone());
+
+        assert_eq!(frontier.pop(), Some(nf));
+    }
+
+    // when I clear an empty frontier, it remains empty
+    #[test]
+    fn when_i_clear_an_empty_frontier_it_remains_empty() {
+        let mut frontier = empty_frontier();
+        assert!(frontier.is_empty());
+        frontier.clear();
+        assert!(frontier.is_empty());
+    }
+    // when I clear a non empty frontier it becomes empty
+    #[test]
+    fn when_i_clear_a_non_empty_frontier_it_becomes_empty() {
+        let mut frontier = non_empty_frontier();
+        assert!(!frontier.is_empty());
+        frontier.clear();
+        assert!(frontier.is_empty());
+    }
+
+
+    fn empty_frontier() -> NoForgetFrontier<usize> {
+        NoForgetFrontier::default()
+    }
+    fn non_empty_frontier() -> NoForgetFrontier<usize> {
+        let mut frontier = NoForgetFrontier::default();
         frontier.push(FrontierNode{
             state: Arc::new(42),
             path: Arc::new(PartialAssignment::Empty),
