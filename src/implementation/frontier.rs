@@ -31,6 +31,12 @@ use std::sync::Arc;
 
 /// The simplest frontier implementation you can think of: is basically consists
 /// of a binary heap that pushes an pops frontier nodes
+/// 
+/// # Note
+/// This is the default type of frontier for both sequential and parallel 
+/// solvers. Hence, you don't need to take any action in order to use the
+/// `SimpleFrontier`.
+/// 
 pub struct SimpleFrontier<T> {
     heap: BinaryHeap<FrontierNode<T>, MaxUB>
 }
@@ -59,6 +65,55 @@ impl <T> Frontier<T> for SimpleFrontier<T> {
 
 /// A frontier that enforces the requirement that a given state will never be
 /// present twice in the frontier.
+/// 
+/// # Warning
+/// This kind of frontier does a great job to reduce thrashing during problem
+/// optimization. However, it is only safe to use when any given state belongs
+/// to *at most ONE* layer from the exact MDD. (In other words, a state uniquely
+/// identifies a sub-problem).
+/// 
+/// # Example
+/// ```
+/// # use ddo::common::{Variable, Domain, Decision, VarSet};
+/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
+/// # use crate::ddo::abstraction::solver::Solver;
+/// # use ddo::implementation::mdd::config::mdd_builder;
+/// # use ddo::implementation::solver::parallel::ParallelSolver;
+/// # use ddo::implementation::frontier::NoDupFrontier;
+/// #
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         (0..=1).into()
+/// #     }
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
+/// #     }
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
+/// #         42
+/// #     }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #         *n.next().unwrap()
+/// #     }
+/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
+/// #        cost
+/// #     }
+/// # }
+/// # let problem = MockProblem;
+/// # let relax   = MockRelax;
+/// let mdd = mdd_builder(&problem, relax).into_deep();
+/// let mut solver = ParallelSolver::new(mdd)
+///     .with_frontier(NoDupFrontier::default());
+/// let optimum = solver.maximize(); // will run for maximum 10 seconds
+/// ```
 #[derive(Clone)]
 pub struct NoDupFrontier<T> where T: Eq + Hash + Clone {
     heap: NoDupHeap<T>
@@ -93,6 +148,60 @@ impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash + Clone {
 
 /// A frontier that enforces the requirement that a given state will never be
 /// enqueued again, unless it improves the longest path length.
+/// 
+/// # Note: 
+/// The difference with `NoDupFrontier` stems from the fact that a 
+/// `NoForgetFrontier` *never* forgets the states it has encountered while the
+/// `NoDupFrontier` keeps track of those nodes in the queue only.
+/// 
+/// # Warning
+/// This kind of frontier does a great job to reduce thrashing during problem
+/// optimization. However, it is only safe to use when any given state belongs
+/// to *at most ONE* layer from the exact MDD. (In other words, a state uniquely
+/// identifies a sub-problem).
+/// 
+/// # Example
+/// ```
+/// # use ddo::common::{Variable, Domain, Decision, VarSet};
+/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
+/// # use crate::ddo::abstraction::solver::Solver;
+/// # use ddo::implementation::mdd::config::mdd_builder;
+/// # use ddo::implementation::solver::parallel::ParallelSolver;
+/// # use ddo::implementation::frontier::NoForgetFrontier;
+/// #
+/// # #[derive(Copy, Clone)]
+/// # struct MockProblem;
+/// # impl Problem<usize> for MockProblem {
+/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn initial_state(&self) -> usize { 42 }
+/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+/// #         (0..=1).into()
+/// #     }
+/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
+/// #         41
+/// #     }
+/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
+/// #         42
+/// #     }
+/// # }
+/// # #[derive(Copy, Clone)]
+/// # struct MockRelax;
+/// # impl Relaxation<usize> for MockRelax {
+/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
+/// #         *n.next().unwrap()
+/// #     }
+/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
+/// #        cost
+/// #     }
+/// # }
+/// # let problem = MockProblem;
+/// # let relax   = MockRelax;
+/// let mdd = mdd_builder(&problem, relax).into_deep();
+/// let mut solver = ParallelSolver::new(mdd)
+///     .with_frontier(NoForgetFrontier::default());
+/// let optimum = solver.maximize(); // will run for maximum 10 seconds
+/// ```
 #[derive(Clone)]
 pub struct NoForgetFrontier<T> where T: Eq + Hash + Clone {
     /// The frontier itself
