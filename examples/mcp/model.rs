@@ -29,7 +29,7 @@ use crate::graph::Graph;
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct McpState {
     pub benef  : Vec<isize>,
-    pub initial: bool
+    pub depth  : u16,
 }
 
 // Define a few constants to improve readability
@@ -51,7 +51,7 @@ impl Problem<McpState> for Mcp {
     }
 
     fn initial_state(&self) -> McpState {
-        McpState {initial: true, benef: vec![0; self.nb_vars()]}
+        McpState {depth: 0, benef: vec![0; self.nb_vars()]}
     }
 
     fn initial_value(&self) -> isize {
@@ -59,7 +59,7 @@ impl Problem<McpState> for Mcp {
     }
 
     fn domain_of<'a>(&self, state: &'a McpState, _var: Variable) -> Domain<'a> {
-        if state.initial { Domain::Slice(&ONLY_S) } else { Domain::Slice(&BOTH_ST) }
+        if state.depth == 0 { Domain::Slice(&ONLY_S) } else { Domain::Slice(&BOTH_ST) }
     }
 
     fn transition(&self, state: &McpState, vars: &VarSet, d: Decision) -> McpState {
@@ -67,13 +67,13 @@ impl Problem<McpState> for Mcp {
         for v in vars.iter() { // for all unassigned vars
             benefits[v.id()] = state.benef[v.id()] + d.value * self.graph[(d.variable, v)];
         }
-        McpState {initial: false, benef: benefits}
+        McpState {depth: 1 + state.depth, benef: benefits}
     }
 
     fn transition_cost(&self, state: &McpState, vars: &VarSet, d: Decision) -> isize {
         match d.value {
-            S => if state.initial { 0 } else { self.branch_on_s(state, vars, d) },
-            T => if state.initial { 0 } else { self.branch_on_t(state, vars, d) },
+            S => if state.depth == 0 { 0 } else { self.branch_on_s(state, vars, d) },
+            T => if state.depth == 0 { 0 } else { self.branch_on_t(state, vars, d) },
             _ => unreachable!()
         }
     }

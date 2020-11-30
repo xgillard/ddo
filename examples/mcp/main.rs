@@ -27,6 +27,11 @@ use ddo::implementation::mdd::config::mdd_builder;
 use ddo::implementation::solver::parallel::ParallelSolver;
 
 use crate::relax::McpRelax;
+use ddo::abstraction::heuristics::LoadVars;
+use ddo::common::{FrontierNode, VarSet, Variable};
+use crate::model::{McpState, Mcp};
+use ddo::abstraction::dp::Problem;
+use ddo::implementation::frontier::{NoDupFrontier};
 
 pub mod graph;
 pub mod model;
@@ -39,13 +44,38 @@ pub struct Args {
     threads: Option<usize>,
 }
 
+#[derive(Clone, Copy)]
+struct LoadVarsFromState<'a> {
+    pb: &'a Mcp
+}
+impl <'a> LoadVarsFromState<'a> {
+    pub fn new(pb: &'a Mcp) -> Self {
+        Self {pb}
+    }
+}
+
+impl LoadVars<McpState> for LoadVarsFromState<'_> {
+    fn variables(&self, node: &FrontierNode<McpState>) -> VarSet {
+        let mut vars = self.pb.all_vars();
+        let depth = node.state.as_ref().depth;
+
+        for i in 0..depth {
+            vars.remove(Variable(i as usize));
+        }
+
+        vars
+    }
+}
 
 fn mcp(fname: &str, threads: Option<usize>) -> isize {
     let threads   = threads.unwrap_or_else(num_cpus::get);
     let problem   = File::open(fname).expect("file not found").into();
     let relax     = McpRelax::new(&problem);
-    let mdd       = mdd_builder(&problem, relax).into_deep();
-    let mut solver= ParallelSolver::customized(mdd, 2, threads);
+    let mdd       = mdd_builder(&problem, relax)
+        .with_load_vars(LoadVarsFromState::new(&problem))
+        .into_deep();
+    let mut solver= ParallelSolver::customized(mdd, 2, threads)
+        .with_frontier(NoDupFrontier::default());
 
     let start = SystemTime::now();
     let opt   = solver.maximize().best_value.unwrap_or(isize::min_value());
