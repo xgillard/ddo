@@ -162,14 +162,14 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
         let lel = self.graph.layers[lel.0];
 
         self.graph.nodes[lel.start..lel.end].iter()
-            .filter(|node| node.is_feasible())
+            //.filter(|node| node.is_feasible())
             .for_each(|node| func({
-                let ub_bot = node.lp_from_top.saturating_add(node.lp_from_bot);
+                //let ub_bot = node.lp_from_top.saturating_add(node.lp_from_bot);
                 let ub_est = node.lp_from_top.saturating_add(self.config.estimate(node.state.as_ref()));
                 FrontierNode {
                     state: Arc::new(node.state.as_ref().clone()),
                     lp_len: node.lp_from_top,
-                    ub: ub_bot.min(ub_est),
+                    ub: ub_est,//ub_bot.min(ub_est),
                     path: Arc::new(self.best_partial_assignment_for(node.my_id))
                 }
             }));
@@ -373,9 +373,9 @@ impl <T, C> DeepMDD<T, C>
         self.best = self.graph.find_best_terminal_node();
         self.compute_is_exact();
 
-        if self.mddtype == MDDType::Relaxed {
-            self.compute_local_bounds()
-        }
+        //if self.mddtype == MDDType::Relaxed {
+        //    self.compute_local_bounds()
+        //}
 
         Completion{
             is_exact     : self.is_exact(),
@@ -924,7 +924,7 @@ mod test_deepmdd {
         }
     }
 
-    #[test]
+    #[test] #[ignore] // This branch explicitly disables local bounds
     fn relaxed_computes_local_bounds() {
         let mut mdd = mdd_builder(&LocBoundsExamplePb, LocBoundExampleRelax)
             .with_nodes_selection_heuristic(CmpChar)
