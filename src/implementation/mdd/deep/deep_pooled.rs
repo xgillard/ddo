@@ -274,11 +274,11 @@ impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
     fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
         for (referenced, cnodes) in self.cutset.iter() {
             if let Actual(nid) = referenced {
-                if self.nodes[nid.0].flags.is_feasible() {
+                //if self.nodes[nid.0].flags.is_feasible() {
                     for cnode in cnodes.iter() {
                         func(self.node_to_frontier_node(cnode.the_node, *nid));
                     }
-                }
+                //}
             }
         }
     }
@@ -286,8 +286,8 @@ impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
 
 /// Private functions
 impl <T, C> PooledDeepMDD<T, C>
-where T: Eq + Hash + Clone,
-      C: Config<T> + Clone
+    where T: Eq + Hash + Clone,
+          C: Config<T> + Clone
 {
     /// Constructor, uses the given config to parameterize the mdd's behavior
     pub fn new(c: C) -> Self {
@@ -356,14 +356,14 @@ where T: Eq + Hash + Clone,
     /// Converts an internal node into an equivalent frontier node
     fn node_to_frontier_node(&self, nid: NodeId, merged_into: NodeId) -> FrontierNode<T> {
         let node   = &self.nodes[nid.0];
-        let mrg_nd = &self.nodes[merged_into.0];
-        let ub_bot = mrg_nd.from_top.saturating_add(mrg_nd.from_bot);
+        //let mrg_nd = &self.nodes[merged_into.0];
+        //let ub_bot = mrg_nd.from_top.saturating_add(mrg_nd.from_bot);
         let ub_est = node.from_top.saturating_add(self.config.estimate(node.state.as_ref()));
         FrontierNode {
             state : Arc::new(node.state.as_ref().clone()),
             path  : Arc::new(self.best_partial_assignment_for(nid)),
             lp_len: node.from_top,
-            ub    : ub_bot.min(ub_est)
+            ub    : ub_est,//ub_bot.min(ub_est)
         }
     }
     /// Develops/Unrolls the requested type of MDD, starting from a given root
@@ -429,9 +429,9 @@ where T: Eq + Hash + Clone,
             .map(|(id, _node)|NodeId(id));
 
         self.compute_is_exact();
-        if self.mddtype == MDDType::Relaxed {
-            self.compute_local_bounds()
-        }
+        //if self.mddtype == MDDType::Relaxed {
+        //    self.compute_local_bounds()
+        //}
 
         Completion{
             is_exact     : self.is_exact,
@@ -788,8 +788,8 @@ where T: Eq + Hash + Clone,
 }
 
 impl <T, C> From<C> for PooledDeepMDD<T, C>
-where T: Eq + Hash + Clone,
-      C: Config<T> + Clone
+    where T: Eq + Hash + Clone,
+          C: Config<T> + Clone
 {
     fn from(c: C) -> Self {
         Self::new(c)
