@@ -46,7 +46,9 @@ impl <'a> Relaxation<BitSet> for MispRelax<'a> {
     fn relax_edge(&self, _: &BitSet, _: &BitSet, _: &BitSet, _: Decision, cost: isize) -> isize {
         cost
     }
+    /* NORUB
     fn estimate  (&self, state  : &BitSet) -> isize {
         BitSetIter::new(state).map(|i| 0.max(self.pb.graph.weights[i])).sum()
     }
+    */
 }

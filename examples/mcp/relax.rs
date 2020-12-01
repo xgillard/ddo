@@ -118,7 +118,7 @@ impl Relaxation<McpState> for McpRelax<'_> {
         }
         relaxed_cost
     }
-    
+    /* NORUB
     fn estimate(&self, state: &McpState) -> isize {
         let k = state.depth as usize;
         let marginal_benefit = state.benef.iter().copied()
@@ -127,7 +127,7 @@ impl Relaxation<McpState> for McpRelax<'_> {
             .sum::<isize>();
         marginal_benefit + self.estimates[k] - self.vr + self.nk[k]
     }
-    
+    */
 }
 
 // private methods
