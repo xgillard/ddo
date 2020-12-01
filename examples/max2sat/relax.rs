@@ -17,22 +17,80 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::cmp::min;
+use std::cmp::{min, max};
 
 use ddo::abstraction::dp::{Problem, Relaxation};
 use ddo::common::{Decision, VarSet};
 
-use crate::model::{Max2Sat, State};
+use crate::model::{Max2Sat, State, t, f};
 
 #[derive(Debug, Clone)]
 pub struct Max2SatRelax<'a> {
     problem : &'a Max2Sat,
-    vars    : VarSet
+    vars    : VarSet,
+
+    vr       : isize,
+    nk       : Vec<isize>,
+    estimates: Vec<isize>,
 }
 
 impl <'a> Max2SatRelax<'a> {
     pub fn new(problem: &'a Max2Sat) -> Max2SatRelax<'a> {
-        Max2SatRelax { problem, vars: problem.all_vars() }
+        let vr        = problem.initial_value();
+        let estimates = Self::precompute_estimates(problem);
+        let nk        = Self::precompute_nks(problem);
+        Max2SatRelax { problem, vars: problem.all_vars(), vr, nk, estimates}
+    }
+    fn precompute_nks(pb: &Max2Sat) -> Vec<isize> {
+        let mut estimates = vec![0_isize; pb.nb_vars];
+        for (i, est) in estimates.iter_mut().enumerate() {
+            *est = Self::precompute_nk(pb, i);
+        }
+        estimates
+    }
+    fn precompute_nk(pb: &Max2Sat, depth: usize) -> isize {
+        let n  = pb.nb_vars;
+
+        let mut sum = 0_isize;
+        for i in 0..(n-depth) {
+            let vi = pb.vars_by_sum_of_clause_weights[i];
+            sum += pb.weight(t(vi), f(vi));
+        }
+
+        sum
+    }
+    fn precompute_estimates(pb: &Max2Sat) -> Vec<isize> {
+        let mut estimates = vec![0_isize; pb.nb_vars];
+        for (i, est) in estimates.iter_mut().enumerate() {
+            *est = Self::precompute_estimate(pb, i);
+        }
+        estimates
+    }
+    fn precompute_estimate(pb: &Max2Sat, depth: usize) -> isize {
+        let n   = pb.nb_vars;
+        let mut sum = 0;
+        for i in 0..(n-depth) {
+            for j in i..(n-depth) {
+                let vi = pb.vars_by_sum_of_clause_weights[i];
+                let vj = pb.vars_by_sum_of_clause_weights[j];
+
+                let wtt = pb.weight(t(vi), t(vj))
+                        + pb.weight(t(vi), f(vj))
+                        + pb.weight(f(vi), t(vj));
+                let wtf = pb.weight(t(vi), t(vj))
+                        + pb.weight(t(vi), f(vj))
+                        + pb.weight(f(vi), f(vj));
+                let wft = pb.weight(t(vi), t(vj))
+                        + pb.weight(f(vi), t(vj))
+                        + pb.weight(f(vi), f(vj));
+                let wff = pb.weight(t(vi), f(vj))
+                        + pb.weight(f(vi), t(vj))
+                        + pb.weight(f(vi), f(vj));
+
+                sum += max(max(wtt, wtf), max(wft, wff));
+            }
+        }
+        sum
     }
 }
 
@@ -72,5 +130,10 @@ impl Relaxation<State> for Max2SatRelax<'_> {
             relaxed_cost += dst[v].abs() - relaxed[v].abs();
         }
         relaxed_cost
+    }
+    fn estimate  (&self, state  : &State) -> isize {
+        let depth = state.depth;
+
+        self.estimates[depth] - self.nk[depth] + state.substates.iter().map(|b| b.abs()).sum::<isize>()
     }
 }

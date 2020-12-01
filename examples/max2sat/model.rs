@@ -31,9 +31,9 @@ const T  : isize      = 1;
 const F  : isize      =-1;
 const TF : [isize; 2] = [T, F];
 
-const fn v (x: Variable) -> isize { 1 + x.0 as isize}
-const fn t (x: Variable) -> isize { v(x) }
-const fn f (x: Variable) -> isize {-v(x) }
+pub const fn v (x: Variable) -> isize { 1 + x.0 as isize}
+pub const fn t (x: Variable) -> isize { v(x) }
+pub const fn f (x: Variable) -> isize {-v(x) }
 fn pos(x: isize) -> isize { max(0, x) }
 
 
@@ -114,7 +114,7 @@ impl Max2Sat {
             }
         }
         // compute the variable ordering from worse to best
-        let mut order = (0..n).map(|v| Variable(v)).collect::<Vec<Variable>>();
+        let mut order = (0..n).map(Variable).collect::<Vec<Variable>>();
         order.sort_unstable_by_key(|v| ret.sum_of_clause_weights[v.0]);
         ret.vars_by_sum_of_clause_weights = order;
 
