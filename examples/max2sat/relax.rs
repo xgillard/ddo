@@ -135,6 +135,7 @@ impl Relaxation<State> for Max2SatRelax<'_> {
         }
         relaxed_cost
     }
+    /* NORUB
     fn estimate  (&self, state  : &State) -> isize {
         let k = state.depth;
         let marginal_benefit = state.substates.iter().copied()
@@ -142,4 +143,5 @@ impl Relaxation<State> for Max2SatRelax<'_> {
             .sum::<isize>();
         marginal_benefit + self.estimates[k] - self.vr + self.nk[k]
     }
+    */
 }
