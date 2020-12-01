@@ -26,8 +26,9 @@ use ddo::abstraction::solver::Solver;
 use ddo::implementation::mdd::config::mdd_builder;
 use ddo::implementation::solver::parallel::ParallelSolver;
 
-use crate::heuristics::{Max2SatOrder, MinRank};
+use crate::heuristics::{Max2SatOrder, MinRank, LoadVarsFromMax2SatState};
 use crate::relax::Max2SatRelax;
+use ddo::implementation::frontier::NoDupFrontier;
 
 mod instance;
 mod model;
@@ -48,10 +49,13 @@ fn max2sat(fname: &str, threads: Option<usize>) -> isize {
     let relax     = Max2SatRelax::new(&problem);
     let mdd       = mdd_builder(&problem, relax)
         .with_branch_heuristic(Max2SatOrder::new(&problem))
+        .with_load_vars(LoadVarsFromMax2SatState::new(&problem))
         .with_nodes_selection_heuristic(MinRank)
         .into_deep();
 
-    let mut solver = ParallelSolver::customized(mdd, 2, threads);
+    let mut solver = ParallelSolver::customized(mdd, 2, threads)
+        .with_frontier(NoDupFrontier::default());
+
     let start  = SystemTime::now();
     let opt    = solver.maximize().best_value.unwrap_or(isize::min_value());
     let end    = SystemTime::now();

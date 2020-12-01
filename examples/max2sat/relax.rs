@@ -64,7 +64,7 @@ impl Relaxation<State> for Max2SatRelax<'_> {
             }
         }
 
-        State{substates: benefits}
+        State{depth: states[0].depth, substates: benefits}
     }
     fn relax_edge(&self, _: &State, dst: &State, relaxed: &State, _: Decision, cost: isize) -> isize {
         let mut relaxed_cost = cost;

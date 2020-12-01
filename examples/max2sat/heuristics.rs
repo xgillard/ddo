@@ -19,40 +19,54 @@
 
 use std::cmp::Ordering;
 
-use ddo::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode, VariableHeuristic};
-use ddo::common::{Variable, VarSet};
+use ddo::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode, VariableHeuristic, LoadVars};
+use ddo::common::{Variable, VarSet, FrontierNode};
 
 use crate::model::{Max2Sat, State};
+use ddo::abstraction::dp::Problem;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Max2SatOrder<'a> {
-    problem: &'a Max2Sat
+    pb: &'a Max2Sat
 }
-
 impl <'a> Max2SatOrder<'a> {
-    pub fn new(problem: &'a Max2Sat) -> Max2SatOrder<'a> {
-        Max2SatOrder{problem}
+    pub fn new(pb: &'a Max2Sat) -> Self {
+        Self { pb }
     }
 }
-
 impl VariableHeuristic<State> for Max2SatOrder<'_> {
     fn next_var(&self,
                 free_vars: &VarSet,
                 _: &mut dyn Iterator<Item=&State>,
-                _: &mut dyn Iterator<Item=&State>) -> Option<Variable>
-    {
-        let mut var = None;
-        let mut wt  = isize::min_value();
+                _:  &mut dyn Iterator<Item=&State>) -> Option<Variable> {
+        let i = free_vars.len();
+        if i > 0 {
+            Some(self.pb.vars_by_sum_of_clause_weights[i-1])
+        } else {
+            None
+        }
+    }
+}
+#[derive(Clone)]
+pub struct LoadVarsFromMax2SatState<'a> {
+    pb: &'a Max2Sat
+}
+impl <'a> LoadVarsFromMax2SatState<'a> {
+    pub fn new(pb: &'a Max2Sat) -> Self {
+        Self { pb }
+    }
+}
+impl LoadVars<State> for LoadVarsFromMax2SatState<'_> {
+    fn variables(&self, node: &FrontierNode<State>) -> VarSet {
+        let mut vars = self.pb.all_vars();
+        let n        = self.pb.nb_vars;
+        let depth    = node.state.as_ref().depth;
 
-        for v in free_vars.iter() {
-            let v_wt = self.problem.sum_of_clause_weights[v.0];
-            if v_wt > wt {
-                var = Some(v);
-                wt  = v_wt;
-            }
+        for i in (n-depth)..n {
+            vars.remove(self.pb.vars_by_sum_of_clause_weights[i]);
         }
 
-        var
+        vars
     }
 }
 
@@ -67,7 +81,7 @@ impl NodeSelectionHeuristic<State> for MinRank {
 }
 
 #[cfg(test)]
-mod test {
+mod test_max2sat_order {
     use std::fs::File;
     use std::path::PathBuf;
 
@@ -91,13 +105,17 @@ mod test {
             actual.push(v.0);
         }
 
-        let expected = vec![
+        let expect = vec![
             26, 24, 28, 25, 27, 32, 43, 44, 45, 42, 47, 52, 19, 34, 11, 22, 46,
             49, 50,  4,  8, 16, 53,  5,  9, 18, 23, 48,  0, 20, 59,  1, 35, 17,
             31, 39, 54, 57,  2,  3, 14, 15, 30, 38, 55,  6,  7, 10, 12, 29, 33,
             37, 51, 56, 58, 13, 21, 36, 40, 41
         ];
-        assert_eq!(actual, expected);
+        // we're using an unstable sort algorithm. This is perfectly fine, but
+        // we must make sure that the expected wts and actual wts *do* correspond
+        let actual_wts = actual.iter().map(|v| problem.sum_of_clause_weights[*v]).collect::<Vec<isize>>();
+        let expect_wts = expect.iter().map(|v| problem.sum_of_clause_weights[*v]).collect::<Vec<isize>>();
+        assert_eq!(actual_wts, expect_wts);
     }
 
     fn locate(id: &str) -> PathBuf {
@@ -112,3 +130,4 @@ mod test {
         File::open(location).expect("File not found").into()
     }
 }
+

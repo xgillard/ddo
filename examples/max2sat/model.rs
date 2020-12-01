@@ -39,6 +39,7 @@ fn pos(x: isize) -> isize { max(0, x) }
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct State {
+    pub depth    : usize,
     pub substates: Vec<isize>
 }
 
@@ -75,7 +76,8 @@ pub struct Max2Sat {
     pub nb_vars : usize,
     pub initial : isize,
     pub weights : Vec<isize>,
-    pub sum_of_clause_weights: Vec<isize>
+    pub sum_of_clause_weights: Vec<isize>,
+    pub vars_by_sum_of_clause_weights: Vec<Variable>,
 }
 
 const fn idx(x: isize) -> usize {
@@ -94,9 +96,10 @@ impl Max2Sat {
             nb_vars: n,
             initial: 0,
             weights: vec![0; (2*n)*(2*n)],
-            sum_of_clause_weights: vec![0; n]
+            sum_of_clause_weights: vec![0; n],
+            vars_by_sum_of_clause_weights: vec![Variable(0); n]
         };
-
+        // compute the sum of clause weights
         for (clause, weight) in inst.weights.iter() {
             let of = ret.offset(clause.a, clause.b);
             ret.weights[of] = *weight;
@@ -110,6 +113,11 @@ impl Max2Sat {
                 ret.initial += *weight;
             }
         }
+        // compute the variable ordering from worse to best
+        let mut order = (0..n).map(|v| Variable(v)).collect::<Vec<Variable>>();
+        order.sort_unstable_by_key(|v| ret.sum_of_clause_weights[v.0]);
+        ret.vars_by_sum_of_clause_weights = order;
+
         ret
     }
 
@@ -132,7 +140,7 @@ impl Problem<State> for Max2Sat {
     }
 
     fn initial_state(&self) -> State {
-        State{substates: vec![0; self.nb_vars()]}
+        State{depth: 0, substates: vec![0; self.nb_vars()]}
     }
 
     fn initial_value(&self) -> isize {
@@ -147,7 +155,8 @@ impl Problem<State> for Max2Sat {
     fn transition(&self, state: &State, vars: &VarSet, d: Decision) -> State {
         let k = d.variable;
         let mut ret  = state.clone();
-        ret[k] = 0;
+        ret.depth += 1;
+        ret[k]     = 0;
         if d.value == F {
             for l in vars.iter() {
                 ret[l] += self.weight(t(k), t(l)) - self.weight(t(k), f(l));
@@ -223,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_index_state() {
-        let state = State{substates: vec![1, 2, 3, 4]};
+        let state = State{depth: 0, substates: vec![1, 2, 3, 4]};
 
         assert_eq!(state[Variable(0)], 1);
         assert_eq!(state[Variable(1)], 2);
@@ -232,7 +241,7 @@ mod tests {
     }
     #[test]
     fn test_index_mut_state() {
-        let mut state = State{substates: vec![1, 2, 3, 4]};
+        let mut state = State{depth: 0, substates: vec![1, 2, 3, 4]};
 
         state[Variable(0)] = 42;
         state[Variable(1)] = 64;
@@ -260,19 +269,19 @@ mod tests {
 
         let mut vars   = problem.all_vars();
         let root       = problem.initial_state();
-        let expected = State{substates: vec![0, 0, 0]};
+        let expected = State{depth: 0, substates: vec![0, 0, 0]};
         assert_eq!(expected, root);
 
         vars.remove(Variable(0));
         let dec_f      = Decision{variable: Variable(0), value: F};
         let nod_f      = problem.transition(&root, &vars, dec_f);
 
-        let expected = State{substates: vec![0,-4, 3]};
+        let expected = State{depth: 1, substates: vec![0,-4, 3]};
         assert_eq!(expected, nod_f);
 
         let dec_t      = Decision{variable: Variable(0), value: 1};
         let nod_t     = problem.transition(&root, &vars, dec_t);
-        let expected = State{substates: vec![0, 0, 0]};
+        let expected = State{depth: 1, substates: vec![0, 0, 0]};
         assert_eq!(expected, nod_t);
     }
 
@@ -284,7 +293,7 @@ mod tests {
              0, 0, 0, -244, -61, -183, 0, -122, -244, -183, -61, -61, -122, -122,
              -122, -183, -122, 0, -183, -61, -183, -122, -122, -183, -183, -61,
              -61, -122, 0, 0, 0, 0, 0, 0];
-        let state = State{substates: benef};
+        let state = State{depth: 10, substates: benef};
 
         assert_eq!(5917, state.rank());
     }
