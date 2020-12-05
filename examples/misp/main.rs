@@ -30,6 +30,7 @@ use crate::heuristics::{MispVarHeu, VarsFromMispState};
 use crate::relax::MispRelax;
 use ddo::implementation::mdd::hybrid::HybridPooledDeep;
 use ddo::implementation::heuristics::TimeBudget;
+use ddo::implementation::frontier::NoDupFrontier;
 
 mod instance;
 mod model;
@@ -56,7 +57,8 @@ fn misp(fname: &str, cutoff: Option<u64>, threads: Option<usize>) -> isize {
         .build();
 
     let mdd        = HybridPooledDeep::from(conf);
-    let mut solver = ParallelSolver::customized(mdd, 2, threads);
+    let mut solver = ParallelSolver::customized(mdd, 2, threads)
+        .with_frontier(NoDupFrontier::default());
 
     let start = SystemTime::now();
     let opt   = solver.maximize().best_value.unwrap_or(isize::min_value());
