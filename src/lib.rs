@@ -254,5 +254,22 @@ pub mod common;
 pub mod abstraction;
 pub mod implementation;
 
+/// The prelude module is only present to ease your life while developing a new
+/// solver from scratch. That way you don't have to care about manually
+/// importing all structs and traits by yourself.
+///
+/// # Example
+/// ```
+/// // At the beginning of any file of your solver (or in your own prelude) you
+/// // will be willing to either import all types from the ddo prelude or to
+/// // re-export them.
+///
+/// // if your intention is to only iumport the types
+/// use ddo::prelude::*;
+/// // or if you you want to re-export all these types
+/// pub use ddo::prelude::*;
+/// ```
+pub mod prelude;
+
 #[cfg(test)]
 pub mod test_utils;
