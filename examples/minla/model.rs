@@ -4,8 +4,14 @@ use std::ops::Not;
 
 use bitset_fixed::BitSet;
 
-use ddo::common::{BitSetIter, Decision, Domain, Variable, VarSet};
-use ddo::abstraction::dp::Problem;
+use ddo::{
+    Problem,
+    Decision, 
+    Variable, 
+    Domain, 
+    VarSet,
+    BitSetIter, 
+};
 
 #[derive(Debug, Clone)]
 pub struct State {

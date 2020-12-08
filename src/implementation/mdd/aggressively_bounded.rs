@@ -46,12 +46,7 @@ use crate::implementation::mdd::hybrid::CompositeMDD;
 ///
 /// # Example Usage
 /// ```
-/// # use ddo::common::{Variable, Domain, VarSet, Decision};
-/// # use ddo::abstraction::dp::{Problem, Relaxation};
-/// # use ddo::abstraction::solver::Solver;
-/// # use ddo::implementation::mdd::config::config_builder;
-/// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// use ddo::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
+/// # use ddo::*;
 /// #
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;

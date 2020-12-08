@@ -19,8 +19,7 @@
 
 use std::cmp::Ordering;
 
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{Decision, Variable, VarSet};
+use ddo::{Problem, Relaxation, Decision, Variable, VarSet};
 
 use crate::model::{Mcp, McpState};
 

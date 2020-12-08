@@ -19,8 +19,7 @@
 
 use std::cmp::{min, max};
 
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{Decision, VarSet};
+use ddo::{Problem, Relaxation, Decision, VarSet};
 
 use crate::model::{Max2Sat, State, t, f};
 

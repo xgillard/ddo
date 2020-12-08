@@ -74,12 +74,7 @@ impl <T> Frontier<T> for SimpleFrontier<T> {
 /// 
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, Domain, Decision, VarSet};
-/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
-/// # use crate::ddo::abstraction::solver::Solver;
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// # use ddo::implementation::frontier::NoDupFrontier;
+/// # use ddo::*;
 /// #
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
@@ -162,12 +157,7 @@ impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash + Clone {
 /// 
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, Domain, Decision, VarSet};
-/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
-/// # use crate::ddo::abstraction::solver::Solver;
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// # use ddo::implementation::frontier::NoForgetFrontier;
+/// # use ddo::*;
 /// #
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
@@ -256,9 +246,7 @@ impl <T> Frontier<T> for NoForgetFrontier<T> where T: Eq + Hash + Clone {
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
 mod test_simple_frontier {
-    use crate::implementation::frontier::SimpleFrontier;
-    use crate::abstraction::frontier::Frontier;
-    use crate::common::{FrontierNode, PartialAssignment};
+    use crate::{SimpleFrontier, Frontier, FrontierNode, PartialAssignment};
     use std::sync::Arc;
 
     // by default, it is empty
@@ -408,9 +396,7 @@ mod test_simple_frontier {
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
 mod test_no_dup_frontier {
-    use crate::implementation::frontier::NoDupFrontier;
-    use crate::abstraction::frontier::Frontier;
-    use crate::common::{FrontierNode, PartialAssignment, Variable, Decision};
+    use crate::*;
     use std::sync::Arc;
 
     // by default, it is empty
@@ -613,9 +599,7 @@ mod test_no_dup_frontier {
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
 mod test_no_forget_frontier {
-    use crate::implementation::frontier::NoForgetFrontier;
-    use crate::abstraction::frontier::Frontier;
-    use crate::common::{FrontierNode, PartialAssignment, Variable, Decision};
+    use crate::*;
     use std::sync::Arc;
 
     // by default, it is empty

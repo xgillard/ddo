@@ -5,11 +5,11 @@ use std::time::SystemTime;
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::mdd::config::config_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
-use ddo::implementation::frontier::NoForgetFrontier;
-use ddo::implementation::heuristics::NbUnassignedWitdh;
+use ddo::Solver;
+use ddo::config_builder;
+use ddo::ParallelSolver;
+use ddo::NoForgetFrontier;
+use ddo::NbUnassignedWitdh;
 
 use crate::graph::Graph;
 use crate::model::Minla;

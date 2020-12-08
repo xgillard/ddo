@@ -19,8 +19,7 @@
 
 use std::cmp::min;
 
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{Decision, Domain, Matrix, Variable, VarSet};
+use ddo::{Problem, Relaxation, Decision, Domain, Matrix, Variable, VarSet};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 /// The state of a pigment sequencing problem

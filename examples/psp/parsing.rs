@@ -20,7 +20,7 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
 
-use ddo::common::Matrix;
+use ddo::Matrix;
 
 use crate::model::PSP;
 

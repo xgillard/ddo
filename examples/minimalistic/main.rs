@@ -17,13 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use ddo::common::{Decision, Domain, Variable, VarSet};
-
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::abstraction::solver::Solver;
-
-use ddo::implementation::mdd::config::mdd_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
+use ddo::*;
 
 /// Describe the binary knapsack problem in terms of a dynamic program.
 /// Here, the state of a node, is nothing more than an unsigned integer (usize).

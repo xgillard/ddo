@@ -22,15 +22,17 @@ use std::time::{SystemTime, Duration};
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::mdd::config::mdd_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
+use ddo::{
+    mdd_builder,
+    Solver,
+    ParallelSolver,
+    HybridPooledDeep,
+    NoDupFrontier,
+    TimeBudget,
+};
 
-use crate::heuristics::{MispVarHeu, VarsFromMispState};
 use crate::relax::MispRelax;
-use ddo::implementation::mdd::hybrid::HybridPooledDeep;
-use ddo::implementation::heuristics::TimeBudget;
-use ddo::implementation::frontier::NoDupFrontier;
+use crate::heuristics::{MispVarHeu, VarsFromMispState};
 
 mod instance;
 mod model;

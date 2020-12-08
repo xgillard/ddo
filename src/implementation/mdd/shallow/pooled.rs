@@ -51,10 +51,7 @@ use std::rc::Rc;
 ///
 /// ## Example
 /// ```
-/// # use ddo::common::{Variable, Domain, VarSet, Decision};
-/// # use ddo::abstraction::dp::{Problem, Relaxation};
-/// # use ddo::implementation::heuristics::FixedWidth;
-/// # use ddo::implementation::mdd::config::mdd_builder;
+/// # use ddo::*;
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {

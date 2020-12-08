@@ -22,10 +22,7 @@ use std::time::SystemTime;
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::heuristics::FixedWidth;
-use ddo::implementation::mdd::config::mdd_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
+use ddo::{Solver, FixedWidth, ParallelSolver, mdd_builder};
 
 use crate::model::{KnapsackOrder, KnapsackRelax};
 
@@ -71,7 +68,7 @@ mod tests {
 
     use metrohash::MetroHashMap;
 
-    use ddo::common::VarSet;
+    use ddo::VarSet;
 
     use crate::kp;
     use crate::model::KnapsackState;

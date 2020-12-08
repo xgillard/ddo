@@ -58,7 +58,7 @@ impl Variable {
     ///
     /// # Examples:
     /// ```
-    /// # use ddo::common::Variable;
+    /// # use ddo::Variable;
     /// assert_eq!(0, Variable(0).id());
     /// assert_eq!(1, Variable(1).id());
     /// assert_eq!(2, Variable(2).id());
@@ -82,7 +82,7 @@ impl Variable {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::Domain;
+/// # use ddo::Domain;
 /// // This is considered much cleaner the alternative below
 /// let clean : Domain<'_> = vec![1, 2, 4].into();
 /// // This is more verbose and less clean. Still the two implementations
@@ -235,8 +235,8 @@ pub struct Decision {
 /// A solution is a collection of decisions. It can be iterated upon as shown
 /// below
 /// ```
-/// # use ddo::common::{Decision, Variable, Solution};
-/// # use ddo::common::PartialAssignment::{FragmentExtension, Empty};
+/// # use ddo::{Decision, Variable, Solution};
+/// # use ddo::PartialAssignment::{FragmentExtension, Empty};
 /// # use std::sync::Arc;
 /// # let d1 = Decision {variable: Variable(1), value: 1};
 /// # let d2 = Decision {variable: Variable(1), value: 1};
@@ -270,8 +270,8 @@ impl Solution {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{PartialAssignment, Decision, Variable};
-/// # use ddo::common::PartialAssignment::{Empty, SingleExtension, FragmentExtension};
+/// # use ddo::{PartialAssignment, Decision, Variable};
+/// # use ddo::PartialAssignment::{Empty, SingleExtension, FragmentExtension};
 /// # use std::sync::Arc;
 /// #
 /// # let d1 = Decision{variable: Variable(0), value: 1};
@@ -331,8 +331,8 @@ impl PartialAssignment {
     ///
     /// # Example
     /// ```
-    /// # use ddo::common::{PartialAssignment, Decision, Variable};
-    /// # use ddo::common::PartialAssignment::{Empty, SingleExtension, FragmentExtension};
+    /// # use ddo::{PartialAssignment, Decision, Variable};
+    /// # use ddo::PartialAssignment::{Empty, SingleExtension, FragmentExtension};
     /// # use std::sync::Arc;
     /// #
     /// # let d1 = Decision{variable: Variable(0), value: 1};
@@ -453,7 +453,7 @@ pub struct VarSet(pub BitSet);
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, VarSet};
+/// # use ddo::{Variable, VarSet};
 /// let vs = VarSet::all(3);
 /// assert!(vs.contains(Variable(0)));
 /// assert!(vs.contains(Variable(1)));
@@ -514,7 +514,7 @@ impl PartialOrd for VarSet {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, VarSet};
+/// # use ddo::{Variable, VarSet};
 /// let mut vs = VarSet::all(5);
 /// vs.remove(Variable(3));
 /// // iterates for variables 0, 1, 4
@@ -542,7 +542,7 @@ impl Iterator for VarSetIter<'_> {
 /// # Example
 /// ```
 /// # use bitset_fixed::BitSet;
-/// # use ddo::common::BitSetIter;
+/// # use ddo::BitSetIter;
 ///
 /// let mut bit_set = BitSet::new(5);
 /// bit_set.set(1, true);
@@ -617,7 +617,7 @@ impl Iterator for BitSetIter<'_> {
 /// # Example
 /// ```
 /// # use bitset_fixed::BitSet;
-/// # use ddo::common::LexBitSet;
+/// # use ddo::LexBitSet;
 ///
 /// let mut a = BitSet::new(5);
 /// let mut b = BitSet::new(5);
@@ -696,7 +696,7 @@ impl PartialEq for LexBitSet<'_> {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::Matrix;
+/// # use ddo::Matrix;
 ///
 /// let mut adjacency = Matrix::new_default(5, 5, None);
 ///
@@ -755,7 +755,7 @@ impl <T> IndexMut<(usize, usize)> for Matrix<T> {
 
 #[cfg(test)]
 mod test_var {
-    use crate::common::Variable;
+    use crate::Variable;
 
     #[test]
     fn test_var_id() {
@@ -770,7 +770,7 @@ mod test_var {
 #[cfg(test)]
 mod test_domain {
     use bitset_fixed::BitSet;
-    use crate::common::{Domain, VarSet, Variable};
+    use crate::{Domain, VarSet, Variable};
 
     #[test]
     fn from_vector_empty() {
@@ -872,8 +872,8 @@ mod test_domain {
 
 #[cfg(test)]
 mod test_partial_assignment {
-    use crate::common::PartialAssignment::{Empty, SingleExtension, FragmentExtension};
-    use crate::common::{Decision, Variable};
+    use crate::PartialAssignment::{Empty, SingleExtension, FragmentExtension};
+    use crate::{Decision, Variable};
     use std::sync::Arc;
 
     #[test]
@@ -969,8 +969,8 @@ mod test_partial_assignment {
 
 #[cfg(test)]
 mod test_solution {
-    use crate::common::{Decision, Variable, Solution};
-    use crate::common::PartialAssignment::{Empty, FragmentExtension};
+    use crate::{Decision, Variable, Solution};
+    use crate::PartialAssignment::{Empty, FragmentExtension};
     use std::sync::Arc;
 
     #[test]
@@ -996,7 +996,7 @@ mod test_solution {
 
 #[cfg(test)]
 mod test_varset {
-    use crate::common::{Variable, VarSet};
+    use crate::{Variable, VarSet};
 
     #[test]
     fn all_contains_all_variables() {
@@ -1154,7 +1154,7 @@ mod test_varset {
 
 #[cfg(test)]
 mod test_varset_iter {
-    use crate::common::{VarSet, VarSetIter, Variable, BitSetIter};
+    use crate::{VarSet, VarSetIter, Variable, BitSetIter};
 
     #[test]
     fn vsiter_collect() {
@@ -1209,7 +1209,7 @@ mod test_varset_iter {
 /// These tests validate the behavior of the bitset iterator `BitSetIter`.
 mod tests_bitset_iter {
     use bitset_fixed::BitSet;
-    use crate::common::BitSetIter;
+    use crate::BitSetIter;
 
     #[test]
     fn bsiter_collect() {
@@ -1266,7 +1266,7 @@ mod tests_bitset_iter {
 /// `LexBitSet`.
 mod tests_lexbitset {
     use bitset_fixed::BitSet;
-    use crate::common::LexBitSet;
+    use crate::LexBitSet;
 
     #[test]
     fn same_size_less_than() {
@@ -1347,7 +1347,7 @@ mod tests_lexbitset {
 
 #[cfg(test)]
 mod test_matrix {
-    use crate::common::Matrix;
+    use crate::Matrix;
     #[test]
     fn it_is_initialized_with_default_elem() {
         let mat : Matrix<Option<usize>> = Matrix::new(5, 5);
@@ -1379,9 +1379,9 @@ mod test_matrix {
 
 #[cfg(test)]
 mod test_frontier_node {
-    use crate::common::{FrontierNode, Decision, Variable};
+    use crate::{FrontierNode, Decision, Variable};
+    use crate::PartialAssignment::{SingleExtension, Empty};
     use std::sync::Arc;
-    use crate::common::PartialAssignment::{SingleExtension, Empty};
 
     #[test]
     fn frontier_nodes_are_equal_iff_they_have_equal_state_everything_equal() {

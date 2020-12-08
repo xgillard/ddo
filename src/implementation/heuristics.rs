@@ -42,9 +42,7 @@ use std::sync::atomic::Ordering::Relaxed;
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, VarSet};
-/// # use ddo::abstraction::heuristics::VariableHeuristic;
-/// # use ddo::implementation::heuristics::NaturalOrder;
+/// # use ddo::*;
 /// # let dummy = vec![0_isize];
 /// # let mut current_layer = dummy.iter();
 /// # let mut next_layer    = dummy.iter();
@@ -87,9 +85,7 @@ impl <T> VariableHeuristic<T> for NaturalOrder {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, VarSet};
-/// # use ddo::abstraction::heuristics::VariableHeuristic;
-/// # use ddo::implementation::heuristics::Decreasing;
+/// # use ddo::*;
 /// # let dummy = vec![0_isize];
 /// # let mut current_layer = dummy.iter();
 /// # let mut next_layer    = dummy.iter();
@@ -142,9 +138,7 @@ impl <T> VariableHeuristic<T> for Decreasing {
 /// assign (`free_vars`).
 ///
 /// ```
-/// # use ddo::common::{Variable, VarSet};
-/// # use ddo::abstraction::heuristics::WidthHeuristic;
-/// # use ddo::implementation::heuristics::FixedWidth;
+/// # use ddo::*;
 /// #
 /// let heuristic   = FixedWidth(100); // assume a fixed width of 100
 /// let mut var_set = VarSet::all(5);  // assume a problem with 5 variables
@@ -178,9 +172,7 @@ impl WidthHeuristic for FixedWidth {
 /// a max width of two.
 ///
 /// ```
-/// # use ddo::common::{Variable, VarSet};
-/// # use ddo::abstraction::heuristics::WidthHeuristic;
-/// # use ddo::implementation::heuristics::NbUnassignedWitdh;
+/// # use ddo::*;
 /// #
 /// let mut var_set = VarSet::all(5); // assume a problem with 5 variables
 /// var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
@@ -209,9 +201,7 @@ impl WidthHeuristic for NbUnassignedWitdh {
 /// unassigned variable in a layer.
 ///
 /// ```
-/// # use ddo::common::{Variable, VarSet};
-/// # use ddo::abstraction::heuristics::WidthHeuristic;
-/// # use ddo::implementation::heuristics::{NbUnassignedWitdh, Times};
+/// # use ddo::*;
 /// #
 /// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
 /// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
@@ -245,9 +235,7 @@ impl <X: WidthHeuristic + Clone> WidthHeuristic for Times<X> {
 /// unassigned variables in a layer.
 ///
 /// ```
-/// # use ddo::common::{Variable, VarSet};
-/// # use ddo::abstraction::heuristics::WidthHeuristic;
-/// # use ddo::implementation::heuristics::{NbUnassignedWitdh, DivBy};
+/// # use ddo::*;
 /// #
 /// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
 /// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
@@ -333,12 +321,11 @@ impl <T> NodeSelectionHeuristic<T> for MinLP {
 ///
 /// # Example
 /// ```
-/// # use binary_heap_plus::BinaryHeap;
-/// # use compare::Compare;
-/// # use ddo::implementation::heuristics::MaxUB;
-/// # use ddo::common::FrontierNode;
 /// # use std::sync::Arc;
-/// # use ddo::common::PartialAssignment::Empty;
+/// # use compare::Compare;
+/// # use binary_heap_plus::BinaryHeap;
+/// # use ddo::*;
+/// # use ddo::PartialAssignment::*;
 /// #
 /// let a = FrontierNode {state: Arc::new('a'), lp_len: 42, ub: 300, path: Arc::new(Empty)};
 /// let b = FrontierNode {state: Arc::new('b'), lp_len:  2, ub: 100, path: Arc::new(Empty)};
@@ -381,12 +368,7 @@ impl Cutoff for NoCutoff {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, Domain, Decision, VarSet};
-/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
-/// # use crate::ddo::abstraction::solver::Solver;
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// use ddo::implementation::heuristics::TimeBudget;
+/// # use ddo::*;
 /// use std::time::Duration;
 /// #
 /// # #[derive(Copy, Clone)]
@@ -451,12 +433,7 @@ impl Cutoff for TimeBudget {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, Domain, Decision, VarSet};
-/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
-/// # use crate::ddo::abstraction::solver::Solver;
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// use ddo::implementation::heuristics::FindFirst;
+/// # use ddo::*;
 /// use std::time::Duration;
 /// #
 /// # #[derive(Copy, Clone)]
@@ -508,20 +485,14 @@ impl Cutoff for FindFirst {
 ///
 /// # Example
 /// ```
-/// # use ddo::common::{Variable, Domain, Decision, VarSet};
-/// # use crate::ddo::abstraction::dp::{Relaxation, Problem};
-/// # use crate::ddo::abstraction::solver::Solver;
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::implementation::solver::parallel::ParallelSolver;
-/// use ddo::implementation::heuristics::GapCutoff;
-/// use std::time::Duration;
+/// # use ddo::*;
 /// #
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {
-/// #     fn nb_vars(&self)       -> usize {  5 }
+/// #     fn nb_vars(&self)       -> usize {  1 }
 /// #     fn initial_state(&self) -> usize { 42 }
-/// #     fn initial_value(&self) -> isize   { 84 }
+/// #     fn initial_value(&self) -> isize { 84 }
 /// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
 /// #         (0..=1).into()
 /// #     }
@@ -539,7 +510,7 @@ impl Cutoff for FindFirst {
 /// #         *n.next().unwrap()
 /// #     }
 /// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
-/// #        cost
+/// #         cost
 /// #     }
 /// # }
 /// # let problem = MockProblem;
@@ -547,7 +518,7 @@ impl Cutoff for FindFirst {
 /// let mdd = mdd_builder(&problem, relax)
 ///         .with_cutoff(GapCutoff::new(0.05))
 ///         .into_deep();
-/// let mut solver = ParallelSolver::new(mdd);
+/// let mut solver = SequentialSolver::new(mdd); // or parallel if you prefer
 /// // stops whenever the best solution so far is guaranteed to be close enough
 /// // (5 percent) from the optimal solution.
 /// let optimum = solver.maximize();
@@ -567,15 +538,22 @@ impl GapCutoff {
         if lb == ub {
             0.0_f32
         } else {
-            let mut a = lb.abs().min(ub.abs());
-            let mut b = lb.abs().max(ub.abs());
+            let x = lb.min(ub);
+            let y = lb.max(ub);
+            
+            if x == isize::min_value() || y == isize::max_value() {
+                1.0_f32
+            } else {
+                let mut a = x.abs().min(y.abs());
+                let mut b = x.abs().max(y.abs());
 
-            if a == 0 {
-                a += 1;
-                b += 1;
+                if a == 0 {
+                    a += 1;
+                    b += 1;
+                }
+
+                (b - a) as f32 / a as f32
             }
-
-            (b - a) as f32 / a as f32
         }
     }
 }
@@ -610,6 +588,23 @@ mod test_find_first {
 mod test_gap_cutoff {
     use crate::implementation::heuristics::GapCutoff;
     use crate::abstraction::heuristics::Cutoff;
+
+    #[test]
+    fn gap_cutoff_stops_when_lb_equates_ub() {
+        let cutoff = GapCutoff::new(0.1);
+        assert_eq!(true, cutoff.must_stop( 1000, 1000));
+    }
+    
+    #[test]
+    fn gap_cutoff_lb_or_ub_are_infinity() {
+        let cutoff = GapCutoff::new(0.1);
+        assert_eq!(false, cutoff.must_stop(isize::min_value(), isize::max_value()));
+        assert_eq!(false, cutoff.must_stop(isize::max_value(), isize::min_value()));
+
+        let cutoff = GapCutoff::new(1.0);
+        assert_eq!(true, cutoff.must_stop(isize::min_value(), isize::max_value()));
+        assert_eq!(true, cutoff.must_stop(isize::max_value(), isize::min_value()));
+    }
 
     #[test]
     fn gap_cutoff_stops_when_the_gap_is_within_tolerance() {

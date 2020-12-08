@@ -37,10 +37,10 @@ use metrohash::MetroHashMap;
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::Config;
 use crate::common::Decision;
-use crate::implementation::mdd::deep::mddgraph::Error::NoSuchElement;
 use crate::implementation::mdd::utils::NodeFlags;
 
 /// The errors related to the graph management
+#[allow(dead_code)]
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Error {
     /// Occurs when one tries to access a node, an edge or a layer that
@@ -213,15 +213,7 @@ impl <T> SelectableNode<T> for NodeData<T> {
 /// # Note:
 /// The end field is the position *after* the last node of the layer. Therfore
 /// it must be the case that the layer is empty when the its start and end
-/// position are equal
-/// ```
-/// # use ddo::implementation::mdd::deep::mddgraph::{LayerData, LayerIndex};
-/// let layer = LayerData{my_id: LayerIndex(0), start: 0, end: 0};
-/// assert_eq!(0, layer.width());
-///
-/// let layer = LayerData{my_id: LayerIndex(12), start: 56, end: 56};
-/// assert_eq!(0, layer.width());
-/// ```
+/// position are equal.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct LayerData {
     /// The identifier of the layer (= its depth).
@@ -324,9 +316,10 @@ impl <T: Hash + Eq> Graph<T> {
     }
     /// Returns the root node of the MDD if there is one. Otherwise it raises a
     /// `NoSuchElement` error.
+    #[allow(dead_code)]
     pub fn root(&self) -> Result<&NodeData<T>, Error> {
         if self.nodes.is_empty() {
-            Err(NoSuchElement)
+            Err(Error::NoSuchElement)
         } else {
             Ok(&self.nodes[0])
         }
@@ -336,6 +329,7 @@ impl <T: Hash + Eq> Graph<T> {
         self.nodes.len()
     }
     /// Returns the number of edges in the graph
+    #[allow(dead_code)]
     pub fn nb_edges(&self) -> usize {
         self.edges.len()
     }
@@ -359,6 +353,7 @@ impl <T: Hash + Eq> Graph<T> {
     }
     /// Returns an iterator that goes over all the parents of the node
     /// identified with `node`.
+    #[allow(dead_code)]
     pub fn parents(&self, node: NodeIndex) -> Parents<'_, T> {
         Parents {graph: self, next: self.nodes[node.0].inbound}
     }
@@ -536,6 +531,7 @@ impl <T: Hash + Eq> Graph<T> {
     /// Returns the best solution encoded in this graph. That is the sequence
     /// of decisions that leads to a node of the last layer having the highest
     /// value. (The value of the "best terminal node").
+    #[allow(dead_code)]
     pub fn best_solution(&self) -> Vec<Decision> {
         self._find_best_terminal_node()
             .map_or(vec![], |best| self._longest_path(best))

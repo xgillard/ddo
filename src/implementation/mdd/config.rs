@@ -42,10 +42,7 @@ use crate::implementation::mdd::shallow::pooled::PooledMDD;
 ///
 /// # Example:
 /// ```
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::abstraction::dp::{Problem, Relaxation};
-/// # use ddo::common::{Variable, VarSet, Domain, Decision};
-/// # use ddo::implementation::heuristics::FixedWidth;
+/// # use ddo::*;
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {
@@ -94,11 +91,7 @@ pub fn mdd_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> ConfigurationBuilder<T, PB,
 ///
 /// # Example:
 /// ```
-/// # use ddo::implementation::mdd::config::config_builder;
-/// # use ddo::abstraction::dp::{Problem, Relaxation};
-/// # use ddo::common::{Variable, VarSet, Domain, Decision};
-/// # use ddo::implementation::heuristics::FixedWidth;
-/// use ddo::implementation::mdd::hybrid::HybridFlatDeep;
+/// # use ddo::*;
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {
@@ -163,10 +156,7 @@ pub fn config_builder<T, PB, RLX>(pb: &PB, rlx: RLX) -> ConfigurationBuilder<T, 
 ///
 /// # Example:
 /// ```
-/// # use ddo::implementation::mdd::config::mdd_builder;
-/// # use ddo::abstraction::dp::{Problem, Relaxation};
-/// # use ddo::common::{Variable, VarSet, Domain, Decision};
-/// # use ddo::implementation::heuristics::FixedWidth;
+/// # use ddo::*;
 /// # #[derive(Copy, Clone)]
 /// # struct MockProblem;
 /// # impl Problem<usize> for MockProblem {

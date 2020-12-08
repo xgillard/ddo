@@ -22,13 +22,15 @@ use std::time::SystemTime;
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::mdd::config::mdd_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
+use ddo::{
+    mdd_builder,
+    Solver,
+    ParallelSolver,
+    NoDupFrontier,
+};
 
 use crate::heuristics::{Max2SatOrder, MinRank, LoadVarsFromMax2SatState};
 use crate::relax::Max2SatRelax;
-use ddo::implementation::frontier::NoDupFrontier;
 
 mod instance;
 mod model;

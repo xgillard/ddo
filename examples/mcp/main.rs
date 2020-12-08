@@ -22,16 +22,20 @@ use std::time::SystemTime;
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::mdd::config::mdd_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
+use ddo::{
+    mdd_builder,
+    Problem,
+    Variable,
+    VarSet,
+    Solver,
+    ParallelSolver,
+    LoadVars,
+    FrontierNode,
+    NoDupFrontier,
+};
 
 use crate::relax::McpRelax;
-use ddo::abstraction::heuristics::LoadVars;
-use ddo::common::{FrontierNode, VarSet, Variable};
 use crate::model::{McpState, Mcp};
-use ddo::abstraction::dp::Problem;
-use ddo::implementation::frontier::{NoDupFrontier};
 
 pub mod graph;
 pub mod model;
@@ -74,7 +78,7 @@ fn mcp(fname: &str, threads: Option<usize>) -> isize {
     let mdd       = mdd_builder(&problem, relax)
         .with_load_vars(LoadVarsFromState::new(&problem))
         .into_deep();
-    let mut solver= ParallelSolver::customized(mdd, 2, threads)
+    let mut solver= ParallelSolver::customized(mdd, 0, threads)
         .with_frontier(NoDupFrontier::default());
 
     let start = SystemTime::now();

@@ -25,9 +25,7 @@ use std::io::{BufRead, BufReader, Lines, Read};
 use regex::Regex;
 use bitset_fixed::BitSet;
 
-use ddo::common::{Decision, Domain, Variable, VarSet};
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::abstraction::heuristics::VariableHeuristic;
+use ddo::{Decision, Domain, Variable, VarSet, Problem, Relaxation, VariableHeuristic};
 
 #[derive(Debug, Clone)]
 pub struct ItemData {

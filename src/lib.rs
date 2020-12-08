@@ -51,8 +51,8 @@
 //! remaining capacity of our sack. To do so, you define your own structure and
 //! make sure it implements the `Problem<usize>` trait.
 //! ```
-//! # use ddo::common::{Decision, Domain, Variable, VarSet};
-//! # use ddo::abstraction::dp::Problem;
+//! # use ddo::*;
+//! #
 //! #[derive(Debug, Clone)]
 //! struct Knapsack {
 //!     capacity: usize,
@@ -98,8 +98,8 @@
 //! implement the `estimate()` method of the `Relaxation` trait.
 //!
 //! ```
-//! # use ddo::common::Decision;
-//! # use ddo::abstraction::dp::Relaxation;
+//! # use ddo::*;
+//! # 
 //! #[derive(Debug, Clone)]
 //! struct KPRelax;
 //! impl Relaxation<usize> for KPRelax {
@@ -128,13 +128,7 @@
 //! your solver to solve actual problems. Here is how you would do it.
 //!
 //! ```
-//! # use ddo::common::{Decision, Domain, Variable, VarSet};
-//! #
-//! # use ddo::abstraction::dp::{Problem, Relaxation};
-//! # use ddo::abstraction::solver::Solver;
-//! #
-//! # use ddo::implementation::mdd::config::mdd_builder;
-//! # use ddo::implementation::solver::parallel::ParallelSolver;
+//! # use ddo::*;
 //! #
 //! # #[derive(Debug, Clone)]
 //! # struct Knapsack {
@@ -225,12 +219,12 @@
 //! exploring the available APIs and then to move to the exploration of the
 //! examples. (Or the other way around, that's really up to you !).
 //! For the exploration of the APIs, you are encouraged to start with the types
-//! from the modules under `ddo::abstraction`. In particular, you will want to
-//! have a look at `ddo::abstraction::dp` which defines the core abstractions
+//! `ddo::Problem` and `ddo::Relaxation` which defines the core abstractions
 //! you will need to implement. After that, it is also interesting to have a
-//! look at the `ddo::abstraction::heuristic`, `ddo::common` and the
-//! `ddo::implementation::deep::config` modules. That should get you covered
-//! and you should be able to get a deep understanding of how to use our library.
+//! look at the various heuristics availble and the configuration options you
+//! can use when cutomizing the behavior of your solver and mdd. That should 
+//! get you covered and you should be able to get a deep understanding of how 
+//! to use our library.
 //!
 //! ## Citing DDO
 //! If you use DDO, or find it useful for your purpose (research, teaching,
@@ -250,26 +244,42 @@
 // show an example (including the main) of how to use the ddo library.
 #![allow(clippy::needless_doctest_main)]
 
-pub mod common;
-pub mod abstraction;
-pub mod implementation;
-
-/// The prelude module is only present to ease your life while developing a new
-/// solver from scratch. That way you don't have to care about manually
-/// importing all structs and traits by yourself.
-///
-/// # Example
-/// ```
-/// // At the beginning of any file of your solver (or in your own prelude) you
-/// // will be willing to either import all types from the ddo prelude or to
-/// // re-export them.
-///
-/// // if your intention is to only iumport the types
-/// use ddo::prelude::*;
-/// // or if you you want to re-export all these types
-/// pub use ddo::prelude::*;
-/// ```
-pub mod prelude;
+mod common;
+mod abstraction;
+mod implementation;
 
 #[cfg(test)]
-pub mod test_utils;
+mod test_utils;
+
+// ----------------------------------------------------------------------------
+// --- The following lines re-export all the public API of the crate.      ----
+// --- This should hopefully ease the development of solvers based on DDO. ----
+// ----------------------------------------------------------------------------
+
+// Commonalities
+pub use crate::common::*;
+
+// Abstractions
+pub use crate::abstraction::dp::*;
+pub use crate::abstraction::mdd::*;
+pub use crate::abstraction::heuristics::*;
+pub use crate::abstraction::frontier::*;
+pub use crate::abstraction::solver::*;
+
+// Implementations
+pub use crate::implementation::mdd::{
+      config::*,
+      deep::mdd::DeepMDD,
+      shallow::flat::FlatMDD,
+      shallow::pooled::PooledMDD,
+      hybrid::{CompositeMDD,HybridFlatDeep,HybridPooledDeep},
+      aggressively_bounded::AggressivelyBoundedMDD,
+};
+pub use crate::implementation::heuristics::*;
+pub use crate::implementation::frontier::*;
+pub use crate::implementation::solver::sequential::SequentialSolver;
+pub use crate::implementation::solver::parallel::ParallelSolver;
+
+// And because that's convenient to import while writing tests too
+#[cfg(test)]
+pub use crate::test_utils::*;

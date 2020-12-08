@@ -23,7 +23,7 @@ use std::ops::{Index, IndexMut};
 
 use regex::Regex;
 
-use ddo::common::Variable;
+use ddo::Variable;
 
 /// The graph is represented by its adjacency matrix
 #[derive(Debug, Clone)]

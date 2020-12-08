@@ -21,7 +21,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
 use std::ops::{Index, IndexMut};
-use ddo::common::Variable;
+use ddo::Variable;
 
 /// The graph is represented by its adjacency matrix
 #[derive(Debug, Clone)]

@@ -19,11 +19,18 @@
 
 use std::cmp::Ordering;
 
-use ddo::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode, VariableHeuristic, LoadVars};
-use ddo::common::{Variable, VarSet, FrontierNode};
+use ddo::{
+    Problem,
+    Variable, 
+    VarSet, 
+    VariableHeuristic, 
+    NodeSelectionHeuristic, 
+    LoadVars,
+    SelectableNode, 
+    FrontierNode,
+};
 
 use crate::model::{Max2Sat, State};
-use ddo::abstraction::dp::Problem;
 
 #[derive(Clone)]
 pub struct Max2SatOrder<'a> {
@@ -85,8 +92,7 @@ mod test_max2sat_order {
     use std::fs::File;
     use std::path::PathBuf;
 
-    use ddo::abstraction::dp::Problem;
-    use ddo::abstraction::heuristics::VariableHeuristic;
+    use ddo::*;
 
     use crate::heuristics::Max2SatOrder;
     use crate::model::Max2Sat;

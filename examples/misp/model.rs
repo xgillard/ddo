@@ -23,8 +23,7 @@ use std::ops::Not;
 
 use bitset_fixed::BitSet;
 
-use ddo::abstraction::dp::Problem;
-use ddo::common::{Decision, Domain, Variable, VarSet};
+use ddo::{Problem, Variable, Domain, Decision, VarSet};
 
 use crate::instance::Graph;
 

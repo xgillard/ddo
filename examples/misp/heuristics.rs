@@ -19,9 +19,15 @@
 
 use bitset_fixed::BitSet;
 
-use ddo::abstraction::dp::Problem;
-use ddo::abstraction::heuristics::{LoadVars, VariableHeuristic};
-use ddo::common::{BitSetIter, FrontierNode, Variable, VarSet};
+use ddo::{
+    Problem,
+    Variable,
+    VarSet,
+    VariableHeuristic,
+    LoadVars,
+    FrontierNode,
+    BitSetIter,
+};
 
 use crate::model::Misp;
 

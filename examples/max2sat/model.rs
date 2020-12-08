@@ -22,8 +22,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
 use std::ops::{Index, IndexMut};
 
-use ddo::abstraction::dp::Problem;
-use ddo::common::{Decision, Domain, Variable, VarSet};
+use ddo::{Problem, Domain, Variable, VarSet, Decision};
 
 use crate::instance::Weighed2Sat;
 

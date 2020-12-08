@@ -5,11 +5,12 @@ use std::time::SystemTime;
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::mdd::config::config_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
-use ddo::implementation::frontier::NoDupFrontier;
-use ddo::implementation::heuristics::NbUnassignedWitdh;
+use ddo::{
+    config_builder,
+    Solver,
+    ParallelSolver,
+    NoDupFrontier,
+};
 
 use crate::graph::Graph;
 use crate::model::Minla;
@@ -35,7 +36,6 @@ fn main() {
     let problem = read_file(&opt.fname).unwrap();
     let relax   = MinlaRelax::new(&problem);
     let mdd  = config_builder(&problem, relax)
-        .with_max_width(NbUnassignedWitdh)
         .into_deep();
     let mut solver  = ParallelSolver::customized(mdd, 2, threads)
         .with_frontier(NoDupFrontier::default()); // miracle !

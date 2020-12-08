@@ -19,8 +19,7 @@
 
 use bitset_fixed::BitSet;
 
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{BitSetIter, Decision};
+use ddo::{Problem, Relaxation, Decision, BitSetIter};
 
 use crate::model::Misp;
 

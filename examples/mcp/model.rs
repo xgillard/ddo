@@ -21,8 +21,7 @@ use std::cmp::{max, min};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read};
 
-use ddo::abstraction::dp::Problem;
-use ddo::common::{Decision, Domain, Variable, VarSet};
+use ddo::{Problem, Decision, Domain, Variable, VarSet};
 
 use crate::graph::Graph;
 

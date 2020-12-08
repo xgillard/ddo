@@ -1,7 +1,6 @@
 use bitset_fixed::BitSet;
 
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::Decision;
+use ddo::{Problem, Relaxation, Decision};
 
 use crate::model::{Minla, State};
 use std::cmp::Reverse;

@@ -22,13 +22,16 @@ use std::time::SystemTime;
 
 use structopt::StructOpt;
 
-use ddo::abstraction::solver::Solver;
-use ddo::implementation::heuristics::{Decreasing, FixedWidth};
-use ddo::implementation::mdd::config::mdd_builder;
-use ddo::implementation::solver::parallel::ParallelSolver;
+use ddo::{
+    mdd_builder,
+    Solver,
+    ParallelSolver,
+    FixedWidth,
+    Decreasing,
+    NoDupFrontier,
+};
 
 use crate::idee2::{Pb2, Rlx2};
-use ddo::implementation::frontier::NoDupFrontier;
 
 pub mod parsing;
 pub mod model;

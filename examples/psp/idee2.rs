@@ -26,8 +26,16 @@ use std::cmp::min;
 
 use bitset_fixed::BitSet;
 
-use ddo::abstraction::dp::{Problem, Relaxation};
-use ddo::common::{BitSetIter, Decision, Domain, Matrix, Variable, VarSet};
+use ddo::{
+    Problem, 
+    Relaxation,
+    Variable,
+    Domain, 
+    Decision,
+    VarSet,
+    Matrix,
+    BitSetIter,
+};
 
 use crate::model::PSP;
 
