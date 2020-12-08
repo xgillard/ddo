@@ -23,9 +23,28 @@ use crate::common::{Completion, Solution};
 
 /// The solver trait lets you maximize an objective function.
 pub trait Solver {
-    /// Returns a tuple where the first component is the value of an optimal
-    /// solution to the maximization problem, and the second term is the
-    /// solution (= the sequence of decisions to reach the optimal value).
+    /// Returns a structure standing for the outcome of the attempted 
+    /// maximization. Such a `Completion` may either be marked **exact** 
+    /// if the maximization has been carried out until optimality was proved.
+    /// Or it can be inexact, in which case it means that the maximization
+    /// process was stopped because of the satisfaction of some cutoff 
+    /// criterion.
+    ///
+    /// Along with the `is_exact` exact flag, the completion provides an 
+    /// optional `best_value` of the maximization problem. Four cases are thus
+    /// to be distinguished:
+    ///
+    /// * When the `is_exact` flag is true, and a `best_value` is present: the
+    ///   `best_value` is the maximum value of the objective function.
+    /// * When the `is_exact` flag is false and a `best_value` is present, it
+    ///   is the best value of the objective function that was known at the time
+    ///   of cutoff.
+    /// * When the `is_exact` flag is true, and no `best_value` is present: it
+    ///   means that the problem admits no feasible solution (UNSAT).
+    /// * When the `is_exact` flag is false and no `best_value` is present: it
+    ///   simply means that no feasible solution has been found before the 
+    ///   cutoff occured.
+    ///
     fn maximize(&mut self) -> Completion;
 
     /// Returns the best solution that has been identified for this problem.
