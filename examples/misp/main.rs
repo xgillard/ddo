@@ -23,16 +23,18 @@ use std::time::{SystemTime, Duration};
 use structopt::StructOpt;
 
 use ddo::{
-    mdd_builder,
+    config_builder,
     Solver,
     ParallelSolver,
     HybridPooledDeep,
     NoDupFrontier,
     TimeBudget,
+    FixedWidth,
 };
 
 use crate::relax::MispRelax;
 use crate::heuristics::{MispVarHeu, VarsFromMispState};
+use crate::model::Misp;
 
 mod instance;
 mod model;
@@ -42,25 +44,29 @@ mod heuristics;
 #[derive(StructOpt)]
 pub struct Args {
     pub fname: String,
+    #[structopt(name="width", short, long)]
+    pub width: Option<usize>,
     #[structopt(name="cutoff", short, long)]
     pub cutoff: Option<u64>,
     #[structopt(name="threads", short, long)]
     threads: Option<usize>,
+    #[structopt(name="verbosity", short, long)]
+    pub verbosity: Option<u8>,
 }
 
-fn misp(fname: &str, cutoff: Option<u64>, threads: Option<usize>) -> isize {
-    let threads   = threads.unwrap_or_else(num_cpus::get);
-    let problem   = File::open(fname).expect("file not found").into();
-    let relax     = MispRelax::new(&problem);
-    let conf      = mdd_builder(&problem, relax)
-        .with_load_vars(VarsFromMispState)
-        .with_cutoff(TimeBudget::new(Duration::from_secs(cutoff.unwrap_or(u64::max_value()))))
-        .with_branch_heuristic(MispVarHeu::new(&problem))
-        .build();
+fn misp(
+    fname:     &str,
+    width:     Option<usize>,
+    cutoff:    Option<u64>,
+    threads:   Option<usize>,
+    verbosity: Option<u8>) -> isize {
 
-    let mdd        = HybridPooledDeep::from(conf);
-    let mut solver = ParallelSolver::customized(mdd, 2, threads)
-        .with_frontier(NoDupFrontier::default());
+    let threads    = threads.unwrap_or_else(num_cpus::get);
+    let verbosity  = verbosity.unwrap_or(0);
+
+    let problem    = File::open(fname).expect("file not found").into();
+    let relax      = MispRelax::new(&problem);
+    let mut solver = solver(&problem, relax, width, cutoff, threads, verbosity);
 
     let start = SystemTime::now();
     let opt   = solver.maximize().best_value.unwrap_or(isize::min_value());
@@ -68,10 +74,65 @@ fn misp(fname: &str, cutoff: Option<u64>, threads: Option<usize>) -> isize {
     println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
     opt
 }
+fn solver<'a>(pb:    &'a Misp,
+          rlx:       MispRelax<'a>,
+          width:     Option<usize>,
+          cutoff:    Option<u64>,
+          threads:   usize,
+          verbosity: u8)
+    -> Box<dyn Solver + 'a>
+{
+    match (width, cutoff) {
+        (Some(w), Some(c)) => {
+            let conf = config_builder(pb, rlx)
+                .with_load_vars(VarsFromMispState)
+                .with_branch_heuristic(MispVarHeu::new(pb))
+                .with_max_width(FixedWidth(w))
+                .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
+                .build();
+            let mdd = HybridPooledDeep::from(conf);
+            let solver =ParallelSolver::customized(mdd, verbosity, threads)
+                .with_frontier(NoDupFrontier::default());
+            Box::new(solver)
+        },
+        (Some(w), None) => {
+            let conf = config_builder(pb, rlx)
+                .with_load_vars(VarsFromMispState)
+                .with_branch_heuristic(MispVarHeu::new(pb))
+                .with_max_width(FixedWidth(w))
+                .build();
+            let mdd = HybridPooledDeep::from(conf);
+            let solver =ParallelSolver::customized(mdd, verbosity, threads)
+                .with_frontier(NoDupFrontier::default());
+            Box::new(solver)
+        },
+        (None, Some(c)) => {
+            let conf = config_builder(pb, rlx)
+                .with_load_vars(VarsFromMispState)
+                .with_branch_heuristic(MispVarHeu::new(pb))
+                .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
+                .build();
+            let mdd = HybridPooledDeep::from(conf);
+            let solver =ParallelSolver::customized(mdd, verbosity, threads)
+                .with_frontier(NoDupFrontier::default());
+            Box::new(solver)
+        },
+        (None, None) => {
+            let conf = config_builder(pb, rlx)
+                .with_load_vars(VarsFromMispState)
+                .with_branch_heuristic(MispVarHeu::new(pb))
+                .build();
+            let mdd = HybridPooledDeep::from(conf);
+            let solver =ParallelSolver::customized(mdd, verbosity, threads)
+                .with_frontier(NoDupFrontier::default());
+            Box::new(solver)
+        },
+    }
+}
 
 fn main() {
     let args  = Args::from_args();
-    let value = misp(&args.fname, args.cutoff, args.threads);
+    let value = misp(&args.fname, args.width, args.cutoff, args.threads, args.verbosity);
 
     println!("best value = {}", value);
 }
