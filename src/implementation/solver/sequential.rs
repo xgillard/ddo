@@ -197,6 +197,10 @@ impl <T, C, F, DD> SequentialSolver<T, C, F, DD>
             }
         }
 
+        // If we reach this point, it means no cutoff occurred. We are thus
+        // certain that ub == lb and optimality has been proved.
+        self.best_ub = self.best_lb;
+
         // return
         if self.verbosity >= 1 {
             println!("Final {}, Explored {}", self.best_lb, self.explored);
@@ -234,6 +238,13 @@ impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
     }
     fn best_solution(&self) -> Option<Solution> {
         self.best_sol.clone()
+    }
+
+    fn best_lower_bound(&self) -> isize {
+        self.best_lb
+    }
+    fn best_upper_bound(&self) -> isize {
+        self.best_ub
     }
 
     /// Sets the best known value and/or solution. This solution and value may
@@ -325,6 +336,69 @@ mod test_solver {
             cost
         }
     }
+
+    #[test]
+    fn by_default_best_lb_is_min_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd    = mdd_builder(&problem, KPRelax).into_deep();
+        let solver = SequentialSolver::new(mdd);
+        assert_eq!(isize::min_value(), solver.best_lower_bound());
+    }
+    #[test]
+    fn by_default_best_ub_is_plus_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd    = mdd_builder(&problem, KPRelax).into_deep();
+        let solver = SequentialSolver::new(mdd);
+        assert_eq!(isize::max_value(), solver.best_upper_bound());
+    }
+    #[test]
+    fn when_the_problem_is_solved_best_lb_is_best_value() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax).into_deep();
+        let mut solver = SequentialSolver::new(mdd);
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_lower_bound());
+    }
+    #[test]
+    fn when_the_problem_is_solved_best_ub_is_best_value() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax).into_deep();
+        let mut solver = SequentialSolver::new(mdd);
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_upper_bound());
+    }
+    /* this, I can't test...
+    #[test]
+    fn when_the_solver_is_cutoff_ub_is_that_of_the_best_thread() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax)
+            .with_cutoff(TimeBudget::new(Duration::from_secs(0_u64)))
+            .into_deep();
+        let mut solver = ParallelSolver::new(mdd);
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_upper_bound());
+    }
+    */
 
     #[test]
     fn by_default_verbosity_is_zero() {

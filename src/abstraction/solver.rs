@@ -53,6 +53,15 @@ pub trait Solver {
     /// this problem.
     fn best_value(&self) -> Option<isize>;
 
+    /// Returns the best lower bound that has been identified so far.
+    /// In case where no solution has been found, it should return the minimum
+    /// value that fits within an isize (-inf).
+    fn best_lower_bound(&self) -> isize;
+    /// Returns the tightest upper bound that can be guaranteed so far.
+    /// In case where no upper bound has been computed, it should return the
+    /// maximum value that fits within an isize (+inf).
+    fn best_upper_bound(&self) -> isize;
+
     /// Sets a primal (best known value and solution) of the problem.
     fn set_primal(&mut self, value: isize, solution: Solution);
 }

@@ -67,6 +67,10 @@ struct Critical<T : Eq + Hash, F: Frontier<T>> {
     /// If we decide not to go through a complete proof of optimality, this is
     /// the reason why we took that decision.
     abort_proof: Option<Reason>,
+    /// This is the value of the best upper bound.
+    /// # WARNING
+    /// This value is only set iff the abort proof is set.
+    best_ub : Option<isize>,
     /// This vector is used to store the upper bound on the node which is
     /// currently processed by each thread.
     ///
@@ -200,6 +204,7 @@ impl <T, C, DD> ParallelSolver<T, C, SimpleFrontier<T>, DD>
                     fringe      : SimpleFrontier::default(),
                     upper_bounds: vec![isize::min_value(); nb_threads],
                     abort_proof : None,
+                    best_ub     : None,
                     _phantom    : PhantomData
                 })
             }),
@@ -243,6 +248,7 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
                     new_best    : false,
                     fringe      : ff,
                     abort_proof : None,
+                    best_ub     : None,
                     upper_bounds: vec![isize::min_value(); self.nb_threads],
                     _phantom    : PhantomData
                 })
@@ -363,11 +369,16 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
         }
     }
 
-    fn abort_search(shared: &Arc<Shared<T, F>>, reason: Reason) {
+    fn abort_search(shared: &Arc<Shared<T, F>>, reason: Reason, current_ub: isize) {
         let mut critical = shared.critical.lock();
         critical.abort_proof = Some(reason);
+        match critical.best_ub {
+            None     => critical.best_ub = Some(current_ub),
+            Some(ub) => critical.best_ub = Some(ub.max(current_ub))
+        };
         critical.fringe.clear();
     }
+
     fn refresh_bounds(shared: &Arc<Shared<T, F>>) -> (isize, isize) {
         let lock = shared.critical.lock();
         let lb   = lock.best_lb;
@@ -414,7 +425,7 @@ impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
                                 Self::maybe_log(verbosity, must_log, explored, fringe_sz, best_lb, current_ub);
                                 let outcome = Self::process_one_node(&mut mdd, &shared, node);
                                 if let Err(reason) = outcome {
-                                    Self::abort_search(&shared, reason);
+                                    Self::abort_search(&shared, reason, current_ub);
                                     Self::notify_node_finished(&shared, i);
                                     break;
                                 } else {
@@ -449,6 +460,25 @@ impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
     fn best_value(&self) -> Option<isize> {
         let critical = self.shared.critical.lock();
         critical.best_sol.as_ref().map(|_sol| critical.best_lb)
+    }
+
+    /// Returns the best lower bound that has been identified so far.
+    /// In case where no solution has been found, it should return the minimum
+    /// value that fits within an isize (-inf).
+    fn best_lower_bound(&self) -> isize {
+        let critical = self.shared.critical.lock();
+        critical.best_lb
+    }
+    /// Returns the tightest upper bound that can be guaranteed so far.
+    /// In case where no upper bound has been computed, it should return the
+    /// maximum value that fits within an isize (+inf).
+    fn best_upper_bound(&self) -> isize {
+        let critical = self.shared.critical.lock();
+        if let Some(ub) = critical.best_ub {
+            ub
+        } else {
+            critical.best_sol.as_ref().map(|_sol| critical.best_lb).unwrap_or(isize::max_value())
+        }
     }
 
     /// Sets the best known value and/or solution. This solution and value may
@@ -541,6 +571,69 @@ mod test_solver {
             cost
         }
     }
+
+    #[test]
+    fn by_default_best_lb_is_min_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd    = mdd_builder(&problem, KPRelax).into_deep();
+        let solver = ParallelSolver::new(mdd);
+        assert_eq!(isize::min_value(), solver.best_lower_bound());
+    }
+    #[test]
+    fn by_default_best_ub_is_plus_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd    = mdd_builder(&problem, KPRelax).into_deep();
+        let solver = ParallelSolver::new(mdd);
+        assert_eq!(isize::max_value(), solver.best_upper_bound());
+    }
+    #[test]
+    fn when_the_problem_is_solved_best_lb_is_best_value() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax).into_deep();
+        let mut solver = ParallelSolver::new(mdd);
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_lower_bound());
+    }
+    #[test]
+    fn when_the_problem_is_solved_best_ub_is_best_value() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax).into_deep();
+        let mut solver = ParallelSolver::new(mdd);
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_upper_bound());
+    }
+    /* this, I can't test...
+    #[test]
+    fn when_the_solver_is_cutoff_ub_is_that_of_the_best_thread() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let mdd        = mdd_builder(&problem, KPRelax)
+            .with_cutoff(TimeBudget::new(Duration::from_secs(0_u64)))
+            .into_deep();
+        let mut solver = ParallelSolver::new(mdd);
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_upper_bound());
+    }
+    */
 
     #[test]
     fn by_default_verbosity_is_zero() {
