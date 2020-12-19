@@ -116,7 +116,7 @@ enum WorkLoad<T> {
 
 pub struct ParallelSolver<T, C, F, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          C : Send + Sync + Clone + Config<T>,
+          C : Send + Clone + Config<T>,
           F : Send + Sync + Frontier<T>,
           DD: MDD<T, C> + From<C>
 {
@@ -144,7 +144,7 @@ pub struct ParallelSolver<T, C, F, DD>
 
 impl <T, C, DD> ParallelSolver<T, C, SimpleFrontier<T>, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          C : Send + Sync + Clone + Config<T>,
+          C : Send + Clone + Config<T>,
           DD: MDD<T, C> + From<C>{
     /// This creates a solver that will find the best solution in the problem
     /// described by the given `mdd` (mdd is not expanded yet). This solver will
@@ -218,7 +218,7 @@ impl <T, C, DD> ParallelSolver<T, C, SimpleFrontier<T>, DD>
 /// private interface of the parallel solver
 impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          C : Send + Sync + Clone + Config<T>,
+          C : Send + Clone + Config<T>,
           F : Send + Sync + Frontier<T>,
           DD: MDD<T, C> + From<C>
 {
@@ -398,7 +398,7 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
 
 impl <T, C, F, DD> Solver for ParallelSolver<T, C, F, DD>
     where T : Send + Sync + Hash + Eq + Clone,
-          C : Send + Sync + Clone + Config<T>,
+          C : Send + Clone + Config<T>,
           F : Send + Sync + Frontier<T>,
           DD: MDD<T, C> + From<C>
 {
