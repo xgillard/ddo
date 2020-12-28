@@ -117,7 +117,7 @@ impl <T> NoDupHeap<T>
     /// UB and or longer longest path), the priority of the node will be
     /// increased. As always, in the event where the newly pushed node has a
     /// longer longest path than the pre-existing node, that one will be kept.
-    pub fn push(&mut self, node: FrontierNode<T>) {
+    pub fn push(&mut self, mut node: FrontierNode<T>) {
         let state = Arc::clone(&node.state);
 
         let action = match self.states.entry(state) {
@@ -133,6 +133,7 @@ impl <T> NoDupHeap<T>
                     };
 
                 if  node.lp_len > lp_len {
+                    node.ub          = node.ub.max(self.nodes[id.0].ub);
                     self.nodes[id.0] = node;
                 }
 
