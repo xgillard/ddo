@@ -113,27 +113,26 @@ impl <T> NoDupHeap<T>
     /// # Note:
     /// In the event where the heap already contains a copy `x` of a node having
     /// the same state as the `node` being pushed. The priority of the node
-    /// left in the heap might be affected. If `node` has a longer longest path
-    /// to the target state, the priority of the node increases when the UB is
-    /// greater or equal to the priority of the pre-existing copy.
+    /// left in the heap might be affected. If `node` node is "better" (greater
+    /// UB and or longer longest path), the priority of the node will be
+    /// increased. As always, in the event where the newly pushed node has a
+    /// longer longest path than the pre-existing node, that one will be kept.
     pub fn push(&mut self, node: FrontierNode<T>) {
         let state = Arc::clone(&node.state);
 
         let action = match self.states.entry(state) {
             Occupied(e) => {
-                let id = *e.get();
-                let mut action = DoNothing;
+                let id     = *e.get();
                 let lp_len = self.nodes[id.0].lp_len;
 
+                let action =
+                    if self.cmp.compare(&node, &self.nodes[id.0]) == Greater {
+                        BubbleUp(id)
+                    } else {
+                        DoNothing
+                    };
+
                 if  node.lp_len > lp_len {
-                    // Is the update going to push the node up or down the queue ?
-                    action =
-                        if self.cmp.compare(&node, &self.nodes[id.0]) == Greater {
-                            BubbleUp(id)
-                        } else {
-                            BubbleDown(id)
-                        };
-                    //
                     self.nodes[id.0] = node;
                 }
 
@@ -356,36 +355,6 @@ mod test_heap {
         assert_eq!(true, heap.is_empty());
     }
 
-    #[test]
-    fn pushing_nodes_triggers_reordering_if_lplen_is_better_down() {
-        let nodes_1 = [
-            fnode('A', 10, 100),
-            fnode('B', 10, 101),
-            fnode('C', 10, 102),
-            fnode('D', 10, 103),
-            fnode('E', 10, 104),
-        ];
-        let nodes_2 = [
-            fnode('A', 15, 100),
-            fnode('B', 15,  99),
-            fnode('C', 15,  98),
-            fnode('D', 15,  97),
-            fnode('E', 15,  96),
-        ];
-
-        let mut heap = NoDupHeap::new();
-        push_all(&mut heap, &nodes_1);
-        push_all(&mut heap, &nodes_2);
-        // even after pushing all nodes five times, there are only 5 nodes in the heap
-        assert_eq!(5,     heap.len());
-        assert_eq!(false, heap.is_empty());
-
-        let actual   = pop_all(&mut heap);
-        let expected = vec!['A', 'B', 'C', 'D', 'E'];
-        assert_eq!(expected,  actual);
-        assert_eq!(0,    heap.len());
-        assert_eq!(true, heap.is_empty());
-    }
     #[test]
     fn pushing_nodes_triggers_reordering_if_lplen_is_better_up() {
         let nodes_1 = [
