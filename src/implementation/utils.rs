@@ -123,7 +123,15 @@ impl <T> NoDupHeap<T>
         let action = match self.states.entry(state) {
             Occupied(e) => {
                 let id     = *e.get();
-                let lp_len = self.nodes[id.0].lp_len;
+
+                // info about the pre-existing node
+                let old_lp = self.nodes[id.0].lp_len;
+                let old_ub = self.nodes[id.0].ub;
+                // info about the new node
+                let new_lp = node.lp_len;
+                let new_ub = node.ub;
+                // make sure that ub is the max of the known ubs
+                node.ub = new_ub.max(old_ub);
 
                 let action =
                     if self.cmp.compare(&node, &self.nodes[id.0]) == Greater {
@@ -132,9 +140,11 @@ impl <T> NoDupHeap<T>
                         DoNothing
                     };
 
-                if  node.lp_len > lp_len {
-                    node.ub          = node.ub.max(self.nodes[id.0].ub);
+                if new_lp > old_lp {
                     self.nodes[id.0] = node;
+                }
+                if new_ub > old_ub {
+                    self.nodes[id.0].ub = new_ub;
                 }
 
                 action
