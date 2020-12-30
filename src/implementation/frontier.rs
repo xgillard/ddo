@@ -28,24 +28,41 @@ use std::hash::Hash;
 use metrohash::MetroHashMap;
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
+use crate::FrontierOrder;
+use compare::Compare;
+use std::cmp::Ordering;
+use std::marker::PhantomData;
 
 /// The simplest frontier implementation you can think of: is basically consists
-/// of a binary heap that pushes an pops frontier nodes
+/// of a binary heap that pushes and pops frontier nodes
 /// 
 /// # Note
 /// This is the default type of frontier for both sequential and parallel 
 /// solvers. Hence, you don't need to take any action in order to use the
 /// `SimpleFrontier`.
 /// 
-pub struct SimpleFrontier<T> {
-    heap: BinaryHeap<FrontierNode<T>, MaxUB>
+pub struct SimpleFrontier<T, O: FrontierOrder<T>=MaxUB> {
+    heap: BinaryHeap<FrontierNode<T>, FrontierOrder2Compare<T, O>>
+}
+impl <T> SimpleFrontier<T> {
+    /// This creates a new simple frontier which uses the default frontier order
+    /// (MaxUB).
+    fn new() -> Self {
+        SimpleFrontier::new_with_order(MaxUB)
+    }
+}
+impl <T, O> SimpleFrontier<T, O> where O: FrontierOrder<T> {
+    /// This creates a new simple frontier which uses a custiom frontier order.
+    pub fn new_with_order(o: O) -> Self {
+        Self{ heap: BinaryHeap::from_vec_cmp(vec![], FrontierOrder2Compare::new(o)) }
+    }
 }
 impl <T> Default for SimpleFrontier<T> {
     fn default() -> Self {
-        Self{ heap: BinaryHeap::from_vec_cmp(vec![], MaxUB) }
+        Self::new()
     }
 }
-impl <T> Frontier<T> for SimpleFrontier<T> {
+impl <T, O> Frontier<T> for SimpleFrontier<T, O> where O: FrontierOrder<T> {
     fn push(&mut self, node: FrontierNode<T>) {
         self.heap.push(node)
     }
@@ -60,6 +77,26 @@ impl <T> Frontier<T> for SimpleFrontier<T> {
 
     fn len(&self) -> usize {
         self.heap.len()
+    }
+}
+/// This is an adapter that converts any `FrontierOrder<T>` into a
+/// `Compare<FrontierNode<T>>`. This is a very trivial implementation which
+/// simply forwards to the desired frontier order. The point of this structure
+/// is to serve as an adapter between the frontier order and the binary heap
+/// requirements.
+pub struct FrontierOrder2Compare<T, X: FrontierOrder<T>> {
+    cmp     : X,
+    _phantom: PhantomData<T>
+}
+impl <T, X: FrontierOrder<T>> FrontierOrder2Compare<T,X> {
+    pub fn new(cmp: X) -> Self {
+        Self{cmp, _phantom: Default::default()}
+    }
+}
+impl <T, X: FrontierOrder<T>> Compare<FrontierNode<T>> for FrontierOrder2Compare<T,X> {
+    #[inline]
+    fn compare(&self, a: &FrontierNode<T>, b: &FrontierNode<T>) -> Ordering {
+        self.cmp.compare(a, b)
     }
 }
 
@@ -110,12 +147,20 @@ impl <T> Frontier<T> for SimpleFrontier<T> {
 /// let optimum = solver.maximize(); // will run for maximum 10 seconds
 /// ```
 #[derive(Clone)]
-pub struct NoDupFrontier<T> where T: Eq + Hash + Clone {
-    heap: NoDupHeap<T>
+pub struct NoDupFrontier<T, O: FrontierOrder<T>=MaxUB> where T: Eq + Hash + Clone {
+    heap: NoDupHeap<T, O>
 }
 impl <T> NoDupFrontier<T> where T: Eq + Hash + Clone {
+    /// This creates a new no dup frontier which uses the default frontier order
+    /// (MaxUB).
     pub fn new() -> Self {
-        Self{heap: NoDupHeap::default()}
+        NoDupFrontier::new_with_order(MaxUB)
+    }
+}
+impl <T, O> NoDupFrontier<T, O> where T: Eq+Hash+Clone, O: FrontierOrder<T> {
+    /// This creates a new no dup frontier which uses a custom frontier order.
+    pub fn new_with_order(o: O) -> Self {
+        Self{ heap: NoDupHeap::new(o) }
     }
 }
 impl <T> Default for NoDupFrontier<T> where T: Eq + Hash + Clone {
@@ -123,7 +168,7 @@ impl <T> Default for NoDupFrontier<T> where T: Eq + Hash + Clone {
         Self::new()
     }
 }
-impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash + Clone {
+impl <T, O> Frontier<T> for NoDupFrontier<T, O> where T: Eq + Hash + Clone, O: FrontierOrder<T> {
     fn push(&mut self, node: FrontierNode<T>) {
         self.heap.push(node)
     }
@@ -193,26 +238,32 @@ impl <T> Frontier<T> for NoDupFrontier<T> where T: Eq + Hash + Clone {
 /// let optimum = solver.maximize(); // will run for maximum 10 seconds
 /// ```
 #[derive(Clone)]
-pub struct NoForgetFrontier<T> where T: Eq + Hash + Clone {
+pub struct NoForgetFrontier<T, O=MaxUB> where T: Eq + Hash + Clone, O: FrontierOrder<T> {
     /// The frontier itself
-    heap: NoDupHeap<T>,
+    heap: NoDupHeap<T, O>,
     /// The collection of enqueued states with their respective longest path length
     states: MetroHashMap<Arc<T>,isize>
 }
-impl <T> NoForgetFrontier<T> where T: Eq + Hash + Clone {
+impl <T> NoForgetFrontier<T, MaxUB> where T: Eq + Hash + Clone {
     pub fn new() -> Self {
+        NoForgetFrontier::new_with_order(MaxUB)
+    }
+}
+impl <T, O>  NoForgetFrontier<T, O> where T: Eq + Hash + Clone, O: FrontierOrder<T> {
+    pub fn new_with_order(ord: O) -> Self {
         Self{
-            heap: NoDupHeap::default(),
+            heap   : NoDupHeap::new(ord),
             states : MetroHashMap::default()
         }
     }
 }
-impl <T> Default for NoForgetFrontier<T> where T: Eq + Hash + Clone {
+impl <T> Default for NoForgetFrontier<T, MaxUB> where T: Eq + Hash + Clone {
     fn default() -> Self {
         Self::new()
     }
 }
-impl <T> Frontier<T> for NoForgetFrontier<T> where T: Eq + Hash + Clone {
+impl <T, O> Frontier<T> for NoForgetFrontier<T, O>
+    where T: Eq + Hash + Clone, O: FrontierOrder<T> {
     fn push(&mut self, node: FrontierNode<T>) {
         match self.states.entry(Arc::clone(&node.state)) {
             Entry::Vacant(e) => {

@@ -26,10 +26,12 @@ use ddo::{
     VariableHeuristic,
     LoadVars,
     FrontierNode,
+    FrontierOrder,
     BitSetIter,
 };
 
 use crate::model::Misp;
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
 pub struct MispVarHeu(usize);
@@ -64,5 +66,15 @@ pub struct VarsFromMispState;
 impl LoadVars<BitSet> for VarsFromMispState {
     fn variables(&self, node: &FrontierNode<BitSet>) -> VarSet {
         VarSet(node.state.as_ref().clone())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MispFrontierOrder;
+impl FrontierOrder<BitSet> for MispFrontierOrder {
+    fn compare(&self, a: &FrontierNode<BitSet>, b: &FrontierNode<BitSet>) -> Ordering {
+        a.ub.cmp(&b.ub)
+            .then_with(|| a.state.count_ones().cmp(&b.state.count_ones()))
+            .then_with(|| a.lp_len.cmp(&b.lp_len))
     }
 }

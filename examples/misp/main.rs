@@ -25,7 +25,7 @@ use structopt::StructOpt;
 use ddo::{config_builder, Solver, ParallelSolver, HybridPooledDeep, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem};
 
 use crate::relax::MispRelax;
-use crate::heuristics::{MispVarHeu, VarsFromMispState};
+use crate::heuristics::{MispVarHeu, VarsFromMispState, MispFrontierOrder};
 use crate::model::Misp;
 use std::path::Path;
 
@@ -85,7 +85,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .build();
             let mdd = HybridPooledDeep::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::default());
+                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
             Box::new(solver)
         },
         (Some(w), None) => {
@@ -96,7 +96,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .build();
             let mdd = HybridPooledDeep::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::default());
+                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
             Box::new(solver)
         },
         (None, Some(c)) => {
@@ -107,7 +107,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .build();
             let mdd = HybridPooledDeep::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::default());
+                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
             Box::new(solver)
         },
         (None, None) => {
@@ -117,7 +117,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .build();
             let mdd = HybridPooledDeep::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::default());
+                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
             Box::new(solver)
         },
     }

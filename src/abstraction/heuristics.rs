@@ -73,6 +73,30 @@ pub trait NodeSelectionHeuristic<T> {
     fn compare(&self, a: &dyn SelectableNode<T>, b: &dyn SelectableNode<T>) -> Ordering;
 }
 
+/// This trait defines an heuristic to rank the nodes on the solver fringe.
+/// That is, it defines the order in which the frontier nodes are going to be
+/// popped off the fringe (either sequentially or in parallel).
+///
+/// # Note:
+/// Because of the assumption which is made on the frontier that all nodes be
+/// popped off the frontier in decreasing upper bound order, it is obligatory
+/// that any frontier order uses the upper bound as first criterion. Failing to
+/// do so will result in the solver stopping to search for the optimal solution
+/// too early.
+pub trait FrontierOrder<T> {
+    /// Defines the order in which the nodes are going to be popped off the
+    /// fringe. If node `a` is `Greater` than node `b`, it means that node
+    /// `a` should be popped off the fringe sooner than node `b`.
+    ///
+    /// # Note:
+    /// Because of the assumption which is made on the frontier that all nodes be
+    /// popped off the frontier in decreasing upper bound order, it is obligatory
+    /// that any frontier order uses the upper bound as first criterion. Failing to
+    /// do so will result in the solver stopping to search for the optimal solution
+    /// too early.
+    fn compare(&self, a: &FrontierNode<T>, b: &FrontierNode<T>) -> Ordering;
+}
+
 /// This trait defines a strategy/heuristic to retrieve the smallest set of free
 /// variables from a given `node`
 pub trait LoadVars<T> {

@@ -22,9 +22,7 @@
 
 use std::cmp::Ordering;
 
-use compare::Compare;
-
-use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
+use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff, FrontierOrder};
 use crate::common::{FrontierNode, Variable, VarSet};
 use std::time::Duration;
 use std::thread::JoinHandle;
@@ -346,7 +344,7 @@ impl <T> NodeSelectionHeuristic<T> for MinLP {
 /// ```
 #[derive(Debug, Default, Copy, Clone)]
 pub struct MaxUB;
-impl <T> Compare<FrontierNode<T>> for MaxUB {
+impl <T> FrontierOrder<T> for MaxUB {
     fn compare(&self, a: &FrontierNode<T>, b: &FrontierNode<T>) -> Ordering {
         a.ub.cmp(&b.ub).then_with(|| a.lp_len.cmp(&b.lp_len))
     }
@@ -870,11 +868,11 @@ mod test_maxub {
     use std::sync::Arc;
 
     use binary_heap_plus::BinaryHeap;
-    use compare::Compare;
 
     use crate::common::FrontierNode;
     use crate::common::PartialAssignment::Empty;
     use crate::implementation::heuristics::MaxUB;
+    use crate::{FrontierOrder, FrontierOrder2Compare};
 
     #[test]
     fn example() {
@@ -886,7 +884,7 @@ mod test_maxub {
         let f = FrontierNode {state: Arc::new('f'), lp_len: 19, ub: 100, path: Arc::new(Empty)};
 
         let nodes = vec![a, b, c, d, e, f];
-        let mut priority_q = BinaryHeap::from_vec_cmp(nodes, MaxUB);
+        let mut priority_q = BinaryHeap::from_vec_cmp(nodes, FrontierOrder2Compare::new(MaxUB));
 
         assert_eq!('e', *priority_q.pop().unwrap().state); // because 700 is the highest upper bound
         assert_eq!('a', *priority_q.pop().unwrap().state); // because 300 is the next highest

@@ -25,11 +25,11 @@ use std::sync::Arc;
 use metrohash::MetroHashMap;
 use std::collections::hash_map::Entry::{Vacant, Occupied};
 use crate::implementation::utils::Action::{BubbleUp, DoNothing, BubbleDown};
-use compare::Compare;
-use std::cmp::Ordering::{Greater, Less};
+use std::cmp::Ordering::{Greater, Less, Equal};
 use std::hash::Hash;
 use std::cmp::Ordering;
 use crate::implementation::heuristics::MaxUB;
+use crate::FrontierOrder;
 
 /// This is a type-safe identifier for some node in the queue.
 /// Basically, this NodeId equates to the position of the identified
@@ -50,11 +50,12 @@ enum Action {
 /// given state will only ever be present *ONCE* in the priority queue (the
 /// node with the longest path to state is the only kept copy).
 #[derive(Clone)]
-pub struct NoDupHeap<T>
-    where T: Eq + Hash + Clone
+pub struct NoDupHeap<T, O=MaxUB>
+    where T: Eq + Hash + Clone,
+          O: FrontierOrder<T>
 {
     /// This is the comparator used to order the nodes in the binary heap
-    cmp: MaxUB,
+    cmp: O,
     /// A mapping that associates some state to a node identifier.
     states: MetroHashMap<Arc<T>, NodeId>,
     /// The actual payload (nodes) ordered in the list
@@ -67,21 +68,21 @@ pub struct NoDupHeap<T>
     recycle_bin: Vec<NodeId>
 }
 /// Construction of a Default NoDupHeap
-impl <T> Default for NoDupHeap<T>
+impl <T> Default for NoDupHeap<T, MaxUB>
     where T: Eq + Hash + Clone
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(MaxUB)
     }
 }
-impl <T> NoDupHeap<T>
-    where T: Eq + Hash + Clone
+impl <T, O> NoDupHeap<T, O>
+    where T: Eq + Hash + Clone, O: FrontierOrder<T>
 {
     /// Creates a new instance of the no dup heap which uses cmp as
     /// comparison criterion.
-    pub fn new() -> Self {
+    pub fn new(ord: O) -> Self {
         Self {
-            cmp   : MaxUB::default(),
+            cmp   : ord,
             states: MetroHashMap::default(),
             nodes : vec![],
             pos   : vec![],
@@ -117,37 +118,29 @@ impl <T> NoDupHeap<T>
     /// UB and or longer longest path), the priority of the node will be
     /// increased. As always, in the event where the newly pushed node has a
     /// longer longest path than the pre-existing node, that one will be kept.
-    pub fn push(&mut self, mut node: FrontierNode<T>) {
+    pub fn push(&mut self, node: FrontierNode<T>) {
         let state = Arc::clone(&node.state);
 
         let action = match self.states.entry(state) {
             Occupied(e) => {
                 let id     = *e.get();
-
                 // info about the pre-existing node
                 let old_lp = self.nodes[id.0].lp_len;
-                let old_ub = self.nodes[id.0].ub;
                 // info about the new node
                 let new_lp = node.lp_len;
-                let new_ub = node.ub;
-                // make sure that ub is the max of the known ubs
-                node.ub = new_ub.max(old_ub);
-
-                let action =
-                    if self.cmp.compare(&node, &self.nodes[id.0]) == Greater {
-                        BubbleUp(id)
-                    } else {
-                        DoNothing
-                    };
 
                 if new_lp > old_lp {
+                    let action =
+                        match self.cmp.compare(&node, &self.nodes[id.0]) {
+                            Greater => BubbleUp(id),
+                            Less    => BubbleDown(id),
+                            Equal   => DoNothing
+                        };
                     self.nodes[id.0] = node;
+                    action
+                } else {
+                    DoNothing
                 }
-                if new_ub > old_ub {
-                    self.nodes[id.0].ub = new_ub;
-                }
-
-                action
             },
             Vacant(e) => {
                 let id =
@@ -328,7 +321,7 @@ mod test_heap {
             fnode('E', 10, 104),
         ];
 
-        let mut heap = NoDupHeap::new();
+        let mut heap = NoDupHeap::default();
         push_all(&mut heap, &nodes);
         assert_eq!(5,     heap.len());
         assert_eq!(false, heap.is_empty());
@@ -349,7 +342,7 @@ mod test_heap {
             fnode('E', 10, 104),
         ];
 
-        let mut heap = NoDupHeap::new();
+        let mut heap = NoDupHeap::default();
         push_all(&mut heap, &nodes);
         push_all(&mut heap, &nodes);
         push_all(&mut heap, &nodes);
@@ -390,7 +383,7 @@ mod test_heap {
             fnode('E', 20,  96),
         ];
 
-        let mut heap = NoDupHeap::new();
+        let mut heap = NoDupHeap::default();
         push_all(&mut heap, &nodes_1);
         push_all(&mut heap, &nodes_2);
         push_all(&mut heap, &nodes_3);
