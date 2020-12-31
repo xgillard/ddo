@@ -25,7 +25,7 @@ use std::sync::Arc;
 use metrohash::MetroHashMap;
 use std::collections::hash_map::Entry::{Vacant, Occupied};
 use crate::implementation::utils::Action::{BubbleUp, DoNothing, BubbleDown};
-use std::cmp::Ordering::{Greater, Less, Equal};
+use std::cmp::Ordering::{Greater, Less};
 use std::hash::Hash;
 use std::cmp::Ordering;
 use crate::implementation::heuristics::MaxUB;
@@ -118,29 +118,37 @@ impl <T, O> NoDupHeap<T, O>
     /// UB and or longer longest path), the priority of the node will be
     /// increased. As always, in the event where the newly pushed node has a
     /// longer longest path than the pre-existing node, that one will be kept.
-    pub fn push(&mut self, node: FrontierNode<T>) {
+    pub fn push(&mut self, mut node: FrontierNode<T>) {
         let state = Arc::clone(&node.state);
 
         let action = match self.states.entry(state) {
             Occupied(e) => {
                 let id     = *e.get();
+
                 // info about the pre-existing node
                 let old_lp = self.nodes[id.0].lp_len;
+                let old_ub = self.nodes[id.0].ub;
                 // info about the new node
                 let new_lp = node.lp_len;
+                let new_ub = node.ub;
+                // make sure that ub is the max of the known ubs
+                node.ub = new_ub.max(old_ub);
+
+                let action =
+                    if self.cmp.compare(&node, &self.nodes[id.0]) == Greater {
+                        BubbleUp(id)
+                    } else {
+                        DoNothing
+                    };
 
                 if new_lp > old_lp {
-                    let action =
-                        match self.cmp.compare(&node, &self.nodes[id.0]) {
-                            Greater => BubbleUp(id),
-                            Less    => BubbleDown(id),
-                            Equal   => DoNothing
-                        };
                     self.nodes[id.0] = node;
-                    action
-                } else {
-                    DoNothing
                 }
+                if new_ub > old_ub {
+                    self.nodes[id.0].ub = new_ub;
+                }
+
+                action
             },
             Vacant(e) => {
                 let id =
