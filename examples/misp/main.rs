@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{config_builder, Solver, ParallelSolver, HybridPooledDeep, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem};
+use ddo::{config_builder, Solver, ParallelSolver, HybridPooledDeep, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver};
 
 use crate::relax::MispRelax;
 use crate::heuristics::{MispVarHeu, VarsFromMispState, MispFrontierOrder};
@@ -84,9 +84,16 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
             let mdd = HybridPooledDeep::from(conf);
-            let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
-            Box::new(solver)
+
+            if threads > 1 {
+                let solver = ParallelSolver::customized(mdd, verbosity, threads)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            } else {
+                let solver = SequentialSolver::customized(mdd, verbosity)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            }
         },
         (Some(w), None) => {
             let conf = config_builder(pb, rlx)
@@ -95,9 +102,15 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_max_width(FixedWidth(w))
                 .build();
             let mdd = HybridPooledDeep::from(conf);
-            let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
-            Box::new(solver)
+            if threads > 1 {
+                let solver = ParallelSolver::customized(mdd, verbosity, threads)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            } else {
+                let solver = SequentialSolver::customized(mdd, verbosity)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            }
         },
         (None, Some(c)) => {
             let conf = config_builder(pb, rlx)
@@ -106,9 +119,15 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
             let mdd = HybridPooledDeep::from(conf);
-            let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
-            Box::new(solver)
+            if threads > 1 {
+                let solver = ParallelSolver::customized(mdd, verbosity, threads)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            } else {
+                let solver = SequentialSolver::customized(mdd, verbosity)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            }
         },
         (None, None) => {
             let conf = config_builder(pb, rlx)
@@ -116,9 +135,15 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_branch_heuristic(MispVarHeu::new(pb))
                 .build();
             let mdd = HybridPooledDeep::from(conf);
-            let solver =ParallelSolver::customized(mdd, verbosity, threads)
-                .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
-            Box::new(solver)
+            if threads > 1 {
+                let solver = ParallelSolver::customized(mdd, verbosity, threads)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            } else {
+                let solver = SequentialSolver::customized(mdd, verbosity)
+                    .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
+                Box::new(solver)
+            }
         },
     }
 }

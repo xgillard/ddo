@@ -79,7 +79,7 @@ pub struct SequentialSolver<T, C, F, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
           F : Frontier<T>,
-          DD: MDD<T, C> + Clone
+          DD: MDD<T, C>
 {
     config: C,
     mdd: DD,
@@ -95,7 +95,7 @@ pub struct SequentialSolver<T, C, F, DD>
 impl <T, C, DD> SequentialSolver<T, C, SimpleFrontier<T>, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
-          DD: MDD<T, C> + Clone
+          DD: MDD<T, C>
 {
     pub fn new(mdd: DD) -> Self {
         Self::customized(mdd, 0)
@@ -118,7 +118,7 @@ impl <T, C, F, DD> SequentialSolver<T, C, F, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
           F : Frontier<T>,
-          DD: MDD<T, C> + Clone
+          DD: MDD<T, C>
 {
     pub fn with_verbosity(mut self, verbosity: u8) -> Self {
         self.verbosity = verbosity;
@@ -214,7 +214,7 @@ impl <T, C, F, DD> Solver for SequentialSolver<T, C, F, DD>
     where T : Hash + Eq + Clone,
           C : Config<T> + Clone,
           F : Frontier<T>,
-          DD: MDD<T, C> + Clone
+          DD: MDD<T, C>
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality.
