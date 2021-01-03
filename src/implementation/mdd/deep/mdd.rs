@@ -444,8 +444,6 @@ mod test_deepmdd {
     use std::cmp::Ordering;
     use std::sync::Arc;
 
-    use metrohash::MetroHashMap;
-
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode};
     use crate::abstraction::mdd::{Config, MDD};
@@ -456,6 +454,7 @@ mod test_deepmdd {
     use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
+    use std::collections::HashMap;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -933,7 +932,7 @@ mod test_deepmdd {
         assert_eq!(false, mdd.is_exact());
         assert_eq!(104,   mdd.best_value());
 
-        let mut v = MetroHashMap::default();
+        let mut v = HashMap::<char, isize>::default();
         mdd.for_each_cutset_node(|n| {v.insert(*n.state, n.ub);});
 
         assert_eq!(16,  v[&'a']);

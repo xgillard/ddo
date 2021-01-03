@@ -25,8 +25,6 @@ use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use metrohash::MetroHashMap;
-
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::{Config, MDD};
 use crate::common::{Completion, Decision, FrontierNode, Reason, Solution, Variable, VarSet, PartialAssignment};
@@ -34,10 +32,11 @@ use crate::implementation::mdd::MDDType;
 use crate::implementation::mdd::shallow::utils::{Edge, Node};
 use crate::implementation::mdd::utils::NodeFlags;
 use std::rc::Rc;
+use std::collections::HashMap;
 
 /// This is nothing but a writing simplification to tell that in a flat mdd,
 /// a layer is a hashmap of states to nodes
-type Layer<T> = MetroHashMap<Rc<T>, Rc<Node<T>>>;
+type Layer<T> = HashMap<Rc<T>, Rc<Node<T>>>;
 
 /// This is the structure implementing _flat MDD_. This is a kind of
 /// bounded width MDD which offers a real guarantee wrt to the maximum amount

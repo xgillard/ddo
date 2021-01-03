@@ -22,7 +22,6 @@
 
 use crate::common::FrontierNode;
 use std::sync::Arc;
-use metrohash::MetroHashMap;
 use std::collections::hash_map::Entry::{Vacant, Occupied};
 use crate::implementation::utils::Action::{BubbleUp, DoNothing, BubbleDown};
 use std::cmp::Ordering::{Greater, Less};
@@ -30,6 +29,7 @@ use std::hash::Hash;
 use std::cmp::Ordering;
 use crate::implementation::heuristics::MaxUB;
 use crate::FrontierOrder;
+use std::collections::HashMap;
 
 /// This is a type-safe identifier for some node in the queue.
 /// Basically, this NodeId equates to the position of the identified
@@ -57,7 +57,7 @@ pub struct NoDupHeap<T, O=MaxUB>
     /// This is the comparator used to order the nodes in the binary heap
     cmp: O,
     /// A mapping that associates some state to a node identifier.
-    states: MetroHashMap<Arc<T>, NodeId>,
+    states: HashMap<Arc<T>, NodeId>,
     /// The actual payload (nodes) ordered in the list
     nodes: Vec<FrontierNode<T>>,
     /// The position of the items in the heap
@@ -83,7 +83,7 @@ impl <T, O> NoDupHeap<T, O>
     pub fn new(ord: O) -> Self {
         Self {
             cmp   : ord,
-            states: MetroHashMap::default(),
+            states: Default::default(),
             nodes : vec![],
             pos   : vec![],
             heap  : vec![],

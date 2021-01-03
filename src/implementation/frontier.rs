@@ -25,13 +25,13 @@ use crate::implementation::heuristics::MaxUB;
 use crate::implementation::utils::NoDupHeap;
 use crate::abstraction::frontier::Frontier;
 use std::hash::Hash;
-use metrohash::MetroHashMap;
 use std::collections::hash_map::Entry;
 use std::sync::Arc;
 use crate::FrontierOrder;
 use compare::Compare;
 use std::cmp::Ordering;
 use std::marker::PhantomData;
+use std::collections::HashMap;
 
 /// The simplest frontier implementation you can think of: is basically consists
 /// of a binary heap that pushes and pops frontier nodes
@@ -242,7 +242,7 @@ pub struct NoForgetFrontier<T, O=MaxUB> where T: Eq + Hash + Clone, O: FrontierO
     /// The frontier itself
     heap: NoDupHeap<T, O>,
     /// The collection of enqueued states with their respective longest path length
-    states: MetroHashMap<Arc<T>,isize>
+    states: HashMap<Arc<T>,isize>
 }
 impl <T> NoForgetFrontier<T, MaxUB> where T: Eq + Hash + Clone {
     pub fn new() -> Self {
@@ -253,7 +253,7 @@ impl <T, O>  NoForgetFrontier<T, O> where T: Eq + Hash + Clone, O: FrontierOrder
     pub fn new_with_order(ord: O) -> Self {
         Self{
             heap   : NoDupHeap::new(ord),
-            states : MetroHashMap::default()
+            states : Default::default()
         }
     }
 }

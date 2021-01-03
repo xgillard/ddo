@@ -24,9 +24,6 @@
 //! Indeed, bounded MDDs are usually developed by expanding a layer completely
 //! before to either restrict/relax the overdue nodes. The MDDs in this module
 //! are different as they will not generate these overdue nodes at all.
-
-use metrohash::MetroHashMap;
-
 use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -39,6 +36,7 @@ use crate::abstraction::mdd::{MDD, Config};
 use crate::abstraction::heuristics::SelectableNode;
 use crate::implementation::mdd::deep::mdd::DeepMDD;
 use crate::implementation::mdd::hybrid::CompositeMDD;
+use std::collections::HashMap;
 
 
 /// This structure implements an MDD which is aggressively bounded when 
@@ -153,7 +151,7 @@ impl <T, C> From<C> for AggressivelyBoundedMDD<T, C>
 
 /// This is nothing but a writing simplification to tell that in a flat mdd,
 /// a layer is a hashmap of states to nodes
-type Layer<T> = MetroHashMap<Rc<T>, Rc<Node<T>>>;
+type Layer<T> = HashMap<Rc<T>, Rc<Node<T>>>;
 
 /// This structure implements an aggressively bounded maximum width. These are
 /// bounded MDDs which only develops up to max-width nodes in a layer before

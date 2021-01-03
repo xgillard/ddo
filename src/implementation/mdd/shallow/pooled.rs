@@ -25,8 +25,6 @@ use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use metrohash::MetroHashMap;
-
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::{Config, MDD};
 use crate::common::{Completion, Decision, FrontierNode, Reason, Solution, Variable, VarSet, PartialAssignment};
@@ -34,6 +32,7 @@ use crate::implementation::mdd::MDDType;
 use crate::implementation::mdd::utils::NodeFlags;
 use crate::implementation::mdd::shallow::utils::{Node, Edge};
 use std::rc::Rc;
+use std::collections::HashMap;
 
 // --- POOLED MDD --------------------------------------------------------------
 /// This structure implements a _pooled_ MDD. This is a kind of bounded width
@@ -108,7 +107,7 @@ pub struct PooledMDD<T, C>
     mddtype: MDDType,
     /// This is the pool of candidate nodes that might possibly participate in
     /// the next layer.
-    pool: MetroHashMap<Rc<T>, Rc<Node<T>>>,
+    pool: HashMap<Rc<T>, Rc<Node<T>>>,
     /// This set of nodes comprises all nodes that belong to a
     /// _frontier cutset_ (FC).
     cutset: Vec<Rc<Node<T>>>,

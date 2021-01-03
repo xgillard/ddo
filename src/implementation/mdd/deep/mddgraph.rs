@@ -32,12 +32,11 @@ use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use metrohash::MetroHashMap;
-
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::Config;
 use crate::common::Decision;
 use crate::implementation::mdd::utils::NodeFlags;
+use std::collections::HashMap;
 
 /// The errors related to the graph management
 #[allow(dead_code)]
@@ -286,7 +285,7 @@ pub struct Graph<T: Hash + Eq> {
     pub layers: Vec<LayerData>,
     /// This is the map that associates one state of the current layer to the
     /// node index (also belongs to the current layer) which stores it.
-    pub state : MetroHashMap<Rc<T>, NodeIndex>,
+    pub state : HashMap<Rc<T>, NodeIndex>,
     /// If present, this is the identifier of the last exact layer.
     pub lel   : Option<LayerIndex>
 }
@@ -299,7 +298,7 @@ impl <T: Hash + Eq> Graph<T> {
             nodes : vec![],
             edges : vec![],
             layers: vec![LayerData{my_id: LayerIndex(0), start: 0, end: 0}],
-            state : MetroHashMap::default(),
+            state : Default::default(),
             lel   : None,
         }
     }
@@ -935,13 +934,13 @@ mod test_graph {
     use std::cmp::Ordering;
     use std::rc::Rc;
 
-    use metrohash::MetroHashMap;
     use mock_it::verify;
 
     use crate::abstraction::heuristics::SelectableNode;
     use crate::common::{Decision, Variable};
     use crate::implementation::mdd::deep::mddgraph::{EdgeIndex, EdgeState, Graph, LayerData, LayerIndex, NodeIndex};
     use crate::test_utils::MockConfig;
+    use std::collections::HashMap;
 
     #[test]
     fn default_graph_is_empty() {
@@ -2539,7 +2538,7 @@ mod test_graph {
     ///     ||           --------------------
     /// L4  ||                     x
     /// ```
-    fn example_graph() -> (MetroHashMap<char, NodeIndex>, Graph<char>) {
+    fn example_graph() -> (HashMap<char, NodeIndex>, Graph<char>) {
         let mut g = Graph::new();
 
         let r_id = g.add_root(Rc::new('r'), 0);
@@ -2579,7 +2578,7 @@ mod test_graph {
         g.branch(e_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
         g.branch(f_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
 
-        let mut ids = MetroHashMap::default();
+        let mut ids = HashMap::default();
         ids.insert('r', r_id);
         ids.insert('a', a_id);
         ids.insert('z', z_id);
