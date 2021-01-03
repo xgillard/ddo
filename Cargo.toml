@@ -30,5 +30,6 @@ regex            = "1.4.2"
 structopt        = "0.3.21"
 
 [profile.release]
+incremental      = true
 lto              = true
 panic            = 'abort'
