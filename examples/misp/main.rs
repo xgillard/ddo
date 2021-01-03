@@ -158,7 +158,7 @@ fn main() {
 
 fn print_header() {
     println!("{:40} | {:10} | {:10} | {:10} | {:10} | {:8}",
-             "INSTANCE", "STATUS", "UB", "LB", "DURATION", "SOLUTION");
+             "INSTANCE", "STATUS", "LB", "UB", "DURATION", "SOLUTION");
 }
 fn print_solution(name: &str, n: usize, completion: Completion, lb: &str, ub: &str, duration: Duration, solution: Option<Solution>) {
     println!("{:40} | {:10} | {:10} | {:10} | {:10.3} | {}",
