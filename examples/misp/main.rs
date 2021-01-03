@@ -22,17 +22,19 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{config_builder, Solver, ParallelSolver, HybridPooledDeep, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver};
+use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver};
 
 use crate::relax::MispRelax;
-use crate::heuristics::{MispVarHeu, VarsFromMispState, MispFrontierOrder};
+use crate::heuristics::{VarsFromMispState, MispFrontierOrder};
 use crate::model::Misp;
 use std::path::Path;
+use crate::mdd::MispMDD;
 
 mod instance;
 mod model;
 mod relax;
 mod heuristics;
+mod mdd;
 
 /// MISP is a solver based on branch-and-bound mdd which solves the maximum
 /// independent set problem to optimality.
@@ -79,11 +81,11 @@ fn solver<'a>(pb:    &'a Misp,
         (Some(w), Some(c)) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                .with_branch_heuristic(MispVarHeu::new(pb))
+                //.with_branch_heuristic(MispVarHeu::new(pb))
                 .with_max_width(FixedWidth(w))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = HybridPooledDeep::from(conf);
+            let mdd = MispMDD::new(conf, pb.nb_vars());
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -98,10 +100,11 @@ fn solver<'a>(pb:    &'a Misp,
         (Some(w), None) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                .with_branch_heuristic(MispVarHeu::new(pb))
+                //.with_branch_heuristic(MispVarHeu::new(pb))
                 .with_max_width(FixedWidth(w))
                 .build();
-            let mdd = HybridPooledDeep::from(conf);
+            let mdd = MispMDD::new(conf, pb.nb_vars());
+
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
                     .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
@@ -115,10 +118,11 @@ fn solver<'a>(pb:    &'a Misp,
         (None, Some(c)) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                .with_branch_heuristic(MispVarHeu::new(pb))
+                //.with_branch_heuristic(MispVarHeu::new(pb))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = HybridPooledDeep::from(conf);
+            let mdd = MispMDD::new(conf, pb.nb_vars());
+
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
                     .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));
@@ -132,9 +136,10 @@ fn solver<'a>(pb:    &'a Misp,
         (None, None) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                .with_branch_heuristic(MispVarHeu::new(pb))
+                //.with_branch_heuristic(MispVarHeu::new(pb))
                 .build();
-            let mdd = HybridPooledDeep::from(conf);
+            let mdd = MispMDD::new(conf, pb.nb_vars());
+
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
                     .with_frontier(NoDupFrontier::new_with_order(MispFrontierOrder));

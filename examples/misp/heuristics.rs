@@ -20,19 +20,71 @@
 use bitset_fixed::BitSet;
 
 use ddo::{
-    Problem,
     Variable,
     VarSet,
-    VariableHeuristic,
     LoadVars,
     FrontierNode,
     FrontierOrder,
     BitSetIter,
 };
 
-use crate::model::Misp;
 use std::cmp::Ordering;
 
+
+#[derive(Debug, Clone, Copy)]
+pub struct VarsFromMispState;
+impl LoadVars<BitSet> for VarsFromMispState {
+    fn variables(&self, node: &FrontierNode<BitSet>) -> VarSet {
+        VarSet(node.state.as_ref().clone())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MispFrontierOrder;
+impl FrontierOrder<BitSet> for MispFrontierOrder {
+    fn compare(&self, a: &FrontierNode<BitSet>, b: &FrontierNode<BitSet>) -> Ordering {
+        a.ub.cmp(&b.ub)
+            .then_with(|| a.state.count_ones().cmp(&b.state.count_ones()))
+            .then_with(|| a.lp_len.cmp(&b.lp_len))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MispVarHeu2 {
+    counters: Vec<usize>
+}
+impl MispVarHeu2 {
+    pub fn new(n: usize) -> Self {
+        Self {
+            counters: vec![0; n]
+        }
+    }
+    pub fn upon_insert(&mut self, state: &BitSet) {
+        for v in BitSetIter::new(state) {
+            self.counters[v] += 1;
+        }
+    }
+    pub fn upon_select(&mut self, state: &BitSet) {
+        for v in BitSetIter::new(state) {
+            self.counters[v] -= 1;
+        }
+    }
+    pub fn upon_branch(&mut self, _v: Variable) {
+        //self.counters[v.id()] = 0;
+    }
+    pub fn clear(&mut self) {
+        for x in self.counters.iter_mut() {*x = 0;}
+    }
+
+    pub fn next_var(&self) -> Option<Variable>
+    {
+        self.counters.iter().enumerate()
+            .filter(|(_, &count)| count > 0)
+            .min_by_key(|(_, &count)| count)
+            .map(|(i, _)| Variable(i))
+    }
+}
+/*
 #[derive(Debug, Clone)]
 pub struct MispVarHeu(usize);
 impl MispVarHeu {
@@ -60,21 +112,4 @@ impl VariableHeuristic<BitSet> for MispVarHeu {
             .map(|(i, _)| Variable(i))
     }
 }
-
-#[derive(Debug, Clone, Copy)]
-pub struct VarsFromMispState;
-impl LoadVars<BitSet> for VarsFromMispState {
-    fn variables(&self, node: &FrontierNode<BitSet>) -> VarSet {
-        VarSet(node.state.as_ref().clone())
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct MispFrontierOrder;
-impl FrontierOrder<BitSet> for MispFrontierOrder {
-    fn compare(&self, a: &FrontierNode<BitSet>, b: &FrontierNode<BitSet>) -> Ordering {
-        a.ub.cmp(&b.ub)
-            .then_with(|| a.state.count_ones().cmp(&b.state.count_ones()))
-            .then_with(|| a.lp_len.cmp(&b.lp_len))
-    }
-}
+*/
