@@ -66,12 +66,11 @@ mod tests {
     use std::path::PathBuf;
     use std::rc::Rc;
 
-    use metrohash::MetroHashMap;
-
     use ddo::VarSet;
 
     use crate::kp;
     use crate::model::KnapsackState;
+    use std::collections::HashMap;
 
     fn locate(id: &str) -> PathBuf {
         PathBuf::new()
@@ -165,7 +164,7 @@ mod tests {
 
     #[test]
     fn an_hashmap_indexed_on_rc_will_do_the_trick() {
-        let mut map : MetroHashMap<Rc<KnapsackState>, usize> = Default::default();
+        let mut map : HashMap<Rc<KnapsackState>, usize> = Default::default();
 
         let state1 = KnapsackState{free_vars: VarSet::all(5), capacity: 6};
         let state2 = KnapsackState{free_vars: VarSet::all(5), capacity: 6};

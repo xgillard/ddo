@@ -1045,6 +1045,19 @@ mod test_private {
     #[test]
     fn restrict_last_remembers_the_last_exact_layer_if_needed() {
         let config  = MockConfig::default();
+
+        // Node selection orders node in natural order but selection keeps
+        // the highest values only. So it should keep 35 and 36.
+        config.compare.given((34, 35)).will_return(Ordering::Less);
+        config.compare.given((34, 36)).will_return(Ordering::Less);
+        config.compare.given((34, 34)).will_return(Ordering::Equal);
+        config.compare.given((35, 34)).will_return(Ordering::Greater);
+        config.compare.given((35, 36)).will_return(Ordering::Less);
+        config.compare.given((35, 35)).will_return(Ordering::Equal);
+        config.compare.given((36, 34)).will_return(Ordering::Greater);
+        config.compare.given((36, 35)).will_return(Ordering::Greater);
+        config.compare.given((36, 36)).will_return(Ordering::Equal);
+
         let mut mdd = FlatMDD::new(config);
         add_root(&mut mdd, 33, 3);
         mdd.add_layer();
@@ -1063,7 +1076,7 @@ mod test_private {
 
         // but it is not updated after a subsequent restrict
         mdd.add_layer();
-        let r_id = get!(&mdd, 34);
+        let r_id = get!(&mdd, 35);
         mdd.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3);
         mdd.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2);
         mdd.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1);
@@ -1216,7 +1229,8 @@ mod test_private {
 
         //
         g.restrict_last();
-        assert!(verify(c.compare.was_called_with((34, 35))));
+        // because of the random-based hashing (hashbrown), I cant check this
+        // assert!(verify(c.compare.was_called_with((34, 35))));
         let mut states_after = next_layer!(g).keys().map(|k| **k).collect::<Vec<usize>>();
         states_after.sort_unstable();
         assert_eq!(vec![35, 36], states_after);
@@ -1224,6 +1238,14 @@ mod test_private {
     #[test]
     fn relax_last_remembers_the_last_exact_layer_if_needed() {
         let c = MockConfig::default();
+
+        c.compare.given((34, 35)).will_return(Ordering::Greater);
+        c.compare.given((34, 36)).will_return(Ordering::Greater);
+        c.compare.given((35, 34)).will_return(Ordering::Less);
+        c.compare.given((35, 36)).will_return(Ordering::Greater);
+        c.compare.given((36, 34)).will_return(Ordering::Less);
+        c.compare.given((36, 35)).will_return(Ordering::Less);
+
         let mut g  = FlatMDD::new(Proxy::new(&c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
@@ -1242,7 +1264,7 @@ mod test_private {
 
         // but it is not updated after a subsequent restrict
         g.add_layer();
-        let r_id = get!(g, 35);
+        let r_id = get!(g, 34);
         g.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2);
         g.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1);
@@ -1575,7 +1597,12 @@ mod test_private {
         g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
 
         g.relax_last();
-        assert!(verify(c.compare.was_called_with((34, 35))));
+        // Because of the randomized hashbrown hashing, I cant be sure of the
+        // inputs that have been used
+        //assert!(verify(c.compare.was_called_with((34, 35))));
+        let mut next_layer : Vec<usize> = next_layer!(g).iter().map(|(k,_)| *k.as_ref()).collect();
+        next_layer.sort_unstable();
+        assert_eq!(vec![36, 37], next_layer);
     }
     #[test]
     fn relax_last_relaxes_the_weight_of_all_redirected_best_edges() {

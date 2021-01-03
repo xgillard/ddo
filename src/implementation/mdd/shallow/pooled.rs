@@ -1173,7 +1173,10 @@ mod test_private {
 
         //
         g.restrict_last(&mut current);
-        assert!(verify(c.compare.was_called_with((34, 35))));
+        // Because of the hashbrown randomized hashing, the order in not
+        // guaranteed. Thus, I can no longer check the occurrence of this
+        // vert call to compare.
+        //assert!(verify(c.compare.was_called_with((34, 35))));
         let mut states_after = current.iter().map(|n| *n.state()).collect::<Vec<usize>>();
         states_after.sort_unstable();
         assert_eq!(vec![35, 36], states_after);
@@ -1181,6 +1184,19 @@ mod test_private {
     #[test]
     fn relax_last_populates_the_cutset() {
         let c = MockConfig::default();
+
+        // Node selection orders node in natural order but selection keeps
+        // the highest values only. So it should keep 35 and 36.
+        c.compare.given((34, 35)).will_return(Ordering::Less);
+        c.compare.given((34, 36)).will_return(Ordering::Less);
+        c.compare.given((34, 34)).will_return(Ordering::Equal);
+        c.compare.given((35, 34)).will_return(Ordering::Greater);
+        c.compare.given((35, 36)).will_return(Ordering::Less);
+        c.compare.given((35, 35)).will_return(Ordering::Equal);
+        c.compare.given((36, 34)).will_return(Ordering::Greater);
+        c.compare.given((36, 35)).will_return(Ordering::Greater);
+        c.compare.given((36, 36)).will_return(Ordering::Equal);
+
         let mut g  = PooledMDD::new(Proxy::new(&c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
@@ -1200,7 +1216,7 @@ mod test_private {
         assert_eq!(2, g.cutset.len()); // there are two parents to the merged node
 
         // and it is updated with all new nodes
-        let r_id = get!(current, 35);
+        let r_id = get!(current, 36);
         g.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3);
         g.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2);
         g.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1);
@@ -1559,7 +1575,11 @@ mod test_private {
 
         g.add_layer(Variable(5), &mut current);
         g.relax_last(&mut current);
-        assert!(verify(c.compare.was_called_with((34, 35))));
+        // Because of the randomized hashbrown hashing, I cant be sure of the
+        // inputs that have been used
+        //assert!(verify(c.compare.was_called_with((34, 35))));
+        let layer : Vec<usize> = current.iter().map(|v| *v.as_ref().this_state.as_ref()).collect();
+        assert_eq!(vec![36, 37], layer);
     }
     #[test]
     fn relax_last_relaxes_the_weight_of_all_redirected_best_edges() {
