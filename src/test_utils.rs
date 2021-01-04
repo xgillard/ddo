@@ -335,121 +335,127 @@ impl Config<usize> for MockConfig {
 
 
 #[derive(Clone)]
-pub struct Proxy<'a, T: Clone> {
-    target: &'a T
+pub struct Proxy<T: Clone> {
+    target: *mut T
 }
-impl <'a, T: Clone> Proxy<'a, T> {
-    pub fn new(target: &'a T) -> Self {
-        Proxy { target }
+impl <T: Clone> Proxy<T> {
+    pub fn new(target: &mut T) -> Self {
+        Proxy { target: target as *mut T }
+    }
+    fn target(&self) -> &T {
+        unsafe {&*self.target}
+    }
+    fn target_mut(&mut self) -> &mut T {
+        unsafe {&mut *self.target}
     }
 }
-impl <X, T: Relaxation<X> + Clone> Relaxation<X> for Proxy<'_, T> {
+impl <X, T: Relaxation<X> + Clone> Relaxation<X> for Proxy<T> {
     fn merge_states(&self, states: &mut dyn Iterator<Item=&X>) -> X {
-        self.target.merge_states(states)
+        self.target().merge_states(states)
     }
 
     fn relax_edge(&self, src: &X, dst: &X, relaxed: &X, decision: Decision, cost: isize) -> isize {
-        self.target.relax_edge(src, dst, relaxed, decision, cost)
+        self.target().relax_edge(src, dst, relaxed, decision, cost)
     }
 
     fn estimate(&self, state: &X) -> isize {
-        self.target.estimate(state)
+        self.target().estimate(state)
     }
 }
-impl <X, T: LoadVars<X> + Clone> LoadVars<X> for Proxy<'_, T> {
+impl <X, T: LoadVars<X> + Clone> LoadVars<X> for Proxy<T> {
     fn variables(&self, node: &FrontierNode<X>) -> VarSet {
-        self.target.variables(node)
+        self.target().variables(node)
     }
 }
 
-impl <T: WidthHeuristic + Clone> WidthHeuristic for Proxy<'_, T> {
+impl <T: WidthHeuristic + Clone> WidthHeuristic for Proxy<T> {
     fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.target.max_width(free_vars)
+        self.target().max_width(free_vars)
     }
 }
-impl <X, T: VariableHeuristic<X> + Clone> VariableHeuristic<X> for Proxy<'_, T> {
+impl <X, T: VariableHeuristic<X> + Clone> VariableHeuristic<X> for Proxy<T> {
     fn next_var(&self, free_vars: &VarSet, current: &mut dyn Iterator<Item=&X>, next: &mut dyn Iterator<Item=&X>) -> Option<Variable> {
-        self.target.next_var(free_vars, current, next)
+        self.target().next_var(free_vars, current, next)
     }
     fn upon_new_layer(&mut self, var: Variable, curr: &mut dyn Iterator<Item=&X>) {
-        unsafe{&mut *(self.target as *const T as *mut T)}.upon_new_layer(var, curr);
+        self.target_mut().upon_new_layer(var, curr);
     }
     fn upon_node_insert(&mut self, state: &X) {
-        unsafe{&mut *(self.target as *const T as *mut T)}.upon_node_insert(state);
+        self.target_mut().upon_node_insert(state);
     }
     fn clear(&mut self) {
-        unsafe{&mut *(self.target as *const T as *mut T)}.clear();
+        self.target_mut().clear();
     }
 }
-impl <X, T: NodeSelectionHeuristic<X> + Clone> NodeSelectionHeuristic<X> for Proxy<'_, T> {
+impl <X, T: NodeSelectionHeuristic<X> + Clone> NodeSelectionHeuristic<X> for Proxy<T> {
     fn compare(&self, l: &dyn SelectableNode<X>, r: &dyn SelectableNode<X>) -> Ordering {
-        self.target.compare(l, r)
+        self.target().compare(l, r)
     }
 }
-impl <T: Cutoff + Clone> Cutoff for Proxy<'_, T> {
+impl <T: Cutoff + Clone> Cutoff for Proxy<T> {
     fn must_stop(&self, lb: isize, ub: isize) -> bool {
-        self.target.must_stop(lb, ub)
+        self.target().must_stop(lb, ub)
     }
 }
-impl <X, T: Config<X> + Clone> Config<X> for Proxy<'_, T> {
+impl <X, T: Config<X> + Clone> Config<X> for Proxy<T> {
     fn root_node(&self) -> FrontierNode<X> {
-        self.target.root_node()
+        self.target().root_node()
     }
 
     fn domain_of<'a>(&self, state: &'a X, v: Variable) -> Domain<'a> {
-        self.target.domain_of(state, v)
+        self.target().domain_of(state, v)
     }
 
     fn transition(&self, state: &X, vars: &VarSet, d: Decision) -> X {
-        self.target.transition(state, vars, d)
+        self.target().transition(state, vars, d)
     }
 
     fn transition_cost(&self, state: &X, vars: &VarSet, d: Decision) -> isize {
-        self.target.transition_cost(state, vars, d)
+        self.target().transition_cost(state, vars, d)
     }
 
     fn impacted_by(&self, state: &X, var: Variable) -> bool {
-        self.target.impacted_by(state, var)
+        self.target().impacted_by(state, var)
     }
 
     fn merge_states(&self, states: &mut dyn Iterator<Item=&X>) -> X {
-        self.target.merge_states(states)
+        self.target().merge_states(states)
     }
 
     fn relax_edge(&self, src: &X, dst: &X, relaxed: &X, decision: Decision, cost: isize) -> isize {
-        self.target.relax_edge(src, dst, relaxed, decision, cost)
+        self.target().relax_edge(src, dst, relaxed, decision, cost)
     }
 
     fn estimate(&self, state: &X) -> isize {
-        self.target.estimate(state)
+        self.target().estimate(state)
     }
 
     fn load_variables(&self, node: &FrontierNode<X>) -> VarSet {
-        self.target.load_variables(node)
+        self.target().load_variables(node)
     }
 
     fn select_var(&self, free_vars: &VarSet, current_layer: &mut dyn Iterator<Item=&X>, next_layer: &mut dyn Iterator<Item=&X>) -> Option<Variable> {
-        self.target.select_var(free_vars, current_layer, next_layer)
+        self.target().select_var(free_vars, current_layer, next_layer)
     }
 
     fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.target.max_width(free_vars)
+        self.target().max_width(free_vars)
     }
 
     fn compare(&self, a: &dyn SelectableNode<X>, b: &dyn SelectableNode<X>) -> Ordering {
-        self.target.compare(a, b)
+        self.target().compare(a, b)
     }
     fn must_stop(&self, lb: isize, ub: isize) -> bool {
-        self.target.must_stop(lb, ub)
+        self.target().must_stop(lb, ub)
     }
     fn upon_new_layer(&mut self, var: Variable, current: &mut dyn Iterator<Item=&X>) {
-        unsafe{&mut *(self.target as *const T as *mut T)}.upon_new_layer(var, current);
+        self.target_mut().upon_new_layer(var, current);
     }
     fn upon_node_insert(&mut self, state: &X) {
-        unsafe{&mut *(self.target as *const T as *mut T)}.upon_node_insert(state);
+        self.target_mut().upon_node_insert(state);
     }
     fn clear(&mut self) {
-        unsafe{&mut *(self.target as *const T as *mut T)}.clear();
+        self.target_mut().clear();
     }
 }
 

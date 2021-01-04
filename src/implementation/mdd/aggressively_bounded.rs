@@ -695,10 +695,10 @@ mod test_restricted_only {
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let cfg     = config_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = RestrictedOnly::from(cfg);
 
@@ -711,12 +711,12 @@ mod test_restricted_only {
     }
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
-        let pb      = DummyProblem;
-        let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
-        let cfg     = config_builder(&pb, rlx)
+        let pb         = DummyProblem;
+        let rlx         = DummyRelax;
+        let mut cutoff  = MockCutoff::default();
+        let cfg         = config_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = RestrictedOnly::from(cfg);
 
@@ -733,10 +733,10 @@ mod test_restricted_only {
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let mut mdd = config_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
 
         cutoff.must_stop.given(()).will_return(true);
@@ -1138,10 +1138,10 @@ mod test_aggressively_bounded_width {
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -1156,10 +1156,10 @@ mod test_aggressively_bounded_width {
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -1175,10 +1175,10 @@ mod test_aggressively_bounded_width {
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -1415,10 +1415,10 @@ mod test_aggressively_bounded_width {
     fn config_is_cleared_before_developing_any_mddtype() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let heu = DummyIncrementalVarHeu::default();
+        let mut heu = DummyIncrementalVarHeu::default();
 
         let config = mdd_builder(&pb, rlx)
-            .with_branch_heuristic(Proxy::new(&heu))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .build();
 
         let mut mdd  = DD::from(config);
@@ -1438,10 +1438,10 @@ mod test_aggressively_bounded_width {
     fn upon_layer_is_called_whenever_a_new_layer_is_created() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let heu = DummyIncrementalVarHeu::default();
+        let mut heu = DummyIncrementalVarHeu::default();
 
         let config = mdd_builder(&pb, rlx)
-            .with_branch_heuristic(Proxy::new(&heu))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .build();
 
         let mut mdd  = DD::from(config);
@@ -1461,10 +1461,10 @@ mod test_aggressively_bounded_width {
     fn upon_insert_is_called_whenever_a_non_existing_node_is_added_to_next_layer() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let heu = DummyIncrementalVarHeu::default();
+        let mut heu = DummyIncrementalVarHeu::default();
 
         let config = mdd_builder(&pb, rlx)
-            .with_branch_heuristic(Proxy::new(&heu))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .build();
 
         let mut mdd  = DD::from(config);

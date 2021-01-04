@@ -582,9 +582,9 @@ mod tests {
     #[test]
     fn root_node_uses_problem_initial_state_value_and_relaxation_estimate_on_root_state() {
         let prob   = MockProblem::default();
-        let relax  = MockRelax::default();
+        let mut relax  = MockRelax::default();
 
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax)).config();
         let _ = config.root_node();
 
         assert!(verify(prob.initial_state.was_called_with(Nothing)));
@@ -596,9 +596,9 @@ mod tests {
     fn load_vars_is_pass_through_for_heuristic() {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
-        let lv     = MockLoadVars::default();
+        let mut lv = MockLoadVars::default();
 
-        let config = mdd_builder(&prob, relax).with_load_vars(Proxy::new(&lv)).config();
+        let config = mdd_builder(&prob, relax).with_load_vars(Proxy::new(&mut lv)).config();
 
         let node = FrontierNode{state: Arc::new(0), lp_len: 0, ub: isize::max_value(), path: Arc::new(Empty)};
         let _ = config.load_variables(&node);
@@ -656,8 +656,8 @@ mod tests {
     fn max_width_is_pass_through_for_heuristic() {
         let prob   = MockProblem::default();
         let relax  = MockRelax::default();
-        let heu    = MockMaxWidth::default();
-        let config = mdd_builder(&prob, relax).with_max_width(Proxy::new(&heu)).config();
+        let mut heu= MockMaxWidth::default();
+        let config = mdd_builder(&prob, relax).with_max_width(Proxy::new(&mut heu)).config();
 
         let mut vs = prob.all_vars();
         while ! vs.is_empty() {
@@ -673,8 +673,8 @@ mod tests {
     #[test]
     fn estimate_ub_is_a_pass_through_for_relaxation() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let mut relax   = MockRelax::default();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax)).config();
         let state   = 12;
 
         config.estimate(&state);
@@ -684,8 +684,8 @@ mod tests {
     #[test]
     fn merge_states_is_a_pass_through_for_relaxation_empty() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let mut relax   = MockRelax::default();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax)).config();
         let states  = vec![];
         config.merge_states(&mut states.iter());
         assert!(verify(relax.merge_states.was_called_with(states)));
@@ -694,8 +694,8 @@ mod tests {
     #[test]
     fn merge_nodes_is_a_pass_through_for_relaxation_nonempty() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let mut relax   = MockRelax::default();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax)).config();
         let states  = vec![129];
         config.merge_states(&mut states.iter());
         assert!(verify(relax.merge_states.was_called_with(states)));
@@ -704,8 +704,8 @@ mod tests {
     #[test]
     fn relax_edge_is_a_pass_through_for_relaxation() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).config();
+        let mut relax   = MockRelax::default();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax)).config();
 
         let src = 0;
         let dst = 1;
@@ -719,10 +719,11 @@ mod tests {
 
     #[test]
     fn compare_is_a_pass_through_to_node_selection_heuristic() {
-        let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let heu     = MockNodeSelectionHeuristic::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).with_nodes_selection_heuristic(Proxy::new(&heu)).config();
+        let prob      = MockProblem::default();
+        let mut relax = MockRelax::default();
+        let mut heu   = MockNodeSelectionHeuristic::default();
+        let config    = mdd_builder(&prob, Proxy::new(&mut relax))
+            .with_nodes_selection_heuristic(Proxy::new(&mut heu)).config();
 
         let node_a  = MockSelectableNode{state: 127, value: 0, exact: true};
         let node_b  = MockSelectableNode{state: 123, value: 0, exact: true};
@@ -743,9 +744,10 @@ mod tests {
     #[test]
     fn select_var_is_a_pass_through_to_heuristic() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let heu     = MockVariableHeuristic::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).with_branch_heuristic(Proxy::new(&heu)).config();
+        let mut relax   = MockRelax::default();
+        let mut heu     = MockVariableHeuristic::default();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax))
+            .with_branch_heuristic(Proxy::new(&mut heu)).config();
 
         // empty
         let vs     = prob.all_vars();
@@ -767,9 +769,10 @@ mod tests {
     #[test]
     fn must_stop_is_pass_through_to_heuristic() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let heu     = MockCutoff::default();
-        let config  = mdd_builder(&prob, Proxy::new(&relax)).with_cutoff(Proxy::new(&heu)).config();
+        let mut relax   = MockRelax::default();
+        let mut heu     = MockCutoff::default();
+        let config  = mdd_builder(&prob, Proxy::new(&mut relax))
+            .with_cutoff(Proxy::new(&mut heu)).config();
 
         // empty
         config.must_stop(isize::min_value(), isize::max_value());
@@ -779,10 +782,10 @@ mod tests {
     #[test]
     fn upon_new_layer_is_pass_through_to_variable_selection() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let heu     = MockVariableHeuristic::default();
-        let mut config  = mdd_builder(&prob, Proxy::new(&relax))
-            .with_branch_heuristic(Proxy::new(&heu))
+        let mut relax   = MockRelax::default();
+        let mut heu     = MockVariableHeuristic::default();
+        let mut config  = mdd_builder(&prob, Proxy::new(&mut relax))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .config();
 
         // empty
@@ -794,10 +797,10 @@ mod tests {
     #[test]
     fn upon_node_insert_is_pass_through_to_variable_selection() {
         let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let heu     = MockVariableHeuristic::default();
-        let mut config  = mdd_builder(&prob, Proxy::new(&relax))
-            .with_branch_heuristic(Proxy::new(&heu))
+        let mut relax   = MockRelax::default();
+        let mut heu     = MockVariableHeuristic::default();
+        let mut config  = mdd_builder(&prob, Proxy::new(&mut relax))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .config();
 
         // empty
@@ -806,11 +809,11 @@ mod tests {
     }
     #[test]
     fn clear_is_pass_through_to_variable_selection() {
-        let prob    = MockProblem::default();
-        let relax   = MockRelax::default();
-        let heu     = MockVariableHeuristic::default();
-        let mut config  = mdd_builder(&prob, Proxy::new(&relax))
-            .with_branch_heuristic(Proxy::new(&heu))
+        let prob        = MockProblem::default();
+        let mut relax   = MockRelax::default();
+        let mut heu     = MockVariableHeuristic::default();
+        let mut config  = mdd_builder(&prob, Proxy::new(&mut relax))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .config();
 
         // empty
@@ -821,26 +824,26 @@ mod tests {
 
     #[test]
     fn it_can_build_a_deep_mdd() {
-        let prob   = MockProblem::default();
-        let relax  = MockRelax::default();
-        let _      = mdd_builder(&prob, Proxy::new(&relax)).into_deep();
+        let prob      = MockProblem::default();
+        let mut relax = MockRelax::default();
+        let _         = mdd_builder(&prob, Proxy::new(&mut relax)).into_deep();
     }
     #[test]
     fn it_can_build_a_flat_mdd() {
         let prob   = MockProblem::default();
-        let relax  = MockRelax::default();
-        let _      = mdd_builder(&prob, Proxy::new(&relax)).into_flat();
+        let mut relax  = MockRelax::default();
+        let _      = mdd_builder(&prob, Proxy::new(&mut relax)).into_flat();
     }
     #[test]
     fn it_can_build_a_pooled_mdd() {
         let prob   = MockProblem::default();
-        let relax  = MockRelax::default();
-        let _      = mdd_builder(&prob, Proxy::new(&relax)).into_pooled();
+        let mut relax  = MockRelax::default();
+        let _      = mdd_builder(&prob, Proxy::new(&mut relax)).into_pooled();
     }
     #[test]
     fn it_can_build_a_plain_config() {
         let prob   = MockProblem::default();
-        let relax  = MockRelax::default();
-        let _      = mdd_builder(&prob, Proxy::new(&relax)).build();
+        let mut relax  = MockRelax::default();
+        let _      = mdd_builder(&prob, Proxy::new(&mut relax)).build();
     }
 }

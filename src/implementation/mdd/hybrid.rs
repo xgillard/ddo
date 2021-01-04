@@ -452,10 +452,10 @@ mod test_hybrid_flat_deep {
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -470,10 +470,10 @@ mod test_hybrid_flat_deep {
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -489,10 +489,10 @@ mod test_hybrid_flat_deep {
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -858,10 +858,10 @@ mod test_hybrid_pooled_deep {
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -876,10 +876,10 @@ mod test_hybrid_pooled_deep {
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 
@@ -895,10 +895,10 @@ mod test_hybrid_pooled_deep {
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let config  = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .build();
         let mut mdd = DD::from(config);
 

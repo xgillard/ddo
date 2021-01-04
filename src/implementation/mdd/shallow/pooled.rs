@@ -625,10 +625,10 @@ mod test_pooledmdd {
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let mut mdd = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .into_pooled();
 
         cutoff.must_stop.given(Matcher::Any).will_return(true);
@@ -642,10 +642,10 @@ mod test_pooledmdd {
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let mut mdd = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .into_pooled();
 
         cutoff.must_stop.given(Matcher::Any).will_return(true);
@@ -659,10 +659,10 @@ mod test_pooledmdd {
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let pb      = DummyProblem;
         let rlx     = DummyRelax;
-        let cutoff  = MockCutoff::default();
+        let mut cutoff  = MockCutoff::default();
         let mut mdd = mdd_builder(&pb, rlx)
             .with_max_width(FixedWidth(1))
-            .with_cutoff(Proxy::new(&cutoff))
+            .with_cutoff(Proxy::new(&mut cutoff))
             .into_pooled();
 
         cutoff.must_stop.given(Matcher::Any).will_return(true);
@@ -912,10 +912,10 @@ mod test_pooledmdd {
     fn config_is_cleared_before_developing_any_mddtype() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let heu = DummyIncrementalVarHeu::default();
+        let mut heu = DummyIncrementalVarHeu::default();
 
         let config = mdd_builder(&pb, rlx)
-            .with_branch_heuristic(Proxy::new(&heu))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .build();
 
         let mut mdd  = DD::from(config);
@@ -935,10 +935,10 @@ mod test_pooledmdd {
     fn upon_layer_is_called_whenever_a_new_layer_is_created() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let heu = DummyIncrementalVarHeu::default();
+        let mut heu = DummyIncrementalVarHeu::default();
 
         let config = mdd_builder(&pb, rlx)
-            .with_branch_heuristic(Proxy::new(&heu))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .build();
 
         let mut mdd  = DD::from(config);
@@ -958,10 +958,10 @@ mod test_pooledmdd {
     fn upon_insert_is_called_whenever_a_non_existing_node_is_added_to_next_layer() {
         let pb = DummyProblem;
         let rlx = DummyRelax;
-        let heu = DummyIncrementalVarHeu::default();
+        let mut heu = DummyIncrementalVarHeu::default();
 
         let config = mdd_builder(&pb, rlx)
-            .with_branch_heuristic(Proxy::new(&heu))
+            .with_branch_heuristic(Proxy::new(&mut heu))
             .build();
 
         let mut mdd  = DD::from(config);
@@ -1243,7 +1243,7 @@ mod test_private {
     fn restrict_last_layer_uses_node_selection_heuristic_to_rank_nodes() {
         // Node selection orders node in natural order but selection keeps
         // the highest values only. So it should keep 35 and 36.
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         c.compare.given((34, 35)).will_return(Ordering::Less);
         c.compare.given((34, 36)).will_return(Ordering::Less);
         c.compare.given((34, 34)).will_return(Ordering::Equal);
@@ -1254,7 +1254,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1283,7 +1283,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_populates_the_cutset() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
 
         // Node selection orders node in natural order but selection keeps
         // the highest values only. So it should keep 35 and 36.
@@ -1297,7 +1297,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1350,7 +1350,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_layer_enforces_the_given_max_width() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37 (does not exist prior to relaxation)
         c.merge_states.given(vec![35, 34]).will_return(37);
         // Node selection orders node in natural order but selection keeps
@@ -1365,7 +1365,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1386,7 +1386,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_layer_can_produce_lesser_max_width_when_merged_state_already_exists() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 36 (it already exists)
         c.merge_states.given(vec![35, 34]).will_return(36);
         // Node selection orders node in natural order but selection keeps
@@ -1401,7 +1401,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1421,7 +1421,7 @@ mod test_private {
     }
     #[test]
     fn test_relax_last_layer_when_width_is_one() {
-        let c = MockConfig::default();
+        let mut  c = MockConfig::default();
         // Merged state is 37
         c.merge_states.given(vec![34, 35, 36]).will_return(37);
         c.merge_states.given(vec![34, 36, 35]).will_return(37);
@@ -1441,7 +1441,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 1;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1461,7 +1461,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_layer_forgets_the_state_of_deleted_nodes() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37 (does not exist prior to relaxation)
         c.merge_states.given(vec![35, 34]).will_return(37);
         // Node selection orders node in natural order but selection keeps
@@ -1476,7 +1476,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1499,7 +1499,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_remembers_the_state_of_merged_node() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37 (does not exist prior to relaxation)
         c.merge_states.given(vec![35, 34]).will_return(37);
         // Node selection orders node in natural order but selection keeps
@@ -1514,7 +1514,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1537,7 +1537,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_remembers_the_state_of_merged_node_even_if_it_corresponds_to_that_of_one_that_was_deleted() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 35 (selected for deletion)
         c.merge_states.given(vec![35, 34]).will_return(35);
         // Node selection orders node in natural order but selection keeps
@@ -1552,7 +1552,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1575,7 +1575,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_layer_will_bring_about_one_node() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37
         c.merge_states.given(vec![35, 34]).will_return(37);
         // Node selection orders node in natural order but selection keeps
@@ -1590,7 +1590,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1613,7 +1613,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_layer_will_bring_about_one_node_unless_merged_state_is_already_known() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 35 (selected for deletion)
         c.merge_states.given(vec![35, 34]).will_return(36);
         // Node selection orders node in natural order but selection keeps
@@ -1628,7 +1628,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1647,7 +1647,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_layer_uses_node_selection_heuristic_to_rank_nodes() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37
         c.merge_states.given(vec![35, 34]).will_return(37);
         // Node selection orders node in natural order but selection keeps
@@ -1662,7 +1662,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1683,7 +1683,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_relaxes_the_weight_of_all_redirected_best_edges() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37
         c.merge_states.given(vec![35, 34]).will_return(37);
         // relax r-34
@@ -1710,7 +1710,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1729,7 +1729,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_will_not_update_best_parent_and_value_when_there_is_no_improvement() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 36
         c.merge_states.given(vec![35, 34]).will_return(36);
         // relax r-34
@@ -1756,7 +1756,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1780,7 +1780,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_updates_best_parent_and_value_if_merged_node_already_exists() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 36
         c.merge_states.given(vec![35, 34]).will_return(36);
         // relax r-34
@@ -1807,7 +1807,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
@@ -1833,7 +1833,7 @@ mod test_private {
     }
     #[test]
     fn relax_last_updates_best_parent_and_value_relaxed_edge_improve_value() {
-        let c = MockConfig::default();
+        let mut c = MockConfig::default();
         // Merged state is 37
         c.merge_states.given(vec![35, 34]).will_return(37);
         // relax r-34
@@ -1860,7 +1860,7 @@ mod test_private {
         c.compare.given((36, 35)).will_return(Ordering::Greater);
         c.compare.given((36, 36)).will_return(Ordering::Equal);
 
-        let mut g  = PooledMDD::new(Proxy::new(&c));
+        let mut g  = PooledMDD::new(Proxy::new(&mut c));
         g.max_width= 2;
         add_root(&mut g, 33, 3);
         let mut current = vec![];
