@@ -19,14 +19,7 @@
 
 use bitset_fixed::BitSet;
 
-use ddo::{
-    Variable,
-    VarSet,
-    LoadVars,
-    FrontierNode,
-    FrontierOrder,
-    BitSetIter,
-};
+use ddo::{Variable, VarSet, LoadVars, FrontierNode, FrontierOrder, BitSetIter, VariableHeuristic};
 
 use std::cmp::Ordering;
 
@@ -50,66 +43,42 @@ impl FrontierOrder<BitSet> for MispFrontierOrder {
 }
 
 #[derive(Debug, Clone)]
-pub struct MispVarHeu2 {
+pub struct MispVarHeu {
     counters: Vec<usize>
 }
-impl MispVarHeu2 {
+impl MispVarHeu {
     pub fn new(n: usize) -> Self {
         Self {
             counters: vec![0; n]
         }
-    }
-    pub fn upon_insert(&mut self, state: &BitSet) {
-        for v in BitSetIter::new(state) {
-            self.counters[v] += 1;
-        }
-    }
-    pub fn upon_select(&mut self, state: &BitSet) {
-        for v in BitSetIter::new(state) {
-            self.counters[v] -= 1;
-        }
-    }
-    pub fn upon_branch(&mut self, _v: Variable) {
-        //self.counters[v.id()] = 0;
-    }
-    pub fn clear(&mut self) {
-        for x in self.counters.iter_mut() {*x = 0;}
-    }
-
-    pub fn next_var(&self) -> Option<Variable>
-    {
-        self.counters.iter().enumerate()
-            .filter(|(_, &count)| count > 0)
-            .min_by_key(|(_, &count)| count)
-            .map(|(i, _)| Variable(i))
-    }
-}
-/*
-#[derive(Debug, Clone)]
-pub struct MispVarHeu(usize);
-impl MispVarHeu {
-    pub fn new(pb: &Misp) -> Self {
-        MispVarHeu(pb.nb_vars())
     }
 }
 impl VariableHeuristic<BitSet> for MispVarHeu {
     fn next_var(&self,
                 _: &VarSet,
                 _: &mut dyn Iterator<Item=&BitSet>,
-                next: &mut dyn Iterator<Item=&BitSet>) -> Option<Variable>
+                _:  &mut dyn Iterator<Item=&BitSet>) -> Option<Variable>
     {
-        let mut counters = vec![0; self.0];
-
-        for s in next {
-            for v in BitSetIter::new(s) {
-                counters[v] += 1;
-            }
-        }
-
-        counters.iter().enumerate()
+        self.counters.iter().enumerate()
             .filter(|(_, &count)| count > 0)
             .min_by_key(|(_, &count)| count)
             .map(|(i, _)| Variable(i))
     }
+    fn upon_new_layer(&mut self, v: Variable, curr: &mut dyn Iterator<Item=&BitSet>) {
+        for state in curr {
+            for v in BitSetIter::new(state) {
+                self.counters[v] -= 1;
+            }
+        }
+        self.counters[v.id()] = 0;
+    }
+    fn upon_node_insert(&mut self, state: &BitSet) {
+        for v in BitSetIter::new(state) {
+            self.counters[v] += 1;
+        }
+    }
+
+    fn clear(&mut self) {
+        for x in self.counters.iter_mut() {*x = 0;}
+    }
 }
-*/

@@ -321,7 +321,6 @@ impl <T> NodeSelectionHeuristic<T> for MinLP {
 /// ```
 /// # use std::sync::Arc;
 /// # use compare::Compare;
-/// # use binary_heap_plus::BinaryHeap;
 /// # use ddo::*;
 /// # use ddo::PartialAssignment::*;
 /// #
@@ -332,8 +331,13 @@ impl <T> NodeSelectionHeuristic<T> for MinLP {
 /// let e = FrontierNode {state: Arc::new('e'), lp_len: 65, ub: 700, path: Arc::new(Empty)};
 /// let f = FrontierNode {state: Arc::new('f'), lp_len: 19, ub: 100, path: Arc::new(Empty)};
 ///
-/// let nodes = vec![a, b, c, d, e, f];
-/// let mut priority_q = BinaryHeap::from_vec_cmp(nodes, MaxUB);
+/// let mut priority_q = SimpleFrontier::new_with_order(MaxUB);
+/// priority_q.push(a);
+/// priority_q.push(b);
+/// priority_q.push(c);
+/// priority_q.push(d);
+/// priority_q.push(e);
+/// priority_q.push(f);
 ///
 /// assert_eq!('e', *priority_q.pop().unwrap().state); // because 700 is the highest upper bound
 /// assert_eq!('a', *priority_q.pop().unwrap().state); // because 300 is the next highest

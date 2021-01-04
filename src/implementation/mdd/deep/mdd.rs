@@ -203,6 +203,7 @@ impl <T, C> DeepMDD<T, C>
         self.best      = None;
         self.is_exact  = true;
         self.graph.clear();
+        self.config.clear();
     }
 
     /// Returns the best partial assignment leading to the node identified by
@@ -308,6 +309,7 @@ impl <T, C> DeepMDD<T, C>
     /// bound (`best_lb`) and assigns a value to the variables of the specified
     /// VarSet (`vars`).
     fn develop(&mut self, init_state: Rc<T>, init_val: isize, mut vars: VarSet, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.config.upon_node_insert(init_state.as_ref());
         self.graph.add_root(init_state, init_val);
 
         while let Some(var) = self.next_var(&vars) {
@@ -319,6 +321,7 @@ impl <T, C> DeepMDD<T, C>
             let current = self.graph.current_layer();
             self.graph.add_layer();
             vars.remove(var);
+            self.config.upon_new_layer(var, &mut self.graph.layer_nodes(current.my_id).iter().map(|n|n.state.as_ref()));
 
             // unroll layer
             let states = self.graph.layer_nodes(current.my_id).iter()
@@ -334,7 +337,8 @@ impl <T, C> DeepMDD<T, C>
                         let decision = Decision { variable: var, value: val };
                         let state = self.config.transition(src_state, &vars, decision);
                         let cost = self.config.transition_cost(src_state, &vars, decision);
-                        self.graph.branch(keys.id, state, decision, cost);
+                        let conf = &mut self.config;
+                        self.graph.branch(keys.id, state, decision, cost, |x| conf.upon_node_insert(x));
                     }
                 }
             }
@@ -455,6 +459,7 @@ mod test_deepmdd {
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
     use std::collections::HashMap;
+    use crate::{VariableHeuristic, NaturalOrder};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -937,5 +942,100 @@ mod test_deepmdd {
 
         assert_eq!(16,  v[&'a']);
         assert_eq!(104, v[&'b']);
+    }
+
+
+    type DD<T, C> = DeepMDD<T, C>;
+    #[derive(Copy, Clone, Default)]
+    struct DummyIncrementalVarHeu {
+        cleared : usize,
+        inserted: usize,
+        layers  : usize,
+    }
+    impl VariableHeuristic<usize> for DummyIncrementalVarHeu {
+        fn next_var(&self, free_vars: &VarSet, current_layer: &mut dyn Iterator<Item=&usize>, next_layer: &mut dyn Iterator<Item=&usize>) -> Option<Variable> {
+            NaturalOrder.next_var(free_vars, current_layer, next_layer)
+        }
+
+        fn upon_new_layer(&mut self, _var: Variable, _current_layer: &mut dyn Iterator<Item=&usize>) {
+            self.layers += 1;
+        }
+
+        fn upon_node_insert(&mut self, _state: &usize) {
+            self.inserted += 1;
+        }
+
+        fn clear(&mut self) {
+            self.cleared += 1;
+        }
+    }
+    #[test]
+    fn config_is_cleared_before_developing_any_mddtype() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert_eq!(1, heu.cleared);
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert_eq!(2, heu.cleared);
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert_eq!(3, heu.cleared);
+    }
+
+    #[test]
+    fn upon_layer_is_called_whenever_a_new_layer_is_created() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert_eq!(3, heu.layers);
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert_eq!(6, heu.layers);
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert_eq!(9, heu.layers);
+    }
+
+    #[test]
+    fn upon_insert_is_called_whenever_a_non_existing_node_is_added_to_next_layer() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        // Exact mdd comprises 16 nodes (includes the root)
+        assert!(mdd.exact(&root, -100, 1000).is_ok());
+        assert_eq!(16, heu.inserted);
+
+        assert!(mdd.restricted(&root, -100, 1000).is_ok());
+        assert_eq!(30, heu.inserted);
+
+        assert!(mdd.relaxed(&root, -100, 1000).is_ok());
+        assert_eq!(46, heu.inserted);
     }
 }

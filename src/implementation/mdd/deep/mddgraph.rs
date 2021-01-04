@@ -382,7 +382,9 @@ impl <T: Hash + Eq> Graph<T> {
     }
     /// Creates a node for the state `s` or retrieve the index of a pre-existing
     /// node having a state equal to `s`.
-    pub fn add_node(&mut self, s: T) -> NodeIndex {
+    pub fn add_node<F>(&mut self, s: T, mut upon_insert: F) -> NodeIndex
+        where F: FnMut(&T)
+    {
         let state = &mut self.state;
         let nodes = &mut self.nodes;
         let layers= &mut self.layers;
@@ -390,6 +392,8 @@ impl <T: Hash + Eq> Graph<T> {
         let s = Rc::new(s);
 
         *state.entry(Rc::clone(&s)).or_insert_with(|| {
+            upon_insert(s.as_ref());
+
             let idx = NodeIndex(nodes.len());
             let node= NodeData::new(idx, s, false);
             nodes.push(node);
@@ -414,8 +418,10 @@ impl <T: Hash + Eq> Graph<T> {
     /// In case where this branching would create a new longest path to an
     /// already existing node, the length and best parent of the pre-existing
     /// node are updated.
-    pub fn branch(&mut self, orig_id: NodeIndex, dest: T, decision: Decision, weight: isize) {
-        let dest_id     = self.add_node(dest);
+    pub fn branch<F>(&mut self, orig_id: NodeIndex, dest: T, decision: Decision, weight: isize, upon_insert: F)
+        where F: FnMut(&T)
+    {
+        let dest_id     = self.add_node(dest, upon_insert);
 
         let edge_id     = self.add_edge(orig_id, dest_id, decision, weight);
         let edge        = &mut self.edges[edge_id.0];
@@ -1063,7 +1069,7 @@ mod test_graph {
         assert_eq!(0, g.nb_nodes());
 
         for i in 0..5 {
-            g.add_node(i);
+            g.add_node(i, |_|{});
             assert_eq!(i+1, g.nb_nodes());
         }
 
@@ -1078,7 +1084,7 @@ mod test_graph {
 
         let r = g.add_root(Rc::new(24), 0);
         g.add_layer();
-        let n = g.add_node(12);
+        let n = g.add_node(12, |_|{});
         g.add_edge(r, n, Decision{variable: Variable(0), value: 4}, 4);
         assert_eq!(1, g.nb_edges());
 
@@ -1095,10 +1101,10 @@ mod test_graph {
         g.add_layer();
         assert!(g.is_exact());
 
-        let n1 = g.add_node(1);
+        let n1 = g.add_node(1, |_|{});
         g.add_edge(r, n1, Decision{variable: Variable(0), value: 1}, 1);
         assert!(g.is_exact());
-        let n2 = g.add_node(2);
+        let n2 = g.add_node(2, |_|{});
         g.add_edge(r, n2, Decision{variable: Variable(0), value: 2}, 2);
         assert!(g.is_exact());
 
@@ -1117,10 +1123,10 @@ mod test_graph {
         g.add_layer();
         assert!(g.is_exact());
 
-        let n1 = g.add_node(1);
+        let n1 = g.add_node(1, |_|{});
         g.add_edge(r, n1, Decision{variable: Variable(0), value: 1}, 1);
         assert!(g.is_exact());
-        let n2 = g.add_node(2);
+        let n2 = g.add_node(2, |_|{});
         g.add_edge(r, n2, Decision{variable: Variable(0), value: 2}, 2);
         assert!(g.is_exact());
 
@@ -1257,7 +1263,7 @@ mod test_graph {
         g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
-        let idx = g.add_node('b');
+        let idx = g.add_node('b', |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(NodeIndex(1), idx);
     }
@@ -1267,15 +1273,15 @@ mod test_graph {
         g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
-        let b_idx = g.add_node('b');
+        let b_idx = g.add_node('b', |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(NodeIndex(1), b_idx);
 
-        let c_idx = g.add_node('c');
+        let c_idx = g.add_node('c', |_|{});
         assert_eq!(3, g.nb_nodes());
         assert_eq!(NodeIndex(2), c_idx);
 
-        let b2_idx = g.add_node('b');
+        let b2_idx = g.add_node('b', |_|{});
         assert_eq!(3, g.nb_nodes());
         assert_eq!(NodeIndex(1), b2_idx);
     }
@@ -1285,18 +1291,39 @@ mod test_graph {
         g.add_root(Rc::new('a'), 0);
         g.add_layer();
 
-        let b_idx = g.add_node('b');
+        let b_idx = g.add_node('b', |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(NodeIndex(1), b_idx);
 
-        let c_idx = g.add_node('c');
+        let c_idx = g.add_node('c', |_|{});
         assert_eq!(3, g.nb_nodes());
         assert_eq!(NodeIndex(2), c_idx);
         g.add_layer();
 
-        let b2_idx = g.add_node('b');
+        let b2_idx = g.add_node('b', |_|{});
         assert_eq!(4, g.nb_nodes());
         assert_eq!(NodeIndex(3), b2_idx);
+    }
+    #[test]
+    fn add_node_calls_upon_insert_when_destination_state_is_fresh() {
+        let mut g = Graph::new();
+        g.add_root(Rc::new('a'), 0);
+        g.add_layer();
+
+        let mut x = '0';
+        let _ = g.add_node('b', |w| x = *w);
+        assert_eq!('b', x);
+    }
+    #[test]
+    fn add_node_does_not_call_upon_insert_when_destination_state_is_already_known() {
+        let mut g = Graph::new();
+        g.add_root(Rc::new('a'), 0);
+        g.add_layer();
+
+        let mut x = '0';
+        let _ = g.add_node('b', |_| {});
+        let _ = g.add_node('b', |w| x = *w);
+        assert_eq!('0', x);
     }
 
     #[test]
@@ -1304,8 +1331,8 @@ mod test_graph {
         let mut g = Graph::new();
         let a = g.add_root(Rc::new('a'), 0);
         g.add_layer();
-        let b = g.add_node('b');
-        let c = g.add_node('c');
+        let b = g.add_node('b', |_|{});
+        let c = g.add_node('c', |_|{});
 
         let d1 = Decision{variable: Variable(0), value: 0};
         let d2 = Decision{variable: Variable(0), value: 1};
@@ -1335,7 +1362,7 @@ mod test_graph {
         assert_eq!(0, g.nb_edges());
 
         let d1 = Decision{variable: Variable(0), value: 0};
-        g.branch(a, 'b', d1, 1);
+        g.branch(a, 'b', d1, 1, |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(1, g.nb_edges());
         assert_eq!(EdgeState{src: a, dst: NodeIndex(1), decision: d1, weight: 1}, g.edges[0].state);
@@ -1352,12 +1379,12 @@ mod test_graph {
         let d1 = Decision{variable: Variable(0), value: 0};
         let d2 = Decision{variable: Variable(0), value: 1};
 
-        g.branch(a, 'b', d1, 1);
+        g.branch(a, 'b', d1, 1, |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(1, g.nb_edges());
         assert_eq!(EdgeState{src: a, dst: NodeIndex(1), decision: d1, weight: 1}, g.edges[0].state);
 
-        g.branch(a, 'b', d2, 2);
+        g.branch(a, 'b', d2, 2, |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(2, g.nb_edges());
         assert_eq!(EdgeState{src: a, dst: NodeIndex(1), decision: d2, weight: 2}, g.edges[1].state);
@@ -1374,7 +1401,7 @@ mod test_graph {
         let d1 = Decision{variable: Variable(0), value: 0};
         let d2 = Decision{variable: Variable(0), value: 1};
 
-        g.branch(a, 'b', d1, 1);
+        g.branch(a, 'b', d1, 1, |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(1, g.nb_edges());
         assert_eq!(EdgeState{src: a, dst: NodeIndex(1), decision: d1, weight: 1},
@@ -1382,7 +1409,7 @@ mod test_graph {
         assert_eq!(EdgeState{src: a, dst: NodeIndex(1), decision: d1, weight: 1},
                    g.edges[g.nodes[1].inbound.unwrap().0].state);
 
-        g.branch(a, 'b', d2, 2);
+        g.branch(a, 'b', d2, 2, |_|{});
         assert_eq!(2, g.nb_nodes());
         assert_eq!(2, g.nb_edges());
         assert_eq!(EdgeState{src: a, dst: NodeIndex(1), decision: d2, weight: 2},
@@ -1401,8 +1428,8 @@ mod test_graph {
         let d1 = Decision{variable: Variable(0), value: 0};
         let d2 = Decision{variable: Variable(0), value: 1};
 
-        g.branch(a, 'b', d1, 1);
-        g.branch(a, 'c', d2, 2);
+        g.branch(a, 'b', d1, 1, |_|{});
+        g.branch(a, 'c', d2, 2, |_|{});
         g.nodes.last_mut().unwrap().flags.set_relaxed(true);
         g.add_layer();
 
@@ -1411,9 +1438,9 @@ mod test_graph {
         let d3 = Decision{variable: Variable(1), value: 2};
         let d4 = Decision{variable: Variable(1), value: 3};
 
-        g.branch(b, 'd', d3, 3);
+        g.branch(b, 'd', d3, 3, |_|{});
         assert!(g.nodes.last().unwrap().is_exact());
-        g.branch(c, 'd', d4, 4);
+        g.branch(c, 'd', d4, 4, |_|{});
         assert!(!g.nodes.last().unwrap().is_exact());
     }
     #[test]
@@ -1425,8 +1452,8 @@ mod test_graph {
         let d1 = Decision{variable: Variable(0), value: 0};
         let d2 = Decision{variable: Variable(0), value: 1};
 
-        g.branch(a, 'b', d1, 1);
-        g.branch(a, 'c', d2, 2);
+        g.branch(a, 'b', d1, 1, |_|{});
+        g.branch(a, 'c', d2, 2, |_|{});
         g.nodes.last_mut().unwrap().flags.set_relaxed(true);
         g.add_layer();
 
@@ -1435,13 +1462,38 @@ mod test_graph {
         let d3 = Decision{variable: Variable(1), value: 2};
         let d4 = Decision{variable: Variable(1), value: 3};
 
-        g.branch(b, 'd', d3, 3);
+        g.branch(b, 'd', d3, 3, |_|{});
         assert_eq!(b, g.edges[g.nodes.last().unwrap().best_parent.unwrap().0].state.src);
         assert_eq!(4, g.nodes.last().unwrap().lp_from_top);
 
-        g.branch(c, 'd', d4, 4);
+        g.branch(c, 'd', d4, 4, |_|{});
         assert_eq!(c, g.edges[g.nodes.last().unwrap().best_parent.unwrap().0].state.src);
         assert_eq!(6, g.nodes.last().unwrap().lp_from_top);
+    }
+    #[test]
+    fn branch_calls_upon_insert_when_a_new_state_is_inserted_to_next_layer() {
+        let mut g = Graph::new();
+        let a = g.add_root(Rc::new('a'), 0);
+        g.add_layer();
+
+        let d1 = Decision { variable: Variable(0), value: 0 };
+
+        let mut x = '0';
+        g.branch(a, 'b', d1, 1, |w| x = *w);
+        assert_eq!('b', x);
+    }
+    #[test]
+    fn branch_will_not_call_upon_insert_when_the_destination_state_is_already_in_next_layer() {
+        let mut g = Graph::new();
+        let a = g.add_root(Rc::new('a'), 0);
+        g.add_layer();
+
+        let d1 = Decision { variable: Variable(0), value: 0 };
+
+        let mut x = '0';
+        g.branch(a, 'b', d1, 1, |_| {});
+        g.branch(a, 'b', d1, 1, |w| x = *w);
+        assert_eq!('0', x);
     }
     #[test]
     fn add_layer_adds_a_new_layer_starting_at_end_of_previous_one() {
@@ -1451,9 +1503,9 @@ mod test_graph {
         g.add_layer();
         assert_eq!(1, g.layers.last().unwrap().start);
 
-        g.add_node('x');
-        g.add_node('y');
-        g.add_node('z');
+        g.add_node('x', |_|{});
+        g.add_node('y', |_|{});
+        g.add_node('z', |_|{});
         g.add_layer();
         assert_eq!(4, g.layers.last().unwrap().start);
     }
@@ -1466,9 +1518,9 @@ mod test_graph {
         g.add_layer();
         assert_eq!(0, g.state.len());
 
-        g.add_node('x');
-        g.add_node('y');
-        g.add_node('z');
+        g.add_node('x', |_|{});
+        g.add_node('y', |_|{});
+        g.add_node('z', |_|{});
         assert_eq!(3, g.state.len());
         g.add_layer();
         assert_eq!(0, g.state.len());
@@ -1482,9 +1534,9 @@ mod test_graph {
 
         g.add_layer();
         assert_eq!(LayerData{my_id: LayerIndex(1), start: 1, end:1}, g.current_layer());
-        g.add_node('x');
-        g.add_node('y');
-        g.add_node('z');
+        g.add_node('x', |_|{});
+        g.add_node('y', |_|{});
+        g.add_node('z', |_|{});
         assert_eq!(LayerData{my_id: LayerIndex(1), start: 1, end:4}, g.current_layer());
         g.add_layer();
         assert_eq!(LayerData{my_id: LayerIndex(2), start: 4, end:4}, g.current_layer());
@@ -1674,9 +1726,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert!(g.lel.is_none());
 
         // first time, a lel is saved
@@ -1686,12 +1738,12 @@ mod test_graph {
 
         // but it is not updated after a subsequent restrict
         g.add_layer();
-        g.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1);
-        g.branch(r_id, 40, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 41, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 42, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1, |_|{});
+        g.branch(r_id, 40, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 41, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 42, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         g.restrict_last(2, &MockConfig::default());
         assert!(g.lel.is_some());
         assert_eq!(Some(LayerIndex(0)), g.lel);
@@ -1702,9 +1754,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert!(g.is_exact());
 
@@ -1718,9 +1770,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert_eq!(3, g.current_layer().width());
 
         g.restrict_last(2, &MockConfig::default());
@@ -1747,9 +1799,9 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         let mut states_before = g.state.keys().map(|k| **k).collect::<Vec<usize>>();
         states_before.sort_unstable();
@@ -1778,9 +1830,9 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.restrict_last(2, &c);
         assert_eq!(36, *g.nodes[g.state[&36].0].state());
@@ -1806,9 +1858,9 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         // 1. check the appropriate heuristic is used
         let mut states_before = g.state.keys().map(|k| **k).collect::<Vec<usize>>();
@@ -1855,9 +1907,9 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert_eq!(3, g.edges.len());
         assert_eq!(0, g.nodes[1].inbound.unwrap().0); // r->34
@@ -1886,9 +1938,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert!(g.lel.is_none());
 
         // first time, a lel is saved
@@ -1898,12 +1950,12 @@ mod test_graph {
 
         // but it is not updated after a subsequent restrict
         g.add_layer();
-        g.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1);
-        g.branch(r_id, 40, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 41, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 42, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 37, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 38, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 39, Decision{variable: Variable(0), value: 3}, 1, |_|{});
+        g.branch(r_id, 40, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 41, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 42, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         g.relax_last(2, &MockConfig::default());
         assert!(g.lel.is_some());
         assert_eq!(Some(LayerIndex(0)), g.lel);
@@ -1914,9 +1966,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert!(g.is_exact());
 
@@ -1945,9 +1997,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert_eq!(3, g.current_layer().width());
 
         g.relax_last(2, &c);
@@ -1976,9 +2028,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert_eq!(3, g.current_layer().width());
 
         g.relax_last(2, &c);
@@ -2007,9 +2059,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert_eq!(3, g.current_layer().width());
 
         g.relax_last(1, &c);
@@ -2038,9 +2090,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         let mut states = g.state.keys().map(|k| **k).collect::<Vec<usize>>();
         states.sort_unstable();
@@ -2072,9 +2124,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         let mut states = g.state.keys().map(|k| **k).collect::<Vec<usize>>();
         states.sort_unstable();
@@ -2106,9 +2158,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         let mut states = g.state.keys().map(|k| **k).collect::<Vec<usize>>();
         states.sort_unstable();
@@ -2140,9 +2192,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.relax_last(2, &c);
         // 36
@@ -2174,9 +2226,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.relax_last(2, &c);
         // 36
@@ -2204,9 +2256,9 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert_eq!(NodeIndex(3), g.nodes[g.state[&36].0].my_id);
 
@@ -2249,10 +2301,10 @@ mod test_graph {
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
 
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.relax_last(2, &c);
         assert!(verify(c.relax_edge.was_called_with((33, 34, 37, Decision{variable: Variable(0), value: 1}, 3))));
@@ -2294,13 +2346,13 @@ mod test_graph {
         g.add_layer();
 
         // edge 0
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
         // edge 1
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
         // edge 2
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
         // edge 3
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
         assert_eq!(4, g.nb_edges());
 
         g.relax_last(2, &c);
@@ -2352,13 +2404,13 @@ mod test_graph {
         g.add_layer();
 
         // edge 0
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
         // edge 1
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
         // edge 2
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
         // edge 3
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert_eq!(Some(EdgeIndex(3)), g.nodes[g.state[&36].0].best_parent);
         assert_eq!(4, g.nodes[g.state[&36].0].lp_from_top);
@@ -2401,13 +2453,13 @@ mod test_graph {
         g.add_layer();
 
         // edge 0
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
         // edge 1
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
         // edge 2
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
         // edge 3
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert_eq!(Some(EdgeIndex(3)), g.nodes[g.state[&36].0].best_parent);
         assert_eq!(4, g.nodes[g.state[&36].0].lp_from_top);
@@ -2450,13 +2502,13 @@ mod test_graph {
         g.add_layer();
 
         // edge 0
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
         // edge 1
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
         // edge 2
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
         // edge 3
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         assert_eq!(Some(EdgeIndex(3)), g.nodes[g.state[&36].0].best_parent);
         assert_eq!(4, g.nodes[g.state[&36].0].lp_from_top);
@@ -2476,10 +2528,10 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.relax_last(0, &c);
     }
@@ -2490,10 +2542,10 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.relax_last(10, &c);
     }
@@ -2504,10 +2556,10 @@ mod test_graph {
         let mut g = Graph::new();
         let  r_id = g.add_root(Rc::new(33), 3);
         g.add_layer();
-        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2);
-        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4);
-        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1);
+        g.branch(r_id, 34, Decision{variable: Variable(0), value: 1}, 3, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 2}, 2, |_|{});
+        g.branch(r_id, 35, Decision{variable: Variable(0), value: 4}, 4, |_|{});
+        g.branch(r_id, 36, Decision{variable: Variable(0), value: 3}, 1, |_|{});
 
         g.restrict_last(10, &c);
     }
@@ -2545,27 +2597,27 @@ mod test_graph {
         g.add_layer();
 
         // L0
-        g.branch(r_id, 'a', Decision{variable: Variable(0), value: 0}, 1);
-        g.branch(r_id, 'z', Decision{variable: Variable(0), value: 2}, 0);
+        g.branch(r_id, 'a', Decision{variable: Variable(0), value: 0}, 1, |_|{});
+        g.branch(r_id, 'z', Decision{variable: Variable(0), value: 2}, 0, |_|{});
 
         // L1
         let a_id  = g.state[&Rc::new('a')];
         let z_id  = g.state[&Rc::new('z')];
         g.add_layer();
 
-        g.branch(a_id, 'b', Decision{variable: Variable(1), value: 1}, 3);
-        g.branch(a_id, 'c', Decision{variable: Variable(1), value: 2}, 6);
+        g.branch(a_id, 'b', Decision{variable: Variable(1), value: 1}, 3, |_|{});
+        g.branch(a_id, 'c', Decision{variable: Variable(1), value: 2}, 6, |_|{});
 
-        g.branch(z_id, 'b', Decision{variable: Variable(1), value:26}, 0);
+        g.branch(z_id, 'b', Decision{variable: Variable(1), value:26}, 0, |_|{});
         // L2
         let b_id  = g.state[&Rc::new('b')];
         let c_id  = g.state[&Rc::new('c')];
         g.add_layer();
 
-        g.branch(b_id, 'c', Decision{variable: Variable(2), value: 1}, 1);
-        g.branch(b_id, 'd', Decision{variable: Variable(2), value: 2}, 2);
-        g.branch(b_id, 'e', Decision{variable: Variable(2), value: 3}, 3);
-        g.branch(b_id, 'f', Decision{variable: Variable(2), value: 4}, 4);
+        g.branch(b_id, 'c', Decision{variable: Variable(2), value: 1}, 1, |_|{});
+        g.branch(b_id, 'd', Decision{variable: Variable(2), value: 2}, 2, |_|{});
+        g.branch(b_id, 'e', Decision{variable: Variable(2), value: 3}, 3, |_|{});
+        g.branch(b_id, 'f', Decision{variable: Variable(2), value: 4}, 4, |_|{});
 
         // L3
         let d_id  = g.state[&Rc::new('d')];
@@ -2573,10 +2625,10 @@ mod test_graph {
         let f_id  = g.state[&Rc::new('f')];
         g.add_layer();
 
-        g.branch(c_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
-        g.branch(d_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
-        g.branch(e_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
-        g.branch(f_id, 'x', Decision{variable: Variable(3), value: 1}, 3);
+        g.branch(c_id, 'x', Decision{variable: Variable(3), value: 1}, 3, |_|{});
+        g.branch(d_id, 'x', Decision{variable: Variable(3), value: 1}, 3, |_|{});
+        g.branch(e_id, 'x', Decision{variable: Variable(3), value: 1}, 3, |_|{});
+        g.branch(f_id, 'x', Decision{variable: Variable(3), value: 1}, 3, |_|{});
 
         let mut ids = HashMap::default();
         ids.insert('r', r_id);

@@ -22,19 +22,17 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver};
+use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver, PooledMDD};
 
 use crate::relax::MispRelax;
-use crate::heuristics::{VarsFromMispState, MispFrontierOrder};
+use crate::heuristics::{VarsFromMispState, MispFrontierOrder, MispVarHeu};
 use crate::model::Misp;
 use std::path::Path;
-use crate::mdd::MispMDD;
 
 mod instance;
 mod model;
 mod relax;
 mod heuristics;
-mod mdd;
 
 /// MISP is a solver based on branch-and-bound mdd which solves the maximum
 /// independent set problem to optimality.
@@ -81,11 +79,11 @@ fn solver<'a>(pb:    &'a Misp,
         (Some(w), Some(c)) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                //.with_branch_heuristic(MispVarHeu::new(pb))
+                .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_max_width(FixedWidth(w))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = MispMDD::new(conf, pb.nb_vars());
+            let mdd = PooledMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -100,10 +98,10 @@ fn solver<'a>(pb:    &'a Misp,
         (Some(w), None) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                //.with_branch_heuristic(MispVarHeu::new(pb))
+                .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_max_width(FixedWidth(w))
                 .build();
-            let mdd = MispMDD::new(conf, pb.nb_vars());
+            let mdd = PooledMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -118,10 +116,10 @@ fn solver<'a>(pb:    &'a Misp,
         (None, Some(c)) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                //.with_branch_heuristic(MispVarHeu::new(pb))
+                .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = MispMDD::new(conf, pb.nb_vars());
+            let mdd = PooledMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -136,9 +134,9 @@ fn solver<'a>(pb:    &'a Misp,
         (None, None) => {
             let conf = config_builder(pb, rlx)
                 .with_load_vars(VarsFromMispState)
-                //.with_branch_heuristic(MispVarHeu::new(pb))
+                .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .build();
-            let mdd = MispMDD::new(conf, pb.nb_vars());
+            let mdd = PooledMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)

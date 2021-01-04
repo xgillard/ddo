@@ -137,4 +137,30 @@ pub trait Config<T> {
 
     /// Returns true iff the cutoff criterion is met and the search must stop.
     fn must_stop(&self, lb: isize, ub: isize) -> bool;
+
+    // ------------------------------------------------------------------------
+    // --- Hooks for stateful heuristics --------------------------------------
+    // ------------------------------------------------------------------------
+    /// This method provides a hook for you to react to the addition of a new
+    /// layer (to the mdd) during development of an mdd. This might be useful
+    /// when working with incremental (stateful) heuristics (ie variable
+    /// selection heuristic).
+    fn upon_new_layer(&mut self,
+                      _var: Variable,
+                      _current_layer: &mut dyn Iterator<Item=&T>);
+
+    /// This method provides a hook for you to react to the addition of a new
+    /// node to the next layer of the mdd during development of the mdd.
+    ///
+    /// This might be useful when working with incremental (stateful)
+    /// heuristics (ie variable selection heuristic).
+    fn upon_node_insert(&mut self, _state: &T);
+
+    /// When implementing an incremental variable selection heuristic, this
+    /// method should reset the state of the heuristic to a "fresh" state.
+    /// This method is called at the start of the development of any mdd.
+    ///
+    /// This might be useful when working with incremental (stateful)
+    /// heuristics (ie variable selection heuristic).
+    fn clear(&mut self);
 }

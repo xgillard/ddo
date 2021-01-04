@@ -329,6 +329,7 @@ impl <T, C> RestrictedOnly<T, C>
         self.layers.iter_mut().for_each(|l|l.clear());
         //
         self.buffer.clear();
+        self.config.clear();
     }
     /// Develops/Unrolls the requested type of MDD, starting from a given root
     /// node. It only considers nodes that are relevant wrt. the given best lower
@@ -338,6 +339,8 @@ impl <T, C> RestrictedOnly<T, C>
         self.root_pa = Arc::clone(&root.path);
         let root     = Node::from(root);
         self.best_lb = best_lb;
+
+        self.config.upon_node_insert(root.this_state.as_ref());
         self.layers[self.next].insert(Rc::clone(&root.this_state), Rc::new(root));
 
         let mut depth = 0;
@@ -349,6 +352,7 @@ impl <T, C> RestrictedOnly<T, C>
 
             self.add_layer();
             vars.remove(var);
+            self.config.upon_new_layer(var, &mut self.layers[self.current].keys().map(|k| k.as_ref()));
             depth += 1;
 
             let mut next_layer_squashed = false;
@@ -463,6 +467,7 @@ impl <T, C> RestrictedOnly<T, C>
             Entry::Vacant(re) => {
                 node.estimate = self.config.estimate(node.state());
                 if node.ub() > self.best_lb {
+                    self.config.upon_node_insert(node.this_state.as_ref());
                     re.insert(Rc::new(node));
                 }
             },
@@ -990,6 +995,7 @@ mod test_aggressively_bounded_width {
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use crate::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
     use mock_it::Matcher;
+    use crate::{VariableHeuristic, NaturalOrder};
 
     type DD<T, C> = AggressivelyBoundedMDD<T, C>;
 
@@ -1053,6 +1059,30 @@ mod test_aggressively_bounded_width {
         }
         fn estimate(&self, _state: &usize) -> isize {
             50
+        }
+    }
+
+    #[derive(Copy, Clone, Default)]
+    struct DummyIncrementalVarHeu {
+        cleared : usize,
+        inserted: usize,
+        layers  : usize,
+    }
+    impl VariableHeuristic<usize> for DummyIncrementalVarHeu {
+        fn next_var(&self, free_vars: &VarSet, current_layer: &mut dyn Iterator<Item=&usize>, next_layer: &mut dyn Iterator<Item=&usize>) -> Option<Variable> {
+            NaturalOrder.next_var(free_vars, current_layer, next_layer)
+        }
+
+        fn upon_new_layer(&mut self, _var: Variable, _current_layer: &mut dyn Iterator<Item=&usize>) {
+            self.layers += 1;
+        }
+
+        fn upon_node_insert(&mut self, _state: &usize) {
+            self.inserted += 1;
+        }
+
+        fn clear(&mut self) {
+            self.cleared += 1;
         }
     }
 
@@ -1377,6 +1407,84 @@ mod test_aggressively_bounded_width {
 
         assert!(mdd.restricted(&root, 100, 1000).is_ok());
         assert!(mdd.best_solution().is_none())
+    }
+
+
+
+    #[test]
+    fn config_is_cleared_before_developing_any_mddtype() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert_eq!(1, heu.cleared);
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert_eq!(2, heu.cleared);
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert_eq!(3, heu.cleared);
+    }
+
+    #[test]
+    fn upon_layer_is_called_whenever_a_new_layer_is_created() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert_eq!(3, heu.layers);
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert_eq!(6, heu.layers);
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert_eq!(9, heu.layers);
+    }
+
+    #[test]
+    fn upon_insert_is_called_whenever_a_non_existing_node_is_added_to_next_layer() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        // Exact mdd comprises 16 nodes (includes the root)
+        assert!(mdd.exact(&root, -100, 1000).is_ok());
+        assert_eq!(16, heu.inserted);
+
+        // because of the max witdh, restricted comprises 10 nodes (incl root)
+        // after the restriction. Because this mdd is aggressively bounded,
+        // only these 10 nodes are added.
+        assert!(mdd.restricted(&root, -100, 1000).is_ok());
+        assert_eq!(26, heu.inserted);
+
+        // in spite of the max width, the relaxed performs 16 insertions (incl
+        // root) just like the exact did. This is because nodes are inserted
+        // then merged.
+        assert!(mdd.relaxed(&root, -100, 1000).is_ok());
+        assert_eq!(42, heu.inserted);
     }
 }
 

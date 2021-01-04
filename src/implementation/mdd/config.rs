@@ -518,8 +518,44 @@ impl <'x, T, P, R, L, V, W, S, C> Config<T> for PassThroughConfig<'x, T, P, R, L
     }
 
     /// Returns true iff the cutoff criterion is met and the search must stop.
+    #[inline]
     fn must_stop(&self, lb: isize, ub: isize) -> bool {
         self.cutoff.must_stop(lb, ub)
+    }
+
+    // ------------------------------------------------------------------------
+    // --- Hooks for stateful heuristics --------------------------------------
+    // ------------------------------------------------------------------------
+    /// This method provides a hook for you to react to the addition of a new
+    /// layer (to the mdd) during development of an mdd. This might be useful
+    /// when working with incremental (stateful) heuristics (ie variable
+    /// selection heuristic).
+    #[inline]
+    fn upon_new_layer(&mut self,
+                      var: Variable,
+                      current_layer: &mut dyn Iterator<Item=&T>) {
+        self.var_heu.upon_new_layer(var, current_layer);
+    }
+
+    /// This method provides a hook for you to react to the addition of a new
+    /// node to the next layer of the mdd during development of the mdd.
+    ///
+    /// This might be useful when working with incremental (stateful)
+    /// heuristics (ie variable selection heuristic).
+    #[inline]
+    fn upon_node_insert(&mut self, state: &T) {
+        self.var_heu.upon_node_insert(state);
+    }
+
+    /// When implementing an incremental variable selection heuristic, this
+    /// method should reset the state of the heuristic to a "fresh" state.
+    /// This method is called at the start of the development of any mdd.
+    ///
+    /// This might be useful when working with incremental (stateful)
+    /// heuristics (ie variable selection heuristic).
+    #[inline]
+    fn clear(&mut self) {
+        self.var_heu.clear();
     }
 }
 
@@ -738,6 +774,48 @@ mod tests {
         // empty
         config.must_stop(isize::min_value(), isize::max_value());
         assert!(verify(heu.must_stop.was_called_with(Val((isize::min_value(), isize::max_value())))));
+    }
+
+    #[test]
+    fn upon_new_layer_is_pass_through_to_variable_selection() {
+        let prob    = MockProblem::default();
+        let relax   = MockRelax::default();
+        let heu     = MockVariableHeuristic::default();
+        let mut config  = mdd_builder(&prob, Proxy::new(&relax))
+            .with_branch_heuristic(Proxy::new(&heu))
+            .config();
+
+        // empty
+        let var = Variable(42);
+        let cur = vec![1, 2, 3, 4];
+        config.upon_new_layer(var, &mut cur.iter());
+        assert!(verify(heu.upon_new_layer.was_called_with((var, cur))));
+    }
+    #[test]
+    fn upon_node_insert_is_pass_through_to_variable_selection() {
+        let prob    = MockProblem::default();
+        let relax   = MockRelax::default();
+        let heu     = MockVariableHeuristic::default();
+        let mut config  = mdd_builder(&prob, Proxy::new(&relax))
+            .with_branch_heuristic(Proxy::new(&heu))
+            .config();
+
+        // empty
+        config.upon_node_insert(&42);
+        assert!(verify(heu.upon_node_insert.was_called_with(42)));
+    }
+    #[test]
+    fn clear_is_pass_through_to_variable_selection() {
+        let prob    = MockProblem::default();
+        let relax   = MockRelax::default();
+        let heu     = MockVariableHeuristic::default();
+        let mut config  = mdd_builder(&prob, Proxy::new(&relax))
+            .with_branch_heuristic(Proxy::new(&heu))
+            .config();
+
+        // empty
+        config.clear();
+        assert!(verify(heu.clear.was_called_with(())));
     }
 
 

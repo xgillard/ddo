@@ -164,12 +164,21 @@ impl Cutoff for MockCutoff {
 #[derive(Clone)]
 pub struct MockVariableHeuristic {
     #[allow(clippy::type_complexity)]
-    pub next_var: Mock<(VarSet, Vec<usize>, Vec<usize>), Option<Variable>>
+    pub next_var: Mock<(VarSet, Vec<usize>, Vec<usize>), Option<Variable>>,
+    #[allow(clippy::type_complexity)]
+    pub upon_new_layer: Mock<(Variable, Vec<usize>), ()>,
+    #[allow(clippy::type_complexity)]
+    pub upon_node_insert: Mock<usize, ()>,
+    #[allow(clippy::type_complexity)]
+    pub clear: Mock<(), ()>,
 }
 impl Default for MockVariableHeuristic {
     fn default() -> Self {
         MockVariableHeuristic {
-            next_var: Mock::new(None)
+            next_var        : Mock::new(None),
+            upon_new_layer  : Mock::new(()),
+            upon_node_insert: Mock::new(()),
+            clear           : Mock::new(()),
         }
     }
 }
@@ -183,6 +192,16 @@ impl VariableHeuristic<usize> for MockVariableHeuristic {
         let nxt = next.cloned().collect::<Vec<usize>>();
 
         self.next_var.called((free_vars.clone(), cur, nxt))
+    }
+    fn upon_new_layer(&mut self, var: Variable, current: &mut dyn Iterator<Item=&usize>) {
+        let curr =  current.copied().collect::<Vec<usize>>();
+        self.upon_new_layer.called((var, curr));
+    }
+    fn upon_node_insert(&mut self, state: &usize) {
+        self.upon_node_insert.called(*state);
+    }
+    fn clear(&mut self) {
+        self.clear.called(());
     }
 }
 
@@ -220,26 +239,34 @@ pub struct MockConfig {
     pub max_width       : Mock<VarSet, usize>,
     pub compare         : Mock<(usize, usize), Ordering>,
     pub must_stop       : Mock<Matcher<(isize, isize)>, bool>,
+
+    pub upon_new_layer  : Mock<(Variable, Vec<usize>), ()>,
+    pub upon_node_insert: Mock<usize, ()>,
+    pub clear           : Mock<(), ()>
 }
 impl Default for MockConfig {
     fn default() -> Self {
         MockConfig {
-            root_node:      Mock::new(FrontierNode{state: Arc::new(0), lp_len: 0, ub: isize::max_value(), path: Arc::new(Empty)}),
+            root_node:        Mock::new(FrontierNode{state: Arc::new(0), lp_len: 0, ub: isize::max_value(), path: Arc::new(Empty)}),
 
-            domain_of:      Mock::new(vec![0, 1]),
-            transition:     Mock::new(0),
-            transition_cost:Mock::new(0),
-            impacted_by    :Mock::new(true),
+            domain_of:        Mock::new(vec![0, 1]),
+            transition:       Mock::new(0),
+            transition_cost:  Mock::new(0),
+            impacted_by    :  Mock::new(true),
 
-            merge_states:   Mock::new(0),
-            relax_edge:     Mock::new(0),
-            estimate:       Mock::new(0),
+            merge_states:     Mock::new(0),
+            relax_edge:       Mock::new(0),
+            estimate:         Mock::new(0),
 
-            select_var:     Mock::new(None),
-            load_vars:      Mock::new(VarSet::empty()),
-            max_width:      Mock::new(0),
-            compare:        Mock::new(Equal),
-            must_stop:      Mock::new(false)
+            select_var:       Mock::new(None),
+            load_vars:        Mock::new(VarSet::empty()),
+            max_width:        Mock::new(0),
+            compare:          Mock::new(Equal),
+            must_stop:        Mock::new(false),
+
+            upon_new_layer:   Mock::new(()),
+            upon_node_insert: Mock::new(()),
+            clear           : Mock::new(()),
         }
     }
 }
@@ -295,6 +322,15 @@ impl Config<usize> for MockConfig {
     fn must_stop(&self, lb: isize, ub: isize) -> bool {
         self.must_stop.called(Val((lb, ub)))
     }
+    fn upon_new_layer(&mut self, var: Variable, current: &mut dyn Iterator<Item=&usize>) {
+        self.upon_new_layer.called((var, current.copied().collect()));
+    }
+    fn upon_node_insert(&mut self, state: &usize) {
+        self.upon_node_insert.called(*state);
+    }
+    fn clear(&mut self) {
+        self.clear.called(());
+    }
 }
 
 
@@ -334,6 +370,15 @@ impl <T: WidthHeuristic + Clone> WidthHeuristic for Proxy<'_, T> {
 impl <X, T: VariableHeuristic<X> + Clone> VariableHeuristic<X> for Proxy<'_, T> {
     fn next_var(&self, free_vars: &VarSet, current: &mut dyn Iterator<Item=&X>, next: &mut dyn Iterator<Item=&X>) -> Option<Variable> {
         self.target.next_var(free_vars, current, next)
+    }
+    fn upon_new_layer(&mut self, var: Variable, curr: &mut dyn Iterator<Item=&X>) {
+        unsafe{&mut *(self.target as *const T as *mut T)}.upon_new_layer(var, curr);
+    }
+    fn upon_node_insert(&mut self, state: &X) {
+        unsafe{&mut *(self.target as *const T as *mut T)}.upon_node_insert(state);
+    }
+    fn clear(&mut self) {
+        unsafe{&mut *(self.target as *const T as *mut T)}.clear();
     }
 }
 impl <X, T: NodeSelectionHeuristic<X> + Clone> NodeSelectionHeuristic<X> for Proxy<'_, T> {
@@ -396,6 +441,15 @@ impl <X, T: Config<X> + Clone> Config<X> for Proxy<'_, T> {
     }
     fn must_stop(&self, lb: isize, ub: isize) -> bool {
         self.target.must_stop(lb, ub)
+    }
+    fn upon_new_layer(&mut self, var: Variable, current: &mut dyn Iterator<Item=&X>) {
+        unsafe{&mut *(self.target as *const T as *mut T)}.upon_new_layer(var, current);
+    }
+    fn upon_node_insert(&mut self, state: &X) {
+        unsafe{&mut *(self.target as *const T as *mut T)}.upon_node_insert(state);
+    }
+    fn clear(&mut self) {
+        unsafe{&mut *(self.target as *const T as *mut T)}.clear();
     }
 }
 

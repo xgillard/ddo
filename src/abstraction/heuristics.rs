@@ -42,6 +42,13 @@ pub trait WidthHeuristic {
 
 /// This trait defines an heuristic to determine the best variable to branch on
 /// while developing an MDD.
+///
+/// This trait defines some optional methods that allow you to implement an
+/// incremental variable heuristic (stateful). The implementation of these
+/// methods is definitely *not* mandatory. This is why the trait provides a
+/// default (empty) implementation for these methods. In the event where these
+/// methods are implemented, you may assume that each thread owns a copy of
+/// the heuristic.
 pub trait VariableHeuristic<T> {
     /// Returns the best variable to branch on from the set of `free_vars`
     /// or `None` in case no branching is useful (`free_vars` is empty, no decision
@@ -50,6 +57,29 @@ pub trait VariableHeuristic<T> {
                 free_vars: &VarSet,
                 current_layer: &mut dyn Iterator<Item=&T>,
                 next_layer:  &mut dyn Iterator<Item=&T>) -> Option<Variable>;
+
+    /// This method provides a hook for you to react to the addition of a new
+    /// layer (to the mdd) during development of an mdd. This might be useful
+    /// when implementing an incremental variable heuristic.
+    ///
+    /// *The implementation of this method is _OPTIONAL_*
+    fn upon_new_layer(&mut self,
+                      _var: Variable,
+                      _current_layer: &mut dyn Iterator<Item=&T>){}
+
+    /// This method provides a hook for you to react to the addition of a new
+    /// node to the next layer of the mdd during development of the mdd.
+    /// This might be useful when implementing an incremental variable heuristic.
+    ///
+    /// *The implementation of this method is _OPTIONAL_*
+    fn upon_node_insert(&mut self, _state: &T) {}
+
+    /// When implementing an incremental variable selection heuristic, this
+    /// method should reset the state of the heuristic to a "fresh" state.
+    /// This method is called at the start of the development of any mdd.
+    ///
+    /// *The implementation of this method is _OPTIONAL_*
+    fn clear(&mut self) {}
 }
 
 /// This trait defines a minimal abstraction over the MDD nodes so that they
