@@ -94,6 +94,47 @@ pub struct PooledDeepMDD<T, C>
     is_exact : bool,
 }
 
+impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
+    where T: Eq + Hash + Clone,
+          C: Config<T> + Clone
+{
+    fn config(&self) -> &C {
+        &self.config
+    }
+    fn config_mut(&mut self) -> &mut C {
+        &mut self.config
+    }
+
+    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.develop(MDDType::Exact, root, best_lb, ub)
+    }
+
+    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.develop(MDDType::Restricted, root, best_lb, ub)
+    }
+
+    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
+        self.develop(MDDType::Relaxed, root, best_lb, ub)
+    }
+
+    fn is_exact(&self) -> bool {
+        self.is_exact
+    }
+    fn best_value(&self) -> isize {
+        self.best_node.map_or(isize::min_value(), |nid| self.nodes[nid.0].from_top)
+    }
+    fn best_solution(&self) -> Option<Solution> {
+        self.best_node.map(|index| {
+            Solution::new(Arc::new(self.best_partial_assignment_for(index)))
+        })
+    }
+    fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
+        self.cutset.iter()
+            .filter(|nid| self.nodes[nid.0].flags.is_feasible())
+            .for_each(|nid| func(self.node_to_frontier_node(*nid)));
+    }
+}
+
 impl <T, C> PooledDeepMDD<T, C>
 where T: Eq + Hash + Clone,
       C: Config<T> + Clone
@@ -548,47 +589,6 @@ where T: Eq + Hash + Clone,
                 layer = self.layers[depth];
             }
         }
-    }
-}
-
-impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
-where T: Eq + Hash + Clone,
-      C: Config<T> + Clone
-{
-    fn config(&self) -> &C {
-        &self.config
-    }
-    fn config_mut(&mut self) -> &mut C {
-        &mut self.config
-    }
-
-    fn exact(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
-        self.develop(MDDType::Exact, root, best_lb, ub)
-    }
-
-    fn restricted(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
-        self.develop(MDDType::Restricted, root, best_lb, ub)
-    }
-
-    fn relaxed(&mut self, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
-        self.develop(MDDType::Relaxed, root, best_lb, ub)
-    }
-
-    fn is_exact(&self) -> bool {
-        self.is_exact
-    }
-    fn best_value(&self) -> isize {
-        self.best_node.map_or(isize::min_value(), |nid| self.nodes[nid.0].from_top)
-    }
-    fn best_solution(&self) -> Option<Solution> {
-        self.best_node.map(|index| {
-            Solution::new(Arc::new(self.best_partial_assignment_for(index)))
-        })
-    }
-    fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
-        self.cutset.iter()
-            .filter(|nid| self.nodes[nid.0].flags.is_feasible())
-            .for_each(|nid| func(self.node_to_frontier_node(*nid)));
     }
 }
 
