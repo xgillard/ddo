@@ -643,7 +643,9 @@ mod test_pooled_deep_mdd {
     use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
-    use crate::{VariableHeuristic, NaturalOrder, PooledDeepMDD};
+    use crate::{VariableHeuristic, NaturalOrder, PooledDeepMDD, NodeSelectionHeuristic, SelectableNode};
+    use std::collections::HashMap;
+    use std::cmp::Ordering;
 
     type DD<T, C> = PooledDeepMDD<T, C>;
 
@@ -1108,4 +1110,113 @@ mod test_pooled_deep_mdd {
         assert!(mdd.relaxed(&root, -100, 1000).is_ok());
         assert_eq!(46, heu.inserted);
     }
+
+
+
+    /// The example problem and relaxation for the local bounds should generate
+    /// the following relaxed MDD in which the layer 'a','b' is the LEL.
+    ///
+    /// ```plain
+    ///                      r
+    ///                   /     \
+    ///                10        0
+    ///               /           |
+    ///             a              b
+    ///             |     +--------+-------+
+    ///             |     |        |       |
+    ///             2    100       7       5
+    ///              \   /         |       |
+    ///                M           e       f
+    ///                |           |     /   \
+    ///                4           0   1      2
+    ///                |           |  /        \
+    ///                g            h           i
+    ///                |            |           |
+    ///                0            0           0
+    ///                +------------+-----------+
+    ///                             t
+    /// ```
+    ///
+    #[derive(Copy, Clone)]
+    struct LocBoundsExamplePb;
+    impl Problem<char> for LocBoundsExamplePb {
+        fn nb_vars(&self)       -> usize {  4  }
+        fn initial_state(&self) -> char  { 'r' }
+        fn initial_value(&self) -> isize {  0  }
+
+        fn domain_of<'a>(&self, state: &'a char, _: Variable) -> Domain<'a> {
+            (match *state {
+                'r' => vec![10, 0],
+                'a' => vec![2],
+                'b' => vec![5, 7, 100],
+                // c, d are merged into M
+                'M' => vec![4],
+                'e' => vec![0],
+                'f' => vec![1, 2],
+                _   => vec![0],
+            }).into()
+        }
+
+        fn transition(&self, state: &char, _: &VarSet, d: Decision) -> char {
+            match (*state, d.value) {
+                ('r', 10) => 'a',
+                ('r',  0) => 'b',
+                ('a',  2) => 'c', // merged into M
+                ('b',100) => 'd', // merged into M
+                ('b',  7) => 'e',
+                ('b',  5) => 'f',
+                ('M',  4) => 'g',
+                ('e',  0) => 'h',
+                ('f',  1) => 'h',
+                ('f',  2) => 'i',
+                _         => 't'
+            }
+        }
+
+        fn transition_cost(&self, _: &char, _: &VarSet, d: Decision) -> isize {
+            d.value
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    struct LocBoundExampleRelax;
+    impl Relaxation<char> for LocBoundExampleRelax {
+        fn merge_states(&self, _: &mut dyn Iterator<Item=&char>) -> char {
+            'M'
+        }
+
+        fn relax_edge(&self, _: &char, _: &char, _: &char, _: Decision, cost: isize) -> isize {
+            cost
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    struct CmpChar;
+    impl NodeSelectionHeuristic<char> for CmpChar {
+        fn compare(&self, a: &dyn SelectableNode<char>, b: &dyn SelectableNode<char>) -> Ordering {
+            a.state().cmp(b.state())
+        }
+    }
+
+    #[test]
+    fn relaxed_computes_local_bounds() {
+        let mut mdd = DD::from(
+            mdd_builder(&LocBoundsExamplePb, LocBoundExampleRelax)
+                .with_nodes_selection_heuristic(CmpChar)
+                .with_max_width(FixedWidth(3))
+                .build());
+
+        let root = mdd.config.root_node();
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
+
+        assert_eq!(false, mdd.is_exact());
+        assert_eq!(104,   mdd.best_value());
+
+        let mut v = HashMap::<char, isize>::default();
+        mdd.for_each_cutset_node(|n| {v.insert(*n.state, n.ub);});
+
+        assert_eq!(16,  v[&'c']);
+        assert_eq!(104, v[&'d']);
+    }
+
 }
