@@ -261,15 +261,11 @@ where T: Eq + Hash + Clone,
         let layers=&mut self.layers;
 
         // add the nodes remaining in the pool as final layer
-        let must_flush = !pool.is_empty();
-        if must_flush {
-            let last_layer_start = nodes.len();
-            pool.drain().for_each(|(_, v)| nodes.push(v));
-            let last_layer = LayerData { begin: last_layer_start, end: nodes.len() };
-            layers.push(last_layer);
-        }
+        let prev_end = nodes.len();
+        pool.drain().for_each(|(_, v)| nodes.push(v));
+        let last_layer = LayerData{begin: prev_end, end: nodes.len()};
+        layers.push(last_layer);
 
-        let last_layer = self.layers.last().unwrap();
         let terminal_nodes = nodes.iter().enumerate().skip(last_layer.begin);
         self.best_node = terminal_nodes
             .max_by_key(|(_id, node)| node.from_top)
@@ -333,53 +329,56 @@ where T: Eq + Hash + Clone,
         match pool.entry(Rc::clone(&node.state)) {
             Entry::Vacant(re) => {
                 let est = config.estimate(node.state.as_ref());
-                if est > best_lb {
+                let ub  = node.from_top.saturating_add(est);
+                if ub > best_lb {
                     config.upon_node_insert(node.state.as_ref());
                     re.insert(node);
                 }
             },
             Entry::Occupied(mut re) => {
                 let old = re.get_mut();
-                if old.flags.is_exact() && !node.flags.is_exact() {
-                    let nid = NodeId(nodes.len());
-                    nodes.push(old.clone());
-                    cutset.push(nid);
-
-                    // connect cutset node to the one in the pool
-                    let eid = Self::_new_edge(nid, 0, None, edges);
-                    edges[eid.0].next = old.inbound;
-                    old.inbound = Some(eid);
-                } else if node.is_exact() && !old.is_exact() {
-                    let nid = NodeId(nodes.len());
-                    nodes.push(node.clone());
-                    cutset.push(nid);
-
-                    // connect cutset node to the one in the pool
-                    let eid = Self::_new_edge(nid, 0, None, edges);
-                    edges[eid.0].next = old.inbound;
-                    old.inbound = Some(eid);
-                }
-                Self::merge(edges, old, node);
+                Self::merge(old, node, nodes, edges, cutset);
             }
         }
     }
 
-    fn merge(edges: &mut [EdgeData], old: &mut NodeData<T>, new: NodeData<T>) {
-        old.flags.set_exact(old.flags.is_exact() && new.flags.is_exact());
-        // concatenate edges lists
-        let mut last_eid = new.inbound;
-        loop {
-            let edge = edges[last_eid.unwrap().0];
-            if edge.next.is_some() {
-                last_eid = edge.next;
-            } else {
-                break;
-            }
-        }
-        //
-        edges[last_eid.unwrap().0].next = old.inbound;
-        old.inbound = new.inbound;
+    fn merge(old: &mut NodeData<T>, new: NodeData<T>,
+             nodes: &mut Vec<NodeData<T>>,
+             edges: &mut Vec<EdgeData>,
+             cutset:&mut Vec<NodeId>) {
 
+        // maintain the frontier cutset
+        let cutset_end = cutset.len();
+        if old.flags.is_exact() && !new.flags.is_exact() {
+            let nid = NodeId(nodes.len());
+            nodes.push(old.clone());
+            cutset.push(nid);
+        } else if new.flags.is_exact() && !old.flags.is_exact() {
+            let nid = NodeId(nodes.len());
+            nodes.push(new.clone());
+            cutset.push(nid);
+        }
+
+        // concatenate edges lists
+        let mut next_edge = new.inbound;
+        while let Some(eid) = next_edge {
+            let edge = &mut edges[eid.0];
+            next_edge   = edge.next;
+            edge.next   = old.inbound;
+            old.inbound = Some(eid);
+        }
+
+        // connect edges from potential cutset nodes to the merged node
+        for pos in cutset_end..cutset.len() {
+            let nid     = cutset[pos];
+            let eid     = Self::_new_edge(nid, 0, None, edges);
+            let edge    = &mut edges[eid.0];
+            edge.next   = old.inbound;
+            old.inbound = Some(eid);
+        }
+
+        // merge flags
+        old.flags.set_exact(old.flags.is_exact() && new.flags.is_exact());
         if new.from_top > old.from_top {
             old.from_top  = new.from_top;
             old.best_edge = new.best_edge;
@@ -446,7 +445,7 @@ where T: Eq + Hash + Clone,
 
         // Select the nodes to be merged
         current.sort_unstable_by(|a, b| self.config.compare(a, b).reverse());
-        let (keep, squash) = current.split_at_mut(self.max_width - 1);
+        let (_keep, squash) = current.split_at_mut(self.max_width - 1);
 
         // Merge the states of the nodes that must go
         let merged = self.config.merge_states(&mut squash.iter().map(|n| n.state.as_ref()));
@@ -464,10 +463,6 @@ where T: Eq + Hash + Clone,
             }
         }
 
-        // Determine the identifier of the new merged node. If the merged state
-        // is already known, combine the known state with the merger
-        let pos = keep.iter().enumerate()
-            .find(|(_i, nd)| nd.state == merged).map(|(i,_)|i);
         // .. make a default node
         let mut merged_node = NodeData {
             state      : Rc::clone(&merged),
@@ -477,40 +472,30 @@ where T: Eq + Hash + Clone,
             inbound    : None,
             best_edge  : None,
         };
-        // .. combine w/ prev. known state if necessary
-        if let Some(pos) = pos {
-            let old = &keep[pos];
-            merged_node.from_top  = old.from_top;
-            merged_node.from_bot  = old.from_bot;
-            merged_node.inbound   = old.inbound;
-            merged_node.best_edge = old.best_edge;
-        }
 
         // Relax all edges and transfer them to the new merged node (op. gamma)
         for node in squash.iter() {
             let mut it = node.inbound;
             while let Some(eid) = it {
                 let edge      = &mut self.edges[eid.0];
-                let parent    = &self.nodes[edge.src.0];
+                if let Some(decision) = edge.decision { // you only want to proceed for real edges
+                    let parent    = &self.nodes[edge.src.0];
 
-                let src_state = parent.state.as_ref();
-                let dst_state = node.state.as_ref();
-                let mrg_state = merged_node.state.as_ref();
+                    let src_state = parent.state.as_ref();
+                    let dst_state = node.state.as_ref();
+                    let mrg_state = merged_node.state.as_ref();
 
-                it = edge.next;
-                if edge.decision.is_none() { // you only want to proceed for real edges
-                    continue;
+                    edge.weight = self.config.relax_edge(src_state, dst_state, mrg_state, decision, edge.weight);
+
+                    // update the merged node if the relaxed edge improves longest path
+                    if parent.from_top.saturating_add(edge.weight) > merged_node.from_top {
+                        merged_node.from_top  = parent.from_top.saturating_add(edge.weight);
+                        merged_node.best_edge = Some(eid);
+                    }
                 }
-
-                edge.weight   = self.config.relax_edge(src_state, dst_state, mrg_state, edge.decision.unwrap(), edge.weight);
-                edge.next     = merged_node.inbound;
+                it        = edge.next;
+                edge.next = merged_node.inbound;
                 merged_node.inbound = Some(eid);
-
-                // update the merged node if the relaxed edge improves longest path
-                if parent.from_top.saturating_add(edge.weight) > merged_node.from_top {
-                    merged_node.from_top  = parent.from_top.saturating_add(edge.weight);
-                    merged_node.best_edge = Some(eid);
-                }
             }
         }
 
@@ -526,8 +511,12 @@ where T: Eq + Hash + Clone,
 
         // Save the result of the merger
         current.truncate(self.max_width - 1);
+        // Determine the identifier of the new merged node. If the merged state
+        // is already known, combine the known state with the merger
+        let pos = current.iter().enumerate()
+            .find(|(_i, nd)| nd.state == merged).map(|(i,_)|i);
         if let Some(pos) = pos {
-            current[pos] = merged_node;
+            Self::merge(&mut current[pos], merged_node, &mut self.nodes, &mut self.edges, &mut self.cutset);
         } else {
             current.push(merged_node);
         }
