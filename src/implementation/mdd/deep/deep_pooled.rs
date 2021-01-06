@@ -625,3 +625,487 @@ impl <T> SelectableNode<T> for NodeData<T> {
         self.flags.is_exact()
     }
 }
+
+
+// ############################################################################
+// #### TESTS #################################################################
+// ############################################################################
+
+#[cfg(test)]
+mod test_pooled_deep_mdd {
+    use std::sync::Arc;
+
+    use crate::abstraction::dp::{Problem, Relaxation};
+    use crate::abstraction::mdd::{MDD, Config};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::implementation::heuristics::FixedWidth;
+    use crate::implementation::mdd::config::mdd_builder;
+    use crate::implementation::mdd::MDDType;
+    use crate::test_utils::{MockConfig, MockCutoff, Proxy};
+    use mock_it::Matcher;
+    use crate::{VariableHeuristic, NaturalOrder, PooledDeepMDD};
+
+    type DD<T, C> = PooledDeepMDD<T, C>;
+
+    #[test]
+    fn by_default_the_mdd_type_is_exact() {
+        let config = MockConfig::default();
+        let mdd = DD::from(config);
+
+        assert_eq!(MDDType::Exact, mdd.mddtype);
+    }
+    #[test]
+    fn mdd_type_changes_depending_on_the_requested_type_of_mdd() {
+        let root_n = FrontierNode {
+            state: Arc::new(0),
+            lp_len: 0,
+            ub: 24,
+            path: Arc::new(PartialAssignment::Empty)
+        };
+
+        let config = MockConfig::default();
+        let mut mdd = DD::from(config);
+
+        assert!(mdd.relaxed(&root_n, 0, 1000).is_ok());
+        assert_eq!(MDDType::Relaxed, mdd.mddtype);
+
+        assert!(mdd.restricted(&root_n, 0, 1000).is_ok());
+        assert_eq!(MDDType::Restricted, mdd.mddtype);
+
+        assert!(mdd.exact(&root_n, 0, 1000).is_ok());
+        assert_eq!(MDDType::Exact, mdd.mddtype);
+    }
+
+    #[derive(Copy, Clone)]
+    struct DummyProblem;
+
+    impl Problem<usize> for DummyProblem {
+        fn nb_vars(&self) -> usize { 3 }
+        fn initial_state(&self) -> usize { 0 }
+        fn initial_value(&self) -> isize { 0 }
+        fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+            (0..=2).into()
+        }
+        fn transition(&self, state: &usize, _: &VarSet, d: Decision) -> usize {
+            *state + d.value as usize
+        }
+        fn transition_cost(&self, _: &usize, _: &VarSet, d: Decision) -> isize {
+            d.value
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    struct DummyRelax;
+
+    impl Relaxation<usize> for DummyRelax {
+        fn merge_states(&self, _: &mut dyn Iterator<Item=&usize>) -> usize {
+            100
+        }
+        fn relax_edge(&self, _: &usize, _: &usize, _: &usize, _: Decision, _: isize) -> isize {
+            20
+        }
+        fn estimate(&self, _state: &usize) -> isize {
+            50
+        }
+    }
+    #[test]
+    fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root   = mdd.config().root_node();
+        let result = mdd.exact(&root, 0, 1000);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root   = mdd.config().root_node();
+        let result = mdd.restricted(&root, 0, 1000);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let pb = DummyProblem;
+        let rlx= DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root   = mdd.config().root_node();
+        let result = mdd.relaxed(&root, 0, 1000);
+        assert!(result.is_ok());
+        let completion = result.unwrap();
+        assert_eq!(completion.is_exact  , mdd.is_exact());
+        assert_eq!(completion.best_value, Some(mdd.best_value()));
+    }
+    #[test]
+    fn exact_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let mut cutoff  = MockCutoff::default();
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&mut cutoff))
+            .build());
+
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.exact(&root, 0, 1000);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+    }
+    #[test]
+    fn restricted_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let mut cutoff  = MockCutoff::default();
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&mut cutoff))
+            .build());
+
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.restricted(&root, 0, 1000);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+    }
+    #[test]
+    fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
+        let pb      = DummyProblem;
+        let rlx     = DummyRelax;
+        let mut cutoff  = MockCutoff::default();
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .with_cutoff(Proxy::new(&mut cutoff))
+            .build());
+
+        cutoff.must_stop.given(Matcher::Any).will_return(true);
+
+        let root   = mdd.config().root_node();
+        let result = mdd.relaxed(&root, 0, 1000);
+        assert!(result.is_err());
+        assert_eq!(Some(Reason::CutoffOccurred), result.err());
+    }
+    // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
+    #[test]
+    fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root = mdd.config().root_node();
+
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
+        assert!(mdd.best_solution().is_some());
+        assert_eq!(mdd.best_value(), 6);
+        assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
+                   vec![
+                       Decision { variable: Variable(2), value: 2 },
+                       Decision { variable: Variable(1), value: 2 },
+                       Decision { variable: Variable(0), value: 2 },
+                   ]
+        );
+    }
+
+    #[test]
+    fn restricted_drops_the_less_interesting_nodes() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
+        assert!(mdd.best_solution().is_some());
+        assert_eq!(mdd.best_value(), 6);
+        assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
+                   vec![
+                       Decision { variable: Variable(2), value: 2 },
+                       Decision { variable: Variable(1), value: 2 },
+                       Decision { variable: Variable(0), value: 2 },
+                   ]
+        );
+    }
+
+    #[test]
+    fn relaxed_merges_the_less_interesting_nodes() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root = mdd.config().root_node();
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
+        assert!(mdd.best_solution().is_some());
+        assert_eq!(mdd.best_value(), 42);
+        assert_eq!(mdd.best_solution().unwrap().iter().collect::<Vec<Decision>>(),
+                   vec![
+                       Decision { variable: Variable(2), value: 2 },
+                       Decision { variable: Variable(1), value: 2 },
+                       Decision { variable: Variable(0), value: 2 },
+                   ]
+        );
+    }
+
+    #[test]
+    fn an_exact_mdd_must_be_exact() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx)
+            .with_max_width(FixedWidth(1))
+            .build());
+
+        let root = mdd.config().root_node();
+
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
+        assert_eq!(true, mdd.is_exact())
+    }
+
+    #[test]
+    fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
+        assert_eq!(true, mdd.is_exact())
+    }
+
+    #[test]
+    fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
+        assert_eq!(false, mdd.is_exact())
+    }
+    #[test]
+    fn a_relaxed_mdd_populates_frontier_cutset() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.relaxed(&root, 0, 1000).is_ok());
+
+        let mut cut = vec![];
+        mdd.for_each_cutset_node(|n| cut.push(*n.state.as_ref()));
+
+        cut.sort_unstable();
+        assert_eq!(vec![0, 1, 2], cut);
+    }
+
+    #[test]
+    fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).with_max_width(FixedWidth(10)).build());
+        let root = mdd.config().root_node();
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
+        assert_eq!(true, mdd.is_exact())
+    }
+
+    #[test]
+    fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).with_max_width(FixedWidth(1)).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 0, 1000).is_ok());
+        assert_eq!(false, mdd.is_exact())
+    }
+
+    #[derive(Clone, Copy)]
+    struct DummyInfeasibleProblem;
+
+    impl Problem<usize> for DummyInfeasibleProblem {
+        fn nb_vars(&self) -> usize { 3 }
+        fn initial_state(&self) -> usize { 0 }
+        fn initial_value(&self) -> isize { 0 }
+        #[allow(clippy::reversed_empty_ranges)]
+        fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
+            (0..0).into()
+        }
+        fn transition(&self, state: &usize, _: &VarSet, d: Decision) -> usize {
+            *state + d.value as usize
+        }
+        fn transition_cost(&self, _: &usize, _: &VarSet, d: Decision) -> isize {
+            d.value
+        }
+    }
+
+    #[test]
+    fn when_the_problem_is_infeasible_there_is_no_solution() {
+        let pb = DummyInfeasibleProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+
+    #[test]
+    fn when_the_problem_is_infeasible_the_best_value_is_min_infinity() {
+        let pb = DummyInfeasibleProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.exact(&root, 0, 1000).is_ok());
+        assert_eq!(isize::min_value(), mdd.best_value())
+    }
+
+    #[test]
+    fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+
+    #[test]
+    fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+
+    #[test]
+    fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut mdd = DD::from(mdd_builder(&pb, rlx).build());
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+
+    #[derive(Copy, Clone, Default)]
+    struct DummyIncrementalVarHeu {
+        cleared : usize,
+        inserted: usize,
+        layers  : usize,
+    }
+    impl VariableHeuristic<usize> for DummyIncrementalVarHeu {
+        fn next_var(&self, free_vars: &VarSet, current_layer: &mut dyn Iterator<Item=&usize>, next_layer: &mut dyn Iterator<Item=&usize>) -> Option<Variable> {
+            NaturalOrder.next_var(free_vars, current_layer, next_layer)
+        }
+
+        fn upon_new_layer(&mut self, _var: Variable, _current_layer: &mut dyn Iterator<Item=&usize>) {
+            self.layers += 1;
+        }
+
+        fn upon_node_insert(&mut self, _state: &usize) {
+            self.inserted += 1;
+        }
+
+        fn clear(&mut self) {
+            self.cleared += 1;
+        }
+    }
+    #[test]
+    fn config_is_cleared_before_developing_any_mddtype() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&mut heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert_eq!(1, heu.cleared);
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert_eq!(2, heu.cleared);
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert_eq!(3, heu.cleared);
+    }
+
+    #[test]
+    fn upon_layer_is_called_whenever_a_new_layer_is_created() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&mut heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        assert!(mdd.restricted(&root, 100, 1000).is_ok());
+        assert_eq!(3, heu.layers);
+
+        assert!(mdd.relaxed(&root, 100, 1000).is_ok());
+        assert_eq!(6, heu.layers);
+
+        assert!(mdd.exact(&root, 100, 1000).is_ok());
+        assert_eq!(9, heu.layers);
+    }
+
+    #[test]
+    fn upon_insert_is_called_whenever_a_non_existing_node_is_added_to_next_layer() {
+        let pb = DummyProblem;
+        let rlx = DummyRelax;
+        let mut heu = DummyIncrementalVarHeu::default();
+
+        let config = mdd_builder(&pb, rlx)
+            .with_branch_heuristic(Proxy::new(&mut heu))
+            .build();
+
+        let mut mdd  = DD::from(config);
+        let root = mdd.config().root_node();
+
+        // Exact mdd comprises 16 nodes (includes the root)
+        assert!(mdd.exact(&root, -100, 1000).is_ok());
+        assert_eq!(16, heu.inserted);
+
+        assert!(mdd.restricted(&root, -100, 1000).is_ok());
+        assert_eq!(30, heu.inserted);
+
+        assert!(mdd.relaxed(&root, -100, 1000).is_ok());
+        assert_eq!(46, heu.inserted);
+    }
+}
