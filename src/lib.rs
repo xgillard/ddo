@@ -270,6 +270,7 @@ pub use crate::abstraction::solver::*;
 pub use crate::implementation::mdd::{
       config::*,
       deep::mdd::DeepMDD,
+      deep::deep_pooled::PooledDeepMDD,
       shallow::flat::FlatMDD,
       shallow::pooled::PooledMDD,
       hybrid::{CompositeMDD,HybridFlatDeep,HybridPooledDeep},

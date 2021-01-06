@@ -22,3 +22,5 @@
 
 pub mod mdd;
 pub mod mddgraph;
+
+pub mod deep_pooled;

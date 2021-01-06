@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver, PooledMDD};
+use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver, PooledDeepMDD};
 
 use crate::relax::MispRelax;
 use crate::heuristics::{VarsFromMispState, MispFrontierOrder, MispVarHeu};
@@ -83,7 +83,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_max_width(FixedWidth(w))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = PooledMDD::from(conf);
+            let mdd = PooledDeepMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -101,7 +101,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_max_width(FixedWidth(w))
                 .build();
-            let mdd = PooledMDD::from(conf);
+            let mdd = PooledDeepMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -119,7 +119,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = PooledMDD::from(conf);
+            let mdd = PooledDeepMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -136,7 +136,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_load_vars(VarsFromMispState)
                 .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .build();
-            let mdd = PooledMDD::from(conf);
+            let mdd = PooledDeepMDD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
