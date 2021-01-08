@@ -19,7 +19,9 @@
 
 use std::fs::File;
 use std::time::{Duration, Instant};
+use std::path::Path;
 
+use peak_alloc::PeakAlloc;
 use structopt::StructOpt;
 
 use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, FixedWidth, Solution, Completion, Problem, SequentialSolver, PooledDeepMDD};
@@ -27,12 +29,18 @@ use ddo::{config_builder, Solver, ParallelSolver, NoDupFrontier, TimeBudget, Fix
 use crate::relax::MispRelax;
 use crate::heuristics::{VarsFromMispState, MispFrontierOrder, MispVarHeu};
 use crate::model::Misp;
-use std::path::Path;
 
 mod instance;
 mod model;
 mod relax;
 mod heuristics;
+
+#[global_allocator]
+static PEAK_ALLOC: PeakAlloc = PeakAlloc;
+
+/// This is nothing but a convenient type alias which lets me change the
+/// underlying data structure at once during my experiments.
+type DD<T, C> = PooledDeepMDD<T, C>;
 
 /// MISP is a solver based on branch-and-bound mdd which solves the maximum
 /// independent set problem to optimality.
@@ -83,7 +91,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_max_width(FixedWidth(w))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = PooledDeepMDD::from(conf);
+            let mdd = DD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -101,7 +109,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_max_width(FixedWidth(w))
                 .build();
-            let mdd = PooledDeepMDD::from(conf);
+            let mdd = DD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -119,7 +127,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = PooledDeepMDD::from(conf);
+            let mdd = DD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -136,7 +144,7 @@ fn solver<'a>(pb:    &'a Misp,
                 .with_load_vars(VarsFromMispState)
                 .with_branch_heuristic(MispVarHeu::new(pb.nb_vars()))
                 .build();
-            let mdd = PooledDeepMDD::from(conf);
+            let mdd = DD::from(conf);
 
             if threads > 1 {
                 let solver = ParallelSolver::customized(mdd, verbosity, threads)
@@ -176,6 +184,11 @@ fn main() {
             let solution   = solver.as_ref().best_solution();
             let duration   = finish - start;
 
+            if verbosity >= 1 {
+                println!("# -- Peak Memory: {} MB || Current {} MB",
+                         PEAK_ALLOC.peak_usage_as_mb(),
+                         PEAK_ALLOC.current_usage_as_mb());
+            }
             if header {
                 print_header();
             }

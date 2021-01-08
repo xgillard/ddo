@@ -369,8 +369,7 @@ where T: Eq + Hash + Clone,
         }
 
         // connect edges from potential cutset nodes to the merged node
-        for pos in cutset_end..cutset.len() {
-            let nid     = cutset[pos];
+        for nid in cutset.iter().skip(cutset_end).copied() {
             let eid     = Self::_new_edge(nid, 0, None, edges);
             let edge    = &mut edges[eid.0];
             edge.next   = old.inbound;
