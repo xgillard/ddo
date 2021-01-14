@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{Solver, ParallelSolver, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, Problem, DeepMDD, Variable};
+use ddo::{Solver, ParallelSolver, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, DeepMDD, Variable};
 
 use crate::heuristics::{Max2SatOrder, MinRank, LoadVarsFromMax2SatState};
 use crate::relax::Max2SatRelax;
@@ -87,7 +87,6 @@ fn main() {
             let finish     = Instant::now();
 
             let instance   = instance_name(&instance);
-            let nb_vars    = problem.nb_vars();
             let lb         = objective(solver.as_ref().best_lower_bound());
             let ub         = objective(solver.as_ref().best_upper_bound());
             let solution   = solver.as_ref().best_solution();
@@ -96,10 +95,7 @@ fn main() {
             if header {
                 print_header();
             }
-            if verbosity > 2 {
-                println!("Solution cost (sum of unsat clauses) = {}", solution_cost(&problem, &solution))
-            }
-            print_solution(&instance, nb_vars, outcome, &lb, &ub, duration, solution);
+            print_solution(&instance, &problem, outcome, &lb, &ub, duration, solution);
         },
     }
 }
@@ -196,16 +192,17 @@ fn solution_cost(pb: &Max2Sat, solution: &Option<Solution>) -> isize {
 }
 
 fn print_header() {
-    println!("{:40} | {:10} | {:10} | {:10} | {:10} | {:8}",
-             "INSTANCE", "STATUS", "LB", "UB", "DURATION", "SOLUTION");
+    println!("{:40} | {:10} | {:10} | {:10} | {:10} | {:10} | {:8}",
+             "INSTANCE", "STATUS", "LB", "UB", "DURATION", "COST", "SOLUTION");
 }
-fn print_solution(name: &str, n: usize, completion: Completion, lb: &str, ub: &str, duration: Duration, solution: Option<Solution>) {
-    println!("{:40} | {:10} | {:10} | {:10} | {:10.3} | {}",
+fn print_solution(name: &str, pb: &Max2Sat, completion: Completion, lb: &str, ub: &str, duration: Duration, solution: Option<Solution>) {
+    println!("{:40} | {:10} | {:10} | {:10} | {:10.3} | {:10} | {}",
              name,
              status(completion),
              lb, ub,
              duration.as_secs_f32(),
-             solution_to_string(n, solution));
+             solution_cost(pb, &solution),
+             solution_to_string(pb.nb_vars, solution));
 }
 fn instance_name<P: AsRef<Path>>(fname: P) -> String {
     fname.as_ref().file_name().unwrap().to_str().unwrap().to_string()
@@ -233,8 +230,8 @@ fn solution_to_string(nb_vars: usize, solution: Option<Solution>) -> String {
                 perm[d.variable.id()] = d.value;
             }
             let mut txt = String::new();
-            for v in perm {
-                txt = format!("{} {}", txt, v);
+            for (i,v) in perm.iter().copied().enumerate() {
+                txt = format!("{} {}", txt, (1+i) as isize *v);
             }
             txt
         }
