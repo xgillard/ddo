@@ -22,12 +22,12 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{Solver, ParallelSolver, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, Problem, DeepMDD};
+use ddo::{Solver, ParallelSolver, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, Problem, DeepMDD, Variable};
 
 use crate::heuristics::{Max2SatOrder, MinRank, LoadVarsFromMax2SatState};
 use crate::relax::Max2SatRelax;
 use std::path::Path;
-use crate::model::Max2Sat;
+use crate::model::{Max2Sat, f, t};
 
 mod instance;
 mod model;
@@ -96,6 +96,9 @@ fn main() {
             if header {
                 print_header();
             }
+            if verbosity > 2 {
+                println!("Solution cost (sum of unsat clauses) = {}", solution_cost(&problem, &solution))
+            }
             print_solution(&instance, nb_vars, outcome, &lb, &ub, duration, solution);
         },
     }
@@ -158,6 +161,37 @@ fn solver<'a>(pb:    &'a Max2Sat,
                 .with_frontier(NoDupFrontier::default());
             Box::new(solver)
         },
+    }
+}
+
+fn solution_cost(pb: &Max2Sat, solution: &Option<Solution>) -> isize {
+    if let Some(sol) = solution {
+        let n = pb.nb_vars;
+        let mut model = vec![0; n];
+        for d in sol.iter() {
+            model[d.variable.id()] = d.value;
+        }
+
+        let mut cost = 0;
+        for i in 0..n {
+            for j in i..n {
+                if model[i] == 1 && model[j] == 1 {
+                    cost += pb.weight(f(Variable(i)), f(Variable(j)))
+                }
+                if model[i] ==-1 && model[j] ==-1 {
+                    cost += pb.weight(t(Variable(i)), t(Variable(j)))
+                }
+                if model[i] == 1 && model[j] ==-1 {
+                    cost += pb.weight(f(Variable(i)), t(Variable(j)))
+                }
+                if model[i] ==-1 && model[j] == 1 {
+                    cost += pb.weight(t(Variable(i)), f(Variable(j)))
+                }
+            }
+        }
+        cost
+    } else {
+        isize::max_value()
     }
 }
 

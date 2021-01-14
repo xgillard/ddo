@@ -47,15 +47,12 @@ impl <'a> Max2SatRelax<'a> {
         }
         estimates
     }
-    fn precompute_nk(pb: &Max2Sat, depth: usize) -> isize {
-        let n  = pb.nb_vars;
-
+    fn precompute_nk(pb: &Max2Sat, k: usize) -> isize {
         let mut sum = 0_isize;
-        for i in 0..(n-depth) {
+        for i in 0..k {
             let vi = pb.vars_by_sum_of_clause_weights[i];
             sum += pb.weight(t(vi), f(vi));
         }
-
         sum
     }
     fn precompute_estimates(pb: &Max2Sat) -> Vec<isize> {
@@ -65,29 +62,37 @@ impl <'a> Max2SatRelax<'a> {
         }
         estimates
     }
-    fn precompute_estimate(pb: &Max2Sat, depth: usize) -> isize {
+    fn precompute_estimate(pb: &Max2Sat, k: usize) -> isize {
         let n   = pb.nb_vars;
         let mut sum = 0;
-        for i in 0..(n-depth) {
-            for j in i..(n-depth) {
-                let vi = pb.vars_by_sum_of_clause_weights[i];
+        for i in k..n {
+            let vi = pb.vars_by_sum_of_clause_weights[i];
+            // 1st line of the equation (when i != j)
+            for j in i+1..n {
                 let vj = pb.vars_by_sum_of_clause_weights[j];
-
                 let wtt = pb.weight(t(vi), t(vj))
                         + pb.weight(t(vi), f(vj))
                         + pb.weight(f(vi), t(vj));
+
                 let wtf = pb.weight(t(vi), t(vj))
                         + pb.weight(t(vi), f(vj))
                         + pb.weight(f(vi), f(vj));
+
                 let wft = pb.weight(t(vi), t(vj))
                         + pb.weight(f(vi), t(vj))
                         + pb.weight(f(vi), f(vj));
+
                 let wff = pb.weight(t(vi), f(vj))
                         + pb.weight(f(vi), t(vj))
                         + pb.weight(f(vi), f(vj));
 
                 sum += max(max(wtt, wtf), max(wft, wff));
             }
+            // 2nd line of the equation: tautological + unit clauses.
+            let taut  = pb.weight(t(vi), f(vi));
+            let u_pos = pb.weight(t(vi), t(vi));
+            let u_neg = pb.weight(f(vi), f(vi));
+            sum += taut + max(u_pos, u_neg);
         }
         sum
     }
@@ -131,8 +136,10 @@ impl Relaxation<State> for Max2SatRelax<'_> {
         relaxed_cost
     }
     fn estimate  (&self, state  : &State) -> isize {
-        let depth = state.depth;
-
-        self.estimates[depth] - self.nk[depth] + state.substates.iter().map(|b| b.abs()).sum::<isize>()
+        let k = state.depth;
+        let marginal_benefit = state.substates.iter().copied()
+            .map(|b| b.abs())
+            .sum::<isize>();
+        marginal_benefit + self.estimates[k] - self.vr + self.nk[k]
     }
 }
