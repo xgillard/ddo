@@ -27,73 +27,174 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use crate::{Decision, NodeFlags, PartialAssignment, Config, MDDType, MDD, Completion, FrontierNode, Solution, Reason, Variable, VarSet, SelectableNode};
 
+/// This is a typesafe identifier for a node in the mdd graph. In practice,
+/// it maps to the position of the given node in the `nodes` field of the
+/// pooled mdd.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct NodeId(usize);
 
+/// This is a typesafe identifier for an edge in the mdd graph. In practice,
+/// it maps to the position of the given edge in the `edges` field of the
+/// pooled mdd.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct EdgeId(usize);
 
+/// This is a typesafe identifier for a layer in the mdd. In practice, it maps
+/// to the position of the layer in the pooled mdd.
+///
+/// # Warning
+/// Because the pooled mdd contains so called long arcs, a layer may not contain
+/// *all* the nodes it ought to normally contain.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 struct LayerId(usize);
 
+/// This is the concrete description of an edge in the mdd. It retains the
+/// source node from which this edge stretches, the weight of the edge and
+/// the decition that led to the drawing of this edge.
+///
+/// # Note
+/// For the sake of simplicity, the edge constitute some kind of simply linked
+/// list: each edge may possibly contain the identifier of the next edge in the
+/// list. This makes it simple and efficient to store the list of inbound edges
+/// inside of a node.
 #[derive(Debug, Copy, Clone)]
 struct EdgeData {
-    src     : NodeId,
-    weight  : isize,
+    /// This is the source node from which the edge originates
+    src: NodeId,
+    /// This is the weight of the edge
+    weight: isize,
+    /// This is the decision that led to the stretching of this edge.
+    /// # Note:
+    /// In general all edges should have an associated decision. However,
+    /// it was decided that in order to efficiently maintain the frontier
+    /// cutset of the pooled mdd while retaining the ability to easily compute
+    /// local bounds for cutset nodes; these would be stored _between_ the layer
+    /// demarcations, and connected to the node they have been merged into via
+    /// a zero-weighted edge having no associated decision.
     decision: Option<Decision>,
-    next    : Option<EdgeId>
+    /// This is the 'pointer' to the next edge in the linked list.
+    next: Option<EdgeId>
 }
+/// This is the concrete description of a node in the mdd. It retains the state
+/// of the nodes, its inbound edges (which form a linked list) as well as some
+/// meta data.
 #[derive(Clone)]
 struct NodeData<T> {
-    state    : Rc<T>,
-    from_top : isize,
-    from_bot : isize,
-    flags    : NodeFlags,
-    inbound  : Option<EdgeId>,
+    /// This is the state of the node.
+    state: Rc<T>,
+    /// This is the length of the longest path between the root and this node.
+    from_top: isize,
+    /// This is the length of the longest path between this node and the
+    /// terminal node of this mdd (or seen an other way, the length of the
+    /// longest path between this node and any node from the last layer of the
+    /// mdd).
+    ///
+    /// # Note
+    /// This field is only ever populated after the MDD has been fully unrolled.
+    from_bot: isize,
+    /// A group of flag telling if the node is an exact node, if it is a relaxed
+    /// node (helps to determine if the best path is an exact path) and if the
+    /// node is reachable in a backwards traversal of the MDD starting at the
+    /// terminal node.
+    flags: NodeFlags,
+    /// If present, this is the index of the head of the edge list of this node.
+    /// This node stores the incoming edges entering the node.
+    inbound: Option<EdgeId>,
+    /// If present, this is the index of the parent sitting on the longest path
+    /// between the root and this node (the path whose length is `lp_from_top`.
     best_edge: Option<EdgeId>
 }
+/// This structure stores basic information about a given layer: the index of
+/// the first node belonging to this layer and the first index after the end
+/// of it.
 #[derive(Debug, Copy, Clone)]
 struct LayerData {
-    begin    : usize,
-    end      : usize
+    /// This is the index of the first node belonging to this layer.
+    begin: usize,
+    /// The position *after* the last node of this layer.
+    /// Because `end` points *after* the end of the layer, it must be the case
+    /// that the layer is empty whenever `start == end`.
+    end: usize
 }
+
+/// This structure provides an implementation of a pooled mdd (one that may
+/// feature long arcs) while at the same time being a deep mdd (one that
+/// materializes the complete mdd graph). It implements rough upper bound and
+/// local bounds to strengthen the pruning achieved by the branch and bound
+/// algorithm. It uses the given configuration to develop the (approximate) MDD.
 #[derive(Clone)]
 pub struct PooledDeepMDD<T, C>
     where T: Eq + Hash + Clone,
           C: Config<T> + Clone,
 {
+    /// This object holds the 'configuration' of the MDD: the problem, relaxation
+    /// and heuristics to use.
     config : C,
+    /// Because the same instance can be used to develop an exact,
+    /// restricted or relaxed MDD, we use the `mddtype` to remember the type
+    /// of MDD we are currently developing or have developed.
     mddtype: MDDType,
+    /// This is the maximum width allowed for a layer of the MDD. It is
+    /// determined once at the beginning of the MDD derivation.
     max_width: usize,
-    //
+    /// This is the pool of candidate nodes that might possibly participate in
+    /// the next layer.
     pool: HashMap<Rc<T>, NodeData<T>>,
-    // Un noeud n'est ici que ssi on l'a sorti du pool et qu'il appartient au
-    // mdd final.
+    /// This is the complete list with all the nodes data of the graph.
+    /// The position a `NodeId` refers to is to be understood as a position
+    /// in this vector.
+    ///
+    /// # Important Note:
+    /// A node is only present in this vector iff it has been withdrawn from the
+    /// pool **and it belongs to the final mdd**.
     nodes: Vec<NodeData<T>>,
-    // * Qd on fusionne des noeuds, on ne perd pas d'edge (elles sont relaxed et
-    //   redirigées vers le noeud fusionné).
-    // * Qd on supprime un noeud (restrict), on devrait recycler des edges qui
-    //   seraient dangling.
-    // * Les noeuds qui font partie du frontier cutset doivent être ajoutés au
-    //   graphe (de sorte qu'on puisse les retraverser lors du bottom up)
-    //   **et** il faut ajouter une edge de poids 0 entre le noeud du cutset
-    //   et le noeud 'fusion' qu'il représente. (concrètement, on doit ajouter
-    //   une edge dont la 'src' est l'id du noeud du cutset au nodedata du noeud
-    //   fusion).
-    //   ==> Les noeuds qui appartiennent au cutset se trouvent **entre** les
-    //       démarcations formées par les différents layers.
+    /// This is the complete list with all the edges data of the graph.
+    /// The position an `EdgeId` refers to is to be understood as a position
+    /// in this vector.
+    ///
+    /// # Notes
+    /// 1. When one merges nodes, no edge is lost. They are relaxed and
+    ///    redirected towards the merged node.
+    /// 2. When one deletes a node (restrict), it would be nice if we could
+    ///    recycle the dangling edges (not done so far).
+    /// 3. The nodes that pertain to the frontier cutset must be added to the
+    ///    final graph. This way, they can be traversed during the bottom up
+    ///    traversal to compute local bounds. (They are added *between* the
+    ///    layers demarcations). Additionally, it is required to connect the
+    ///    cutset node to the 'merged node' it was integrated into. Concretely,
+    ///    this is done by adding a zero-weighted, unlabelled edge between the
+    ///    cutset node and the merged node.
     edges: Vec<EdgeData>,
-    // Cela ne contient que les identifiants des noeuds qui font partie du cutset.
-    cutset   : Vec<NodeId>,
-    layers   : Vec<LayerData>,
-    lel      : Option<LayerId>,
-    //
-    root_pa  : Option<Arc<PartialAssignment>>,
-    best_lb  : isize,
+    /// This vector contains the identifiers of all nodes beloning to the
+    /// frontier cutset of the mdd.
+    cutset: Vec<NodeId>,
+    /// This is the complete list with all the layers of the graph.
+    /// The position a `LayerId` refers to is to be understood as a position
+    /// in this vector.
+    layers: Vec<LayerData>,
+    /// If present, this is the identifier of the last exact layer.
+    /// # Warning
+    /// Even though the last layer is easily spotted in a pooled mdd, nothing
+    /// guarantees that the layer data associated to the LEL is sufficient to
+    /// retrieve all nodes that ought to belong to LEL. (This is due to the
+    /// long arcs in the mdd graph).
+    lel: Option<LayerId>,
+    /// If present, this is a shared reference to the partial assignment describing
+    /// the path between the exact root of the problem and the root of this
+    /// (possibly approximate) sub-MDD.
+    root_pa: Option<Arc<PartialAssignment>>,
+    /// This is the best known lower bound at the time of the MDD unrolling.
+    /// This field is set once before developing mdd.
+    best_lb: isize,
+    /// This field memoizes the best node of the MDD. That is, the node of this
+    /// mdd having the longest path from root.
     best_node: Option<NodeId>,
+    /// A flag indicating whether this mdd is exact
     is_exact : bool,
 }
 
+/// As the name suggests, `PooledDeepMDD` is an implementation of the `MDD` trait.
+/// See the trait definiton for the documentation related to these methods.
 impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
     where T: Eq + Hash + Clone,
           C: Config<T> + Clone
@@ -135,11 +236,12 @@ impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
     }
 }
 
+/// Private functions
 impl <T, C> PooledDeepMDD<T, C>
 where T: Eq + Hash + Clone,
       C: Config<T> + Clone
 {
-    /// Creates a new mdd from the given configuration
+    /// Constructor, uses the given config to parameterize the mdd's behavior
     pub fn new(c: C) -> Self {
         Self {
             config           : c,
@@ -211,7 +313,9 @@ where T: Eq + Hash + Clone,
             ub    : ub_bot.min(ub_est)
         }
     }
-
+    /// Develops/Unrolls the requested type of MDD, starting from a given root
+    /// node. It only considers nodes that are relevant wrt. the given best lower
+    /// bound (`best_lb`).
     fn develop(&mut self, mddtype: MDDType, root: &FrontierNode<T>, best_lb: isize, ub: isize) -> Result<Completion, Reason> {
         self.clear();
 
@@ -281,13 +385,17 @@ where T: Eq + Hash + Clone,
             best_value   : self.best_node.map(|nid| self.nodes[nid.0].from_top)
         }
     }
-
+    /// Returns the next variable to branch on (according to the configured
+    /// branching heuristic) or None if all variables have been assigned a value.
     fn next_var(&self, free_vars: &VarSet, current: &[NodeData<T>]) -> Option<Variable> {
         let mut curr_it = current.iter().map(|n| n.state.as_ref());
         let mut next_it = self.pool.keys().map(|k| k.as_ref());
 
         self.config.select_var(free_vars, &mut curr_it, &mut next_it)
     }
+    /// Selects and moves the set of nodes from the `current` pool that are
+    /// relevant to build the next layer (knowing that the next variable that
+    /// will be decided upon will be `var`).
     fn select_relevant_nodes(&mut self, var: Variable, current: &mut Vec<NodeData<T>>) {
         current.clear();
 
@@ -303,6 +411,15 @@ where T: Eq + Hash + Clone,
             self.pool.remove(&node.state);
         }
     }
+    /// This method records the branching from the given `node` with the given
+    /// `decision`. It creates a fresh node for the `dest` state (or reuses one
+    /// if `dest` already belongs to the pool) and draws an edge of of the given
+    /// `weight` between `src` and the new node.
+    ///
+    /// ### Note:
+    /// In case where this branching would create a new longest path to an
+    /// already existing node, the length and best parent of the pre-existing
+    /// node are updated.
     fn branch(&mut self, src: NodeId, dest: T, decision: Decision, weight: isize) {
         let parent = &self.nodes[src.0];
         let edge   = Self::_new_edge(src, weight, Some(decision), &mut self.edges);
@@ -341,7 +458,14 @@ where T: Eq + Hash + Clone,
             }
         }
     }
-
+    /// This method ensures that a node be effectively merged with the 2nd one
+    /// even though it is shielded behind a shared ref. This method makes sure
+    /// to keep the cutset consistent as needed.
+    ///
+    /// # Tech note:
+    /// This was developed as an associated function to get over a multiple
+    /// mutable borrows error issued by the warning. This is also the reason
+    /// why `nodes`, `edges` and `cutset` are passed as arguments.
     fn merge(old: &mut NodeData<T>, new: NodeData<T>,
              nodes: &mut Vec<NodeData<T>>,
              edges: &mut Vec<EdgeData>,
@@ -383,7 +507,7 @@ where T: Eq + Hash + Clone,
             old.best_edge = new.best_edge;
         }
     }
-
+    /// Possibly restricts or relaxes the current layer.
     fn squash_if_needed(&mut self, current: &mut Vec<NodeData<T>>) {
         match self.mddtype {
             MDDType::Exact => {},
@@ -397,6 +521,11 @@ where T: Eq + Hash + Clone,
                 }
         }
     }
+    /// This method adds a new layer to the graph comprising all the nodes from
+    /// the `current` list.
+    ///
+    /// This method must be called after all transitions of all nodes of the
+    /// current layer have been unrolled.
     fn add_layer(&mut self, current: &mut Vec<NodeData<T>>) -> LayerData {
         let begin      = self.nodes.len();
         let end        = begin + current.len();
@@ -407,9 +536,17 @@ where T: Eq + Hash + Clone,
 
         this_layer
     }
+    /// This is the 'method' way to add an edge to the graph and return its
+    /// `EdgeId`.
+    ///
+    /// # Note:
+    /// This function does not esures that the edge will actually is connected
+    /// to a node from the graph.
     fn new_edge(&mut self, src: NodeId, weight: isize, decision: Option<Decision>) -> EdgeId {
         Self::_new_edge(src, weight, decision, &mut self.edges)
     }
+    /// An internal function equivalent to the 'method' syntax but which avoids
+    /// otherwise necessary multiple mutable borrows.
     fn _new_edge(src: NodeId, weight: isize, decision: Option<Decision>, edges: &mut Vec<EdgeData>) -> EdgeId {
         let eid = EdgeId(edges.len());
         edges.push(EdgeData { src, weight, decision, next: None });
@@ -520,7 +657,8 @@ where T: Eq + Hash + Clone,
             current.push(merged_node);
         }
     }
-
+    /// Checks if the mdd is exact or if the best terminal node has an exact
+    /// best path from the root.
     fn compute_is_exact(&mut self) {
         self.is_exact = self.lel.is_none()
             || (self.mddtype == MDDType::Relaxed && self.has_exact_best_path(self.best_node))
@@ -539,7 +677,7 @@ where T: Eq + Hash + Clone,
             true
         }
     }
-
+    /// Computes the local bounds of the cutset nodes.
     fn compute_local_bounds(&mut self) {
         if !self.is_exact { // if it's exact, there is nothing to be done
             let lel = self.lel.unwrap();
