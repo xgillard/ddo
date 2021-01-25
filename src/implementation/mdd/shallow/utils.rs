@@ -145,7 +145,7 @@ impl <T : Clone> From<&FrontierNode<T>> for Node<T> {
         Node {
             this_state: Rc::new(n.state.as_ref().clone()),
             value     : n.lp_len,
-            estimate  : n.ub - n.lp_len,
+            estimate  : n.ub.saturating_sub(n.lp_len),
             flags     : NodeFlags::new_exact(),
             best_edge : None
         }
