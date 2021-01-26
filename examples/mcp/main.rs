@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{Problem, Variable, VarSet, Solver, ParallelSolver, LoadVars, FrontierNode, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, PooledDeepMDD};
+use ddo::{Problem, Variable, VarSet, Solver, ParallelSolver, LoadVars, FrontierNode, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, DeepMDD};
 
 use crate::relax::McpRelax;
 use crate::model::{McpState, Mcp};
@@ -32,7 +32,7 @@ pub mod graph;
 pub mod model;
 pub mod relax;
 
-type DD<T, C> = PooledDeepMDD<T, C>;
+type DD<T, C> = DeepMDD<T, C>;
 
 /// MCP is a solver based on branch-and-bound mdd which solves the maximum cut
 /// problem to optimality.

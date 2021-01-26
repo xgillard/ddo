@@ -23,9 +23,10 @@
 use std::rc::Rc;
 use std::sync::Arc;
 use std::hash::Hash;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use crate::{Decision, NodeFlags, PartialAssignment, Config, MDDType, MDD, Completion, FrontierNode, Solution, Reason, Variable, VarSet, SelectableNode};
+use crate::implementation::mdd::deep::deep_pooled::NodeRef::{Virtual, Actual};
 
 /// This is a typesafe identifier for a node in the mdd graph. In practice,
 /// it maps to the position of the given node in the `nodes` field of the
@@ -102,7 +103,15 @@ struct NodeData<T> {
     inbound: Option<EdgeId>,
     /// If present, this is the index of the parent sitting on the longest path
     /// between the root and this node (the path whose length is `lp_from_top`.
-    best_edge: Option<EdgeId>
+    best_edge: Option<EdgeId>,
+
+    /// This is an unique identifier for a NodeData object. Its purpose is to
+    /// perform the reconciliation between "merged nodes" and their exact
+    /// ancestors belonging to the cutset.
+    ///
+    /// The MDD is in charge of making sure that each instance receives an
+    /// unique transient identifier.
+    transient_id : usize,
 }
 /// This structure stores basic information about a given layer: the index of
 /// the first node belonging to this layer and the first index after the end
@@ -116,6 +125,40 @@ struct LayerData {
     /// that the layer is empty whenever `start == end`.
     end: usize
 }
+
+/// This encapsulates the notion of a "reference to some nodata" which may
+/// or may not yet have been added to the set of 'nodes'.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+enum NodeRef {
+    /// This variant encapsulates the case where the referenced node has already
+    /// been added to the nodes of the MDD. In this case, the referenced data
+    /// has an actual Node identifier
+    Actual(NodeId),
+    /// This variant encapsulates the case where the referenced node has not yet
+    /// been added to the nodes of the MDD. In this case, the referenced data
+    /// is identified using its transient id.
+    Virtual(usize)
+}
+/// A cutset node comprises two parts:
+///
+/// 1. The actual information about the cutset node. Note, because we are
+///    implementing a scheme where the cutset nodes reside *between* the layers,
+///    the actual data is identified with a node id.
+///
+/// 2. The referenced node data which designates the inexact node standing for
+///    the node from the cutset. (It designates the node in which this cutset
+///    node has been merged).
+///
+#[derive(Debug, Copy, Clone)]
+struct CutsetNode {
+    /// The actual information about the cutset node. Note, because we are
+    /// implementing a scheme where the cutset nodes reside *between* the layers,
+    /// the actual data is identified with a node id.
+    the_node: NodeId
+}
+
+/// A convenient type alias to denote the cutset
+type CutSet = HashMap<NodeRef, Vec<CutsetNode>>;
 
 /// This structure provides an implementation of a pooled mdd (one that may
 /// feature long arcs) while at the same time being a deep mdd (one that
@@ -162,7 +205,7 @@ pub struct PooledDeepMDD<T, C>
     edges: Vec<EdgeData>,
     /// This vector contains the identifiers of all nodes beloning to the
     /// frontier cutset of the mdd.
-    cutset: HashSet<NodeId>,
+    cutset: CutSet,
     /// This is the complete list with all the layers of the graph.
     /// The position a `LayerId` refers to is to be understood as a position
     /// in this vector.
@@ -186,6 +229,10 @@ pub struct PooledDeepMDD<T, C>
     best_node: Option<NodeId>,
     /// A flag indicating whether this mdd is exact
     is_exact : bool,
+
+    /// This is the counter which is used to give an unique transient identifier
+    /// to all node data.
+    transient_cnt: usize,
 }
 
 /// As the name suggests, `PooledDeepMDD` is an implementation of the `MDD` trait.
@@ -225,9 +272,15 @@ impl <T, C> MDD<T, C> for PooledDeepMDD<T, C>
         })
     }
     fn for_each_cutset_node<F>(&self, mut func: F) where F: FnMut(FrontierNode<T>) {
-        self.cutset.iter()
-            .filter(|nid| self.nodes[nid.0].flags.is_feasible())
-            .for_each(|nid| func(self.node_to_frontier_node(*nid)));
+        for (referenced, cnodes) in self.cutset.iter() {
+            if let Actual(nid) = referenced {
+                if self.nodes[nid.0].flags.is_feasible() {
+                    for cnode in cnodes.iter() {
+                        func(self.node_to_frontier_node(cnode.the_node, *nid));
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -245,13 +298,15 @@ where T: Eq + Hash + Clone,
             pool             : Default::default(),
             nodes            : vec![],
             edges            : vec![],
-            cutset           : HashSet::default(),
+            cutset           : Default::default(),
             layers           : vec![],
             lel              : None,
             root_pa          : None,
             best_lb          : isize::min_value(),
             best_node        : None,
             is_exact         : true,
+
+            transient_cnt    : 1,
         }
     }
     /// Resets the state of the mdd to make it reusable and ready to explore an
@@ -270,6 +325,8 @@ where T: Eq + Hash + Clone,
         self.best_lb   = isize::min_value();
         self.best_node = None;
         self.is_exact  = true;
+
+        self.transient_cnt = 1;
     }
     /// Returns a shared reference to the partial assignment describing
     /// the path between the exact root of the problem and the root of this
@@ -297,9 +354,10 @@ where T: Eq + Hash + Clone,
         path
     }
     /// Converts an internal node into an equivalent frontier node
-    fn node_to_frontier_node(&self, nid: NodeId) -> FrontierNode<T> {
+    fn node_to_frontier_node(&self, nid: NodeId, merged_into: NodeId) -> FrontierNode<T> {
         let node   = &self.nodes[nid.0];
-        let ub_bot = node.from_top.saturating_add(node.from_bot);
+        let mrg_nd = &self.nodes[merged_into.0];
+        let ub_bot = mrg_nd.from_top.saturating_add(mrg_nd.from_bot);
         let ub_est = node.from_top.saturating_add(self.config.estimate(node.state.as_ref()));
         FrontierNode {
             state : Arc::new(node.state.as_ref().clone()),
@@ -424,8 +482,10 @@ where T: Eq + Hash + Clone,
             from_bot : isize::min_value(),
             flags    : parent.flags, // if its inexact, it will be or relaxed it will be considered inexact or relaxed too
             inbound  : Some(edge),
-            best_edge: Some(edge)
+            best_edge: Some(edge),
+            transient_id: self.transient_cnt,
         };
+        self.transient_cnt += 1;
         self.add_to_pool(dst_node)
     }
 
@@ -434,6 +494,7 @@ where T: Eq + Hash + Clone,
         let best_lb = self.best_lb;
         let config  = &mut self.config;
         let pool    = &mut self.pool;
+        let nodes   = &mut self.nodes;
         let edges   = &mut self.edges;
         let cutset  = &mut self.cutset;
 
@@ -448,17 +509,44 @@ where T: Eq + Hash + Clone,
             },
             Entry::Occupied(mut re) => {
                 let old = re.get_mut();
-                Self::merge(old, node, edges, cutset);
+                Self::merge(old, node, nodes, edges, cutset);
             }
         }
     }
 
-    fn add_all_parents_to_cutset(node: &NodeData<T>, edges: &Vec<EdgeData>, cutset: &mut HashSet<NodeId>) {
-        let mut it = node.inbound;
-        while let Some(eid) = it {
-            let edge = edges[eid.0];
-            cutset.insert(edge.src);
-            it = edge.next;
+    /// This function adds the given node to the cutset, attaching it to the
+    /// transient id `t_id`
+    fn add_to_cutset(node: &NodeData<T>,
+                     t_id: usize,
+                     nodes: &mut Vec<NodeData<T>>,
+                     cutset:&mut CutSet) {
+        let nid = NodeId(nodes.len());
+        nodes.push(node.clone());
+
+        let cnode = CutsetNode{ the_node: nid };
+        cutset.entry(Virtual(t_id))
+            .and_modify(|re| re.push(cnode))
+            .or_insert_with(|| vec![cnode]);
+    }
+    /// This function 'merges' the given transient ids.
+    /// In practice, this means that all cutset nodes attached to the node
+    /// `from` will now be attached to the node `to`.
+    fn merge_transient_ids(from: usize, to: usize, cutset:&mut CutSet) {
+        let from = cutset.remove(&Virtual(from));
+        if let Some(mut from) = from {
+            cutset.entry(Virtual(to))
+                .and_modify(|v| v.append(&mut from))
+                .or_insert(from);
+        }
+    }
+    /// This function is called upon insertion of a node in the set of `nodes'
+    /// from the MDD. This is used to tell all cutset nodes attached to the
+    /// transient id of the given node that they must now be attached to its
+    /// actual id 'nid'.
+    fn upon_node_insert(node: &NodeData<T>, nid: NodeId, cutset:&mut CutSet) {
+        let from = cutset.remove(&Virtual(node.transient_id));
+        if let Some(from) = from {
+            cutset.insert(Actual(nid), from);
         }
     }
 
@@ -471,15 +559,18 @@ where T: Eq + Hash + Clone,
     /// mutable borrows error issued by the warning. This is also the reason
     /// why `nodes`, `edges` and `cutset` are passed as arguments.
     fn merge(old: &mut NodeData<T>, new: NodeData<T>,
+             nodes: &mut Vec<NodeData<T>>,
              edges: &mut Vec<EdgeData>,
-             cutset:&mut HashSet<NodeId>) {
+             cutset:&mut CutSet) {
 
         // maintain the frontier cutset
         if old.flags.is_exact() && !new.flags.is_exact() {
-            Self::add_all_parents_to_cutset(old, edges, cutset);
+            Self::add_to_cutset(old, old.transient_id, nodes, cutset);
         } else if new.flags.is_exact() && !old.flags.is_exact() {
-            Self::add_all_parents_to_cutset(&new, edges, cutset);
+            Self::add_to_cutset(&new, old.transient_id, nodes, cutset);
         }
+
+        Self::merge_transient_ids(new.transient_id, old.transient_id, cutset);
 
         // concatenate edges lists
         let mut next_edge = new.inbound;
@@ -522,7 +613,13 @@ where T: Eq + Hash + Clone,
         let this_layer = LayerData {begin, end};
 
         self.layers.push(this_layer);
-        self.nodes.append(current);
+
+        //self.nodes.append(current);
+        for node in current.drain(..) {
+            let nid = NodeId(self.nodes.len());
+            Self::upon_node_insert(&node, nid, &mut self.cutset);
+            self.nodes.push(node);
+        }
 
         this_layer
     }
@@ -572,13 +669,6 @@ where T: Eq + Hash + Clone,
         let merged = self.config.merge_states(&mut squash.iter().map(|n| n.state.as_ref()));
         let merged = Rc::new(merged);
 
-        // Maintain the frontier cutset
-        for node in squash.iter() {
-            if node.flags.is_exact() {
-                Self::add_all_parents_to_cutset(node, &self.edges, &mut self.cutset);
-            }
-        }
-
         // .. make a default node
         let mut merged_node = NodeData {
             state      : Rc::clone(&merged),
@@ -587,7 +677,16 @@ where T: Eq + Hash + Clone,
             from_bot   : isize::min_value(),
             inbound    : None,
             best_edge  : None,
+            transient_id: self.transient_cnt
         };
+        self.transient_cnt += 1;
+
+        // Maintain the frontier cutset
+        for node in squash.iter() {
+            if node.flags.is_exact() {
+                Self::add_to_cutset(node, merged_node.transient_id, &mut self.nodes, &mut self.cutset);
+            }
+        }
 
         // Relax all edges and transfer them to the new merged node (op. gamma)
         for node in squash.iter() {
@@ -622,7 +721,7 @@ where T: Eq + Hash + Clone,
         let pos = current.iter().enumerate()
             .find(|(_i, nd)| nd.state == merged).map(|(i,_)|i);
         if let Some(pos) = pos {
-            Self::merge(&mut current[pos], merged_node, &mut self.edges, &mut self.cutset);
+            Self::merge(&mut current[pos], merged_node, &mut self.nodes, &mut self.edges, &mut self.cutset);
         } else {
             current.push(merged_node);
         }
@@ -706,7 +805,8 @@ impl <T:Clone> From<&FrontierNode<T>> for NodeData<T> {
             from_bot : 0,
             flags    : Default::default(),
             inbound  : None,
-            best_edge: None
+            best_edge: None,
+            transient_id: 0
         }
     }
 }
@@ -1016,7 +1116,7 @@ mod test_pooled_deep_mdd {
         mdd.for_each_cutset_node(|n| cut.push(*n.state.as_ref()));
 
         cut.sort_unstable();
-        assert_eq!(vec![0], cut);
+        assert_eq!(vec![0, 1, 2], cut);
     }
 
     #[test]
@@ -1311,8 +1411,8 @@ mod test_pooled_deep_mdd {
         let mut v = HashMap::<char, isize>::default();
         mdd.for_each_cutset_node(|n| {v.insert(*n.state, n.ub);});
 
-        assert_eq!(16,  v[&'a']);
-        assert_eq!(104, v[&'b']);
+        assert_eq!(104, v[&'c']); // because we cannot distinguish between c and d when they are reconciled with M
+        assert_eq!(104, v[&'d']);
     }
 
 }
