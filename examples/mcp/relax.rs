@@ -57,7 +57,7 @@ impl <'a> McpRelax<'a> {
     /// quite a bit (amorticized O(1)).
     fn precompute_all_estimates(pb: &Mcp) -> Vec<isize> {
         let v = pb.nb_vars();
-        let mut res = vec![0_isize; v];
+        let mut res = vec![0_isize; 1+v];
 
         for (i, ri) in res.iter_mut().enumerate() {
             *ri = Self::precompute_estimate(pb, i);
@@ -82,7 +82,7 @@ impl <'a> McpRelax<'a> {
     
     fn precompute_all_nk(pb: &Mcp) -> Vec<isize> {
         let v = pb.nb_vars();
-        let mut res = vec![0_isize; v];
+        let mut res = vec![0_isize; 1+v];
 
         for (i, ri) in res.iter_mut().enumerate() {
             *ri = Self::precompute_nk(pb, i);

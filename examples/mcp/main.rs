@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 
 use structopt::StructOpt;
 
-use ddo::{Problem, Variable, VarSet, Solver, ParallelSolver, LoadVars, FrontierNode, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, DeepMDD};
+use ddo::{Problem, Variable, VarSet, Solver, ParallelSolver, LoadVars, FrontierNode, NoDupFrontier, Solution, Completion, config_builder, FixedWidth, TimeBudget, PooledDeepMDD};
 
 use crate::relax::McpRelax;
 use crate::model::{McpState, Mcp};
@@ -31,6 +31,8 @@ use std::path::Path;
 pub mod graph;
 pub mod model;
 pub mod relax;
+
+type DD<T, C> = PooledDeepMDD<T, C>;
 
 /// MCP is a solver based on branch-and-bound mdd which solves the maximum cut
 /// problem to optimality.
@@ -136,7 +138,7 @@ fn solver<'a>(pb:    &'a Mcp,
                 .with_max_width(FixedWidth(w))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = DeepMDD::from(conf);
+            let mdd = DD::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
                 .with_frontier(NoDupFrontier::default());
             Box::new(solver)
@@ -146,7 +148,7 @@ fn solver<'a>(pb:    &'a Mcp,
                 .with_load_vars(LoadVarsFromState::new(&pb))
                 .with_max_width(FixedWidth(w))
                 .build();
-            let mdd = DeepMDD::from(conf);
+            let mdd = DD::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
                 .with_frontier(NoDupFrontier::default());
             Box::new(solver)
@@ -156,7 +158,7 @@ fn solver<'a>(pb:    &'a Mcp,
                 .with_load_vars(LoadVarsFromState::new(&pb))
                 .with_cutoff(TimeBudget::new(Duration::from_secs(c)))
                 .build();
-            let mdd = DeepMDD::from(conf);
+            let mdd = DD::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
                 .with_frontier(NoDupFrontier::default());
             Box::new(solver)
@@ -165,7 +167,7 @@ fn solver<'a>(pb:    &'a Mcp,
             let conf = config_builder(pb, rlx)
                 .with_load_vars(LoadVarsFromState::new(&pb))
                 .build();
-            let mdd = DeepMDD::from(conf);
+            let mdd = DD::from(conf);
             let solver =ParallelSolver::customized(mdd, verbosity, threads)
                 .with_frontier(NoDupFrontier::default());
             Box::new(solver)

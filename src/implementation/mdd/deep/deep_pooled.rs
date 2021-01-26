@@ -23,7 +23,7 @@
 use std::rc::Rc;
 use std::sync::Arc;
 use std::hash::Hash;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use crate::{Decision, NodeFlags, PartialAssignment, Config, MDDType, MDD, Completion, FrontierNode, Solution, Reason, Variable, VarSet, SelectableNode};
 
@@ -157,17 +157,12 @@ pub struct PooledDeepMDD<T, C>
     ///    redirected towards the merged node.
     /// 2. When one deletes a node (restrict), it would be nice if we could
     ///    recycle the dangling edges (not done so far).
-    /// 3. The nodes that pertain to the frontier cutset must be added to the
-    ///    final graph. This way, they can be traversed during the bottom up
-    ///    traversal to compute local bounds. (They are added *between* the
-    ///    layers demarcations). Additionally, it is required to connect the
-    ///    cutset node to the 'merged node' it was integrated into. Concretely,
-    ///    this is done by adding a zero-weighted, unlabelled edge between the
-    ///    cutset node and the merged node.
+    /// 3. This version of the code does not use "intermediate frontier cutset".
+    ///    The frontier consists of the true nodes.
     edges: Vec<EdgeData>,
     /// This vector contains the identifiers of all nodes beloning to the
     /// frontier cutset of the mdd.
-    cutset: Vec<NodeId>,
+    cutset: HashSet<NodeId>,
     /// This is the complete list with all the layers of the graph.
     /// The position a `LayerId` refers to is to be understood as a position
     /// in this vector.
@@ -250,7 +245,7 @@ where T: Eq + Hash + Clone,
             pool             : Default::default(),
             nodes            : vec![],
             edges            : vec![],
-            cutset           : vec![],
+            cutset           : HashSet::default(),
             layers           : vec![],
             lel              : None,
             root_pa          : None,
@@ -439,7 +434,6 @@ where T: Eq + Hash + Clone,
         let best_lb = self.best_lb;
         let config  = &mut self.config;
         let pool    = &mut self.pool;
-        let nodes   = &mut self.nodes;
         let edges   = &mut self.edges;
         let cutset  = &mut self.cutset;
 
@@ -454,10 +448,20 @@ where T: Eq + Hash + Clone,
             },
             Entry::Occupied(mut re) => {
                 let old = re.get_mut();
-                Self::merge(old, node, nodes, edges, cutset);
+                Self::merge(old, node, edges, cutset);
             }
         }
     }
+
+    fn add_all_parents_to_cutset(node: &NodeData<T>, edges: &Vec<EdgeData>, cutset: &mut HashSet<NodeId>) {
+        let mut it = node.inbound;
+        while let Some(eid) = it {
+            let edge = edges[eid.0];
+            cutset.insert(edge.src);
+            it = edge.next;
+        }
+    }
+
     /// This method ensures that a node be effectively merged with the 2nd one
     /// even though it is shielded behind a shared ref. This method makes sure
     /// to keep the cutset consistent as needed.
@@ -467,20 +471,14 @@ where T: Eq + Hash + Clone,
     /// mutable borrows error issued by the warning. This is also the reason
     /// why `nodes`, `edges` and `cutset` are passed as arguments.
     fn merge(old: &mut NodeData<T>, new: NodeData<T>,
-             nodes: &mut Vec<NodeData<T>>,
              edges: &mut Vec<EdgeData>,
-             cutset:&mut Vec<NodeId>) {
+             cutset:&mut HashSet<NodeId>) {
 
         // maintain the frontier cutset
-        let cutset_end = cutset.len();
         if old.flags.is_exact() && !new.flags.is_exact() {
-            let nid = NodeId(nodes.len());
-            nodes.push(old.clone());
-            cutset.push(nid);
+            Self::add_all_parents_to_cutset(old, edges, cutset);
         } else if new.flags.is_exact() && !old.flags.is_exact() {
-            let nid = NodeId(nodes.len());
-            nodes.push(new.clone());
-            cutset.push(nid);
+            Self::add_all_parents_to_cutset(&new, edges, cutset);
         }
 
         // concatenate edges lists
@@ -488,14 +486,6 @@ where T: Eq + Hash + Clone,
         while let Some(eid) = next_edge {
             let edge = &mut edges[eid.0];
             next_edge   = edge.next;
-            edge.next   = old.inbound;
-            old.inbound = Some(eid);
-        }
-
-        // connect edges from potential cutset nodes to the merged node
-        for nid in cutset.iter().skip(cutset_end).copied() {
-            let eid     = Self::_new_edge(nid, 0, None, edges);
-            let edge    = &mut edges[eid.0];
             edge.next   = old.inbound;
             old.inbound = Some(eid);
         }
@@ -542,11 +532,6 @@ where T: Eq + Hash + Clone,
     /// # Note:
     /// This function does not esures that the edge will actually is connected
     /// to a node from the graph.
-    fn new_edge(&mut self, src: NodeId, weight: isize, decision: Option<Decision>) -> EdgeId {
-        Self::_new_edge(src, weight, decision, &mut self.edges)
-    }
-    /// An internal function equivalent to the 'method' syntax but which avoids
-    /// otherwise necessary multiple mutable borrows.
     fn _new_edge(src: NodeId, weight: isize, decision: Option<Decision>, edges: &mut Vec<EdgeData>) -> EdgeId {
         let eid = EdgeId(edges.len());
         edges.push(EdgeData { src, weight, decision, next: None });
@@ -587,15 +572,10 @@ where T: Eq + Hash + Clone,
         let merged = self.config.merge_states(&mut squash.iter().map(|n| n.state.as_ref()));
         let merged = Rc::new(merged);
 
-        // from that point on, all the subsequent cutset ids have been added
-        // to the cutset because of **this** relaxation.
-        let added_to_cutset = self.cutset.len();
         // Maintain the frontier cutset
         for node in squash.iter() {
             if node.flags.is_exact() {
-                let nid = NodeId(self.nodes.len());
-                self.nodes.push(node.clone());
-                self.cutset.push(nid);
+                Self::add_all_parents_to_cutset(node, &self.edges, &mut self.cutset);
             }
         }
 
@@ -635,16 +615,6 @@ where T: Eq + Hash + Clone,
             }
         }
 
-        // Add an edge connecting all nodes that have been added to the frontier
-        // cutset to the merged node
-        let cutset_len = self.cutset.len();
-        for cutsetpos in added_to_cutset..cutset_len {
-            let nid = self.cutset[cutsetpos];
-            let eid = self.new_edge(nid, 0, None);
-            self.edges[eid.0].next = merged_node.inbound;
-            merged_node.inbound = Some(eid);
-        }
-
         // Save the result of the merger
         current.truncate(self.max_width - 1);
         // Determine the identifier of the new merged node. If the merged state
@@ -652,7 +622,7 @@ where T: Eq + Hash + Clone,
         let pos = current.iter().enumerate()
             .find(|(_i, nd)| nd.state == merged).map(|(i,_)|i);
         if let Some(pos) = pos {
-            Self::merge(&mut current[pos], merged_node, &mut self.nodes, &mut self.edges, &mut self.cutset);
+            Self::merge(&mut current[pos], merged_node, &mut self.edges, &mut self.cutset);
         } else {
             current.push(merged_node);
         }
@@ -1046,7 +1016,7 @@ mod test_pooled_deep_mdd {
         mdd.for_each_cutset_node(|n| cut.push(*n.state.as_ref()));
 
         cut.sort_unstable();
-        assert_eq!(vec![0, 1, 2], cut);
+        assert_eq!(vec![0], cut);
     }
 
     #[test]
@@ -1341,8 +1311,8 @@ mod test_pooled_deep_mdd {
         let mut v = HashMap::<char, isize>::default();
         mdd.for_each_cutset_node(|n| {v.insert(*n.state, n.ub);});
 
-        assert_eq!(16,  v[&'c']);
-        assert_eq!(104, v[&'d']);
+        assert_eq!(16,  v[&'a']);
+        assert_eq!(104, v[&'b']);
     }
 
 }
