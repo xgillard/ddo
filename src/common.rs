@@ -43,6 +43,7 @@ use std::cmp::Ordering::Equal;
 use std::iter::Cloned;
 use std::slice::Iter;
 use std::sync::Arc;
+use smallbitset::{Set32, Set8, Set64, Set128, Set16, Set8Iter, Set16Iter, Set32Iter, Set64Iter, Set128Iter};
 
 // ----------------------------------------------------------------------------
 // --- VARIABLE ---------------------------------------------------------------
@@ -110,7 +111,17 @@ pub enum Domain<'a> {
     Vector(Vec<isize>),
     /// When the domain consists of a slice (array or ref to vector)
     Slice(&'a [isize]),
-    /// When the domain is a compact bitset
+    /// When the domain is a small bitset (max 8 bits)
+    Set8(Set8),
+    /// When the domain is a small bitset (max 16 bits)
+    Set16(Set16),
+    /// When the domain is a small bitset (max 32 bits)
+    Set32(Set32),
+    /// When the domain is a small bitset (max 64 bits)
+    Set64(Set64),
+    /// When the domain is a small bitset (max 128 bits)
+    Set128(Set128),
+    /// When the domain is a (potentially large) bitset
     BitSet(&'a BitSet),
     /// When domain materialises a relation between variables (i.e. successor
     /// in a TSP), then the domain can be a varset. The possible values will be
@@ -135,6 +146,11 @@ impl <'a> IntoIterator for Domain<'a> {
         match self {
             Domain::Vector         (v) => DomainIter::Vector(v.into_iter()),
             Domain::Slice          (s) => DomainIter::Slice (s.iter()),
+            Domain::Set8           (s) => DomainIter::Set8(s.iter()),
+            Domain::Set16          (s) => DomainIter::Set16(s.iter()),
+            Domain::Set32          (s) => DomainIter::Set32(s.iter()),
+            Domain::Set64          (s) => DomainIter::Set64(s.iter()),
+            Domain::Set128         (s) => DomainIter::Set128(s.iter()),
             Domain::BitSet         (b) => DomainIter::BitSet(BitSetIter::new(b)),
             Domain::VarSet         (v) => DomainIter::BitSet(BitSetIter::new(&v.0)),
             Domain::Range          (r) => DomainIter::Range (r),
@@ -152,6 +168,11 @@ impl <'a> IntoIterator for Domain<'a> {
 pub enum DomainIter<'a> {
     Vector         (std::vec::IntoIter<isize>),
     Slice          (std::slice::Iter<'a, isize>),
+    Set8           (Set8Iter),
+    Set16          (Set16Iter),
+    Set32          (Set32Iter),
+    Set64          (Set64Iter),
+    Set128         (Set128Iter),
     BitSet         (BitSetIter<'a>),
     Range          (Range<isize>),
     RangeInclusive (RangeInclusive<isize>)
@@ -167,6 +188,11 @@ impl Iterator for DomainIter<'_> {
         match self {
             DomainIter::Vector         (i) => i.next(),
             DomainIter::Slice          (i) => i.next().copied(),
+            DomainIter::Set8           (i) => i.next().map(|x| x as isize),
+            DomainIter::Set16          (i) => i.next().map(|x| x as isize),
+            DomainIter::Set32          (i) => i.next().map(|x| x as isize),
+            DomainIter::Set64          (i) => i.next().map(|x| x as isize),
+            DomainIter::Set128         (i) => i.next().map(|x| x as isize),
             DomainIter::BitSet         (i) => i.next().map(|x| x as isize),
             DomainIter::Range          (i) => i.next(),
             DomainIter::RangeInclusive (i) => i.next()
@@ -210,7 +236,36 @@ impl <'a> From<&'a VarSet> for Domain<'a> {
         Domain::VarSet(b)
     }
 }
-
+/// Implements the conversion from a small bitset to a domain
+impl From<Set8> for Domain<'_> {
+    fn from(b: Set8) -> Self {
+        Domain::Set8(b)
+    }
+}
+/// Implements the conversion from a small bitset to a domain
+impl From<Set16> for Domain<'_> {
+    fn from(b: Set16) -> Self {
+        Domain::Set16(b)
+    }
+}
+/// Implements the conversion from a small bitset to a domain
+impl From<Set32> for Domain<'_> {
+    fn from(b: Set32) -> Self {
+        Domain::Set32(b)
+    }
+}
+/// Implements the conversion from a small bitset to a domain
+impl From<Set64> for Domain<'_> {
+    fn from(b: Set64) -> Self {
+        Domain::Set64(b)
+    }
+}
+/// Implements the conversion from a small bitset to a domain
+impl From<Set128> for Domain<'_> {
+    fn from(b: Set128) -> Self {
+        Domain::Set128(b)
+    }
+}
 // ----------------------------------------------------------------------------
 // --- DECISION ---------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -771,6 +826,7 @@ mod test_var {
 mod test_domain {
     use bitset_fixed::BitSet;
     use crate::{Domain, VarSet, Variable};
+    use smallbitset::{Set8, Set16, Set32, Set64, Set128};
 
     #[test]
     fn from_vector_empty() {
@@ -812,6 +868,73 @@ mod test_domain {
         let domain : Domain<'_> = (&data).into();
         assert_eq!(vec![2, 3], domain.into_iter().collect::<Vec<isize>>());
     }
+
+    #[test]
+    fn from_set8_empty() {
+        let data = Set8::empty();
+        let domain : Domain<'_> = data.into();
+        assert_eq!(Vec::<isize>::new(), domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set8_non_empty() {
+        let mut data = Set8::singleton(2);
+        data = data.insert(3);
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![2, 3], domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set16_empty() {
+        let data = Set16::empty();
+        let domain : Domain<'_> = data.into();
+        assert_eq!(Vec::<isize>::new(), domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set16_non_empty() {
+        let mut data = Set16::singleton(2);
+        data = data.insert(3);
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![2, 3], domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set32_empty() {
+        let data = Set32::empty();
+        let domain : Domain<'_> = data.into();
+        assert_eq!(Vec::<isize>::new(), domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set32_non_empty() {
+        let mut data = Set32::singleton(2);
+        data = data.insert(3);
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![2, 3], domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set64_empty() {
+        let data = Set64::empty();
+        let domain : Domain<'_> = data.into();
+        assert_eq!(Vec::<isize>::new(), domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set64_non_empty() {
+        let mut data = Set64::singleton(2);
+        data = data.insert(3);
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![2, 3], domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set128_empty() {
+        let data = Set128::empty();
+        let domain : Domain<'_> = data.into();
+        assert_eq!(Vec::<isize>::new(), domain.into_iter().collect::<Vec<isize>>());
+    }
+    #[test]
+    fn from_set128_non_empty() {
+        let mut data = Set128::singleton(2);
+        data = data.insert(3);
+        let domain : Domain<'_> = data.into();
+        assert_eq!(vec![2, 3], domain.into_iter().collect::<Vec<isize>>());
+    }
+
     #[test]
     fn from_varset_empty() {
         let data = VarSet::empty();

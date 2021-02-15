@@ -290,6 +290,7 @@ impl <T, C> DeepMDD<T, C>
     /// allows us to use a dummy (empty) iterator when we are at layer 0 and
     /// no next layer has been expanded, and to return something useful as soon
     /// as a next layer has been unrolled.
+    #[allow(clippy::unnecessary_wraps)]
     fn next_layer_index(&self) -> Option<LayerIndex> {
         Some(LayerIndex(self.graph.layers.len() - 1))
     }
