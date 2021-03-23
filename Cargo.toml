@@ -16,7 +16,7 @@ exclude          = ["examples/tests/resources/*" ]
 
 [dependencies]
 compare          = "0.1.0"
-smallbitset      = "0.1.0"
+smallbitset      = "0.3.0"
 bitset-fixed     = "0.1.0"
 binary-heap-plus = "0.4.0"
 

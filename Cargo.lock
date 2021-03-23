@@ -161,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "ddo"
-version = "0.3.11"
+version = "0.3.12"
 dependencies = [
  "binary-heap-plus",
  "bitset-fixed",
@@ -360,9 +360,9 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "smallbitset"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a39c206cbfc41094feca85d773708ca87f3e2918d0ad27c80a4e8b6820855d80"
+checksum = "7d4ce741ca27fedf55f1b5d354c6b456354e5105c00adbc404c00b72ee310406"
 
 [[package]]
 name = "smallvec"
