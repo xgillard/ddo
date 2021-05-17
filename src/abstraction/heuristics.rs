@@ -30,14 +30,14 @@
 //!    which imposes to stop searching for a better solution. Typically, this is
 //!    done to grant a given time budget to the search.
 
-use crate::common::{FrontierNode, Variable, VarSet};
+use crate::common::{FrontierNode, Variable, VarSet, MDDType};
 use std::cmp::Ordering;
 
 /// This trait defines an heuristic to determine the maximum allowed width of a
 /// layer in a relaxed or restricted MDD.
 pub trait WidthHeuristic {
     /// Returns the maximum width allowed for a layer.
-    fn max_width(&self, free_vars: &VarSet) -> usize;
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize;
 }
 
 /// This trait defines an heuristic to determine the best variable to branch on

@@ -27,7 +27,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use crate::abstraction::dp::{Problem, Relaxation};
+use crate::{MDDType, abstraction::dp::{Problem, Relaxation}};
 use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::abstraction::mdd::Config;
 use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Variable, VarSet};
@@ -502,8 +502,8 @@ impl <'x, T, P, R, L, V, W, S, C> Config<T> for PassThroughConfig<'x, T, P, R, L
     /// This method does nothing but to delegate its call to the configured
     /// maximum width heuristic.
     #[inline]
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.width_heu.max_width(free_vars)
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        self.width_heu.max_width(mdd_type, free_vars)
     }
 
     /// Defines an order of 'relevance' over the nodes `a` and `b`. Greater means
@@ -571,7 +571,7 @@ mod tests {
 
     use mock_it::verify;
 
-    use crate::abstraction::dp::Problem;
+    use crate::{MDDType, abstraction::dp::Problem};
     use crate::abstraction::mdd::Config;
     use crate::common::{Decision, Variable, VarSet, FrontierNode};
     use crate::implementation::mdd::config::mdd_builder;
@@ -661,8 +661,8 @@ mod tests {
 
         let mut vs = prob.all_vars();
         while ! vs.is_empty() {
-            let _ = config.max_width(&vs);
-            assert!(verify(heu.max_width.was_called_with(vs.clone())));
+            let _ = config.max_width(MDDType::Relaxed, &vs);
+            assert!(verify(heu.max_width.was_called_with((MDDType::Relaxed, vs.clone()))));
 
             if let Some(v) = vs.iter().next() {
                 vs.remove(v);

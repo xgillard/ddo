@@ -374,7 +374,7 @@ where T: Eq + Hash + Clone,
 
         let mut free_vars  = self.config.load_variables(root);
         self.mddtype       = mddtype;
-        self.max_width     = self.config.max_width(&free_vars);
+        self.max_width     = self.config.max_width(mddtype, &free_vars);
         self.root_pa       = Some(Arc::clone(&root.path));
         self.best_lb       = best_lb;
 
@@ -831,12 +831,11 @@ impl <T> SelectableNode<T> for NodeData<T> {
 mod test_pooled_deep_mdd {
     use std::sync::Arc;
 
-    use crate::abstraction::dp::{Problem, Relaxation};
+    use crate::{MDDType, abstraction::dp::{Problem, Relaxation}};
     use crate::abstraction::mdd::{MDD, Config};
     use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
     use crate::{VariableHeuristic, NaturalOrder, PooledDeepMDD, NodeSelectionHeuristic, SelectableNode};

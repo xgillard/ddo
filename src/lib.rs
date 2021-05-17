@@ -275,8 +275,6 @@ pub use crate::implementation::mdd::{
       shallow::pooled::PooledMDD,
       hybrid::{CompositeMDD,HybridFlatDeep,HybridPooledDeep},
       aggressively_bounded::AggressivelyBoundedMDD,
-
-      MDDType,
       utils::NodeFlags,
 };
 pub use crate::implementation::heuristics::*;

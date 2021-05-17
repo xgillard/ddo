@@ -21,23 +21,6 @@
 //! to implement various flavors of bounded-width MDDs.
 
 // ------------------------------------------------------------------------- //
-// --- This enum does not need to be public, but it is convenient to use --- //
-// --- in all implementations of an MDD. Still it looked like overkill   --- //
-// --- to define an additional 'utility' module just to hold this enum   --- //
-// ------------------------------------------------------------------------- //
-/// This enumeration characterizes the kind of MDD being generated. It can
-/// either be
-/// * `Exact` if it is a true account of the problem state space.
-/// * `Restricted` if it is an under approximation of the problem state space.
-/// * `Relaxed` if it is an over approximation of the problem state space.
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum MDDType {
-    Relaxed,
-    Restricted,
-    Exact
-}
-// ------------------------------------------------------------------------- //
-
 pub mod utils;
 pub mod config;
 pub mod deep;

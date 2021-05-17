@@ -82,7 +82,7 @@ impl Graph {
             }
 
             // skip
-            panic!(format!("Ill formed \"{}\"", line));
+            panic!("Ill formed \"{}\"", line);
         }
 
         g

@@ -406,7 +406,7 @@ impl <T: Hash + Eq> Graph<T> {
     /// edge.
     pub fn add_edge(&mut self, src: NodeIndex, dst: NodeIndex, decision: Decision, weight: isize) -> EdgeIndex {
         let idx = EdgeIndex(self.edges.len());
-        self.edges.push(EdgeData{ state: EdgeState{src, dst, decision, weight}, next: None});
+        self.edges.push(EdgeData{ state: EdgeState{src, dst, weight, decision}, next: None});
         idx
     }
     /// This method records the branching from the node `orig_id` with the given

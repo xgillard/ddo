@@ -30,8 +30,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::implementation::mdd::shallow::utils::{Node, Edge};
-use crate::common::{PartialAssignment, Solution, FrontierNode, Completion, Reason, VarSet, Decision, Variable};
-use crate::implementation::mdd::MDDType;
+use crate::common::{PartialAssignment, Solution, FrontierNode, MDDType, Completion, Reason, VarSet, Decision, Variable};
 use crate::abstraction::mdd::{MDD, Config};
 use crate::abstraction::heuristics::SelectableNode;
 use crate::implementation::mdd::deep::mdd::DeepMDD;
@@ -269,7 +268,7 @@ impl <T, C> MDD<T, C> for RestrictedOnly<T, C>
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Restricted;
-        self.max_width= self.config.max_width(&free_vars);
+        self.max_width= self.config.max_width(MDDType::Restricted, &free_vars);
 
         self.develop(root, free_vars, best_lb, ub)
     }
@@ -280,7 +279,7 @@ impl <T, C> MDD<T, C> for RestrictedOnly<T, C>
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Relaxed;
-        self.max_width= self.config.max_width(&free_vars);
+        self.max_width= self.config.max_width(MDDType::Relaxed, &free_vars);
 
         self.develop(root, free_vars, best_lb, ub)
     }
@@ -569,10 +568,9 @@ mod test_restricted_only {
 
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::mdd::{MDD, Config};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, MDDType, PartialAssignment, Reason, Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::config_builder;
-    use crate::implementation::mdd::MDDType;
     use crate::implementation::mdd::aggressively_bounded::RestrictedOnly;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
@@ -988,10 +986,9 @@ mod test_aggressively_bounded_width {
 
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::mdd::{MDD, Config};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, MDDType, PartialAssignment, Reason, Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use crate::implementation::mdd::aggressively_bounded::AggressivelyBoundedMDD;
     use mock_it::Matcher;

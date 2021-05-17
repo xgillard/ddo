@@ -33,11 +33,10 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::abstraction::mdd::{Config, MDD};
+use crate::{MDDType, abstraction::mdd::{Config, MDD}};
 use crate::common::{Completion, Decision, FrontierNode, PartialAssignment, Reason, Solution, Variable, VarSet};
 use crate::common::PartialAssignment::Empty;
 use crate::implementation::mdd::deep::mddgraph::{Graph, LayerData, LayerIndex, NodeData, NodeIndex};
-use crate::implementation::mdd::MDDType;
 
 /// MiniNode is a private structure used to remember _some_ information about
 /// the nodes from the current layer. The very reason for the existence of this
@@ -123,7 +122,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
 
         self.mddtype   = MDDType::Restricted;
         self.root      = Some(Arc::clone(&node.path));
-        self.max_width = self.config.max_width(&free_vars);
+        self.max_width = self.config.max_width(MDDType::Restricted, &free_vars);
 
         self.develop(init_state, init_value, free_vars, best_lb, ub)
     }
@@ -137,7 +136,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
 
         self.mddtype   = MDDType::Relaxed;
         self.root      = Some(Arc::clone(&node.path));
-        self.max_width = self.config.max_width(&free_vars);
+        self.max_width = self.config.max_width(MDDType::Relaxed, &free_vars);
 
         self.develop(init_state, init_value, free_vars, best_lb, ub)
     }
@@ -452,11 +451,10 @@ mod test_deepmdd {
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::heuristics::{NodeSelectionHeuristic, SelectableNode};
     use crate::abstraction::mdd::{Config, MDD};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet, MDDType};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
     use crate::implementation::mdd::deep::mdd::DeepMDD;
-    use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
     use std::collections::HashMap;

@@ -19,7 +19,7 @@
 
 //! This module defines traits for implementations of an MDD.
 
-use crate::common::{Solution, FrontierNode, VarSet, Variable, Domain, Decision, Completion, Reason};
+use crate::common::{Solution, FrontierNode, VarSet, Variable, Domain, Decision, Completion, Reason, MDDType};
 use std::cmp::Ordering;
 use crate::abstraction::heuristics::SelectableNode;
 
@@ -28,6 +28,7 @@ use crate::abstraction::heuristics::SelectableNode;
 /// # Type param
 /// The type parameter `<T>` denotes the type of the state defined/manipulated
 /// by the `Problem` definition.
+#[allow(clippy::upper_case_acronyms)]
 pub trait MDD<T, C: Config<T>> {
     /// Returns a reference to the configuration of this MDD.
     fn config(&self) -> &C;
@@ -129,7 +130,7 @@ pub trait Config<T> {
 
     /// Returns the maximum width allowed for the next layer of the MDD when
     /// a value must still be assigned to each of the variables in `free_vars`.
-    fn max_width(&self, free_vars: &VarSet) -> usize;
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize;
 
     /// Defines an order of 'relevance' over the nodes `a` and `b`. Greater means
     /// that `a` is more important (hence more likely to be kept) than `b`.

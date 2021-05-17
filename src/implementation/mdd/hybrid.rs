@@ -28,8 +28,7 @@ use std::hash::Hash;
 use crate::abstraction::mdd::{Config, MDD};
 use crate::implementation::mdd::shallow::pooled::PooledMDD;
 use crate::implementation::mdd::deep::mdd::DeepMDD;
-use crate::common::{Completion, FrontierNode, Reason, Solution};
-use crate::implementation::mdd::MDDType;
+use crate::common::{Completion, FrontierNode, Reason, Solution, MDDType};
 use std::marker::PhantomData;
 use crate::implementation::mdd::shallow::flat::FlatMDD;
 
@@ -327,10 +326,9 @@ mod test_hybrid_flat_deep {
 
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::mdd::{MDD, Config};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet, MDDType};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use crate::implementation::mdd::hybrid::HybridFlatDeep;
     use mock_it::Matcher;
@@ -731,10 +729,9 @@ mod test_hybrid_pooled_deep {
 
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::mdd::{MDD, Config};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet, MDDType};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::mdd::MDDType;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use crate::implementation::mdd::hybrid::HybridPooledDeep;
     use mock_it::Matcher;

@@ -22,7 +22,7 @@
 
 use std::cmp::Ordering;
 
-use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff, FrontierOrder};
+use crate::{MDDType, abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff, FrontierOrder}};
 use crate::common::{FrontierNode, Variable, VarSet};
 use std::time::Duration;
 use std::thread::JoinHandle;
@@ -138,21 +138,21 @@ impl <T> VariableHeuristic<T> for Decreasing {
 /// ```
 /// # use ddo::*;
 /// #
-/// let heuristic   = FixedWidth(100); // assume a fixed width of 100
-/// let mut var_set = VarSet::all(5);  // assume a problem with 5 variables
-///
-/// assert_eq!(100, heuristic.max_width(&var_set));
-/// var_set.remove(Variable(1));       // let's say we fixed variables {1, 3, 4}.
-/// var_set.remove(Variable(3));       // hence, only variables {0, 2} remain
-/// var_set.remove(Variable(4));       // in the set of `free_vars`.
+/// let heuristic   = FixedWidth(100);      // assume a fixed width of 100
+/// let mut var_set = VarSet::all(5);       // assume a problem with 5 variables
+/// let mdd_type    = MDDType:: Restricted; // assume we're compiling a restricted mdd
+/// assert_eq!(100, heuristic.max_width(mdd_type, &var_set));
+/// var_set.remove(Variable(1));            // let's say we fixed variables {1, 3, 4}.
+/// var_set.remove(Variable(3));            // hence, only variables {0, 2} remain
+/// var_set.remove(Variable(4));            // in the set of `free_vars`.
 ///
 /// // still, the heuristic always return 100.
-/// assert_eq!(100, heuristic.max_width(&var_set));
+/// assert_eq!(100, heuristic.max_width(mdd_type, &var_set));
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct FixedWidth(pub usize);
 impl WidthHeuristic for FixedWidth {
-    fn max_width(&self, _free: &VarSet) -> usize {
+    fn max_width(&self, _mdd_type: MDDType, _free: &VarSet) -> usize {
         self.0
     }
 }
@@ -172,17 +172,18 @@ impl WidthHeuristic for FixedWidth {
 /// ```
 /// # use ddo::*;
 /// #
-/// let mut var_set = VarSet::all(5); // assume a problem with 5 variables
-/// var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+/// let mut var_set = VarSet::all(5);  // assume a problem with 5 variables
+/// let mdd_type    = MDDType::Relaxed;// assume we are compiling a relaxed dd
+/// var_set.remove(Variable(1));       // variables {1, 3, 4} have been fixed
 /// var_set.remove(Variable(3));
-/// var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+/// var_set.remove(Variable(4));       // only variables {0, 2} remain in the set
 ///
-/// assert_eq!(2, NbUnassignedWitdh.max_width(&var_set));
+/// assert_eq!(2, NbUnassignedWitdh.max_width(mdd_type, &var_set));
 /// ```
 #[derive(Default, Debug, Copy, Clone)]
 pub struct NbUnassignedWitdh;
 impl WidthHeuristic for NbUnassignedWitdh {
-    fn max_width(&self, free: &VarSet) -> usize {
+    fn max_width(&self, _mdd_type: MDDType, free: &VarSet) -> usize {
         free.len()
     }
 }
@@ -201,19 +202,20 @@ impl WidthHeuristic for NbUnassignedWitdh {
 /// ```
 /// # use ddo::*;
 /// #
-/// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
-/// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
+/// # let mut var_set = VarSet::all(5);  // assume a problem with 5 variables
+/// # let mdd_type = MDDType::Restricted;// assume we are compiling a restricted dd
+/// # var_set.remove(Variable(1));       // variables {1, 3, 4} have been fixed
 /// # var_set.remove(Variable(3));
-/// # var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
+/// # var_set.remove(Variable(4));       // only variables {0, 2} remain in the set
 /// let custom = Times(5, NbUnassignedWitdh);
-/// assert_eq!(5 * NbUnassignedWitdh.max_width(&var_set), custom.max_width(&var_set));
+/// assert_eq!(5 * NbUnassignedWitdh.max_width(mdd_type, &var_set), custom.max_width(mdd_type, &var_set));
 /// ```
 #[derive(Clone)]
 pub struct Times<X: WidthHeuristic + Clone>(pub usize, pub X);
 
 impl <X: WidthHeuristic + Clone> WidthHeuristic for Times<X> {
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.0 * self.1.max_width(free_vars)
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        self.0 * self.1.max_width(mdd_type, free_vars)
     }
 }
 
@@ -236,18 +238,19 @@ impl <X: WidthHeuristic + Clone> WidthHeuristic for Times<X> {
 /// # use ddo::*;
 /// #
 /// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
+/// # let mdd_type = MDDType::Relaxed;  // asume we're developing a relaxed dd 
 /// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
 /// # var_set.remove(Variable(3));
 /// # var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
 /// let custom = DivBy(2, NbUnassignedWitdh);
-/// assert_eq!(NbUnassignedWitdh.max_width(&var_set) / 2, custom.max_width(&var_set));
+/// assert_eq!(NbUnassignedWitdh.max_width(mdd_type, &var_set) / 2, custom.max_width(mdd_type, &var_set));
 /// ```
 #[derive(Clone)]
 pub struct DivBy<X: WidthHeuristic + Clone>(pub usize, pub X);
 
 impl <X: WidthHeuristic + Clone> WidthHeuristic for DivBy<X> {
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        1.max(self.1.max_width(free_vars) / self.0)
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        1.max(self.1.max_width(mdd_type, free_vars) / self.0)
     }
 }
 
@@ -421,7 +424,7 @@ impl TimeBudget {
             t_flag.store(true, Relaxed);
         }));
 
-        TimeBudget { stop, timer }
+        TimeBudget { timer, stop }
     }
 }
 impl Cutoff for TimeBudget {
@@ -626,7 +629,7 @@ mod test_gap_cutoff {
 
 #[cfg(test)]
 mod test_nbunassigned {
-    use crate::abstraction::heuristics::WidthHeuristic;
+    use crate::{MDDType, abstraction::heuristics::WidthHeuristic};
     use crate::common::{Variable, VarSet};
     use crate::implementation::heuristics::NbUnassignedWitdh;
 
@@ -637,12 +640,12 @@ mod test_nbunassigned {
         var_set.remove(Variable(3));
         var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
 
-        assert_eq!(2, NbUnassignedWitdh.max_width(&var_set));
+        assert_eq!(2, NbUnassignedWitdh.max_width(MDDType::Relaxed, &var_set));
     }
     #[test]
     fn all() {
         let var_set = VarSet::all(5);
-        assert_eq!(5, NbUnassignedWitdh.max_width(&var_set));
+        assert_eq!(5, NbUnassignedWitdh.max_width(MDDType::Relaxed, &var_set));
     }
     #[test]
     fn empty() {
@@ -653,12 +656,12 @@ mod test_nbunassigned {
         var_set.remove(Variable(3));
         var_set.remove(Variable(4));
 
-        assert_eq!(0, NbUnassignedWitdh.max_width(&var_set));
+        assert_eq!(0, NbUnassignedWitdh.max_width(MDDType::Relaxed, &var_set));
     }
 }
 #[cfg(test)]
 mod test_fixedwidth {
-    use crate::abstraction::heuristics::WidthHeuristic;
+    use crate::{MDDType, abstraction::heuristics::WidthHeuristic};
     use crate::common::{Variable, VarSet};
     use crate::implementation::heuristics::FixedWidth;
 
@@ -669,12 +672,12 @@ mod test_fixedwidth {
         var_set.remove(Variable(3));
         var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
 
-        assert_eq!(100, FixedWidth(100).max_width(&var_set));
+        assert_eq!(100, FixedWidth(100).max_width(MDDType::Relaxed, &var_set));
     }
     #[test]
     fn all() {
         let var_set = VarSet::all(5);
-        assert_eq!(100, FixedWidth(100).max_width(&var_set));
+        assert_eq!(100, FixedWidth(100).max_width(MDDType::Relaxed, &var_set));
     }
     #[test]
     fn empty() {
@@ -685,12 +688,12 @@ mod test_fixedwidth {
         var_set.remove(Variable(3));
         var_set.remove(Variable(4));
 
-        assert_eq!(100, FixedWidth(100).max_width(&var_set));
+        assert_eq!(100, FixedWidth(100).max_width(MDDType::Relaxed, &var_set));
     }
 }
 #[cfg(test)]
 mod test_adapters {
-    use crate::abstraction::heuristics::WidthHeuristic;
+    use crate::{MDDType, abstraction::heuristics::WidthHeuristic};
     use crate::common::{Variable, VarSet};
     use crate::implementation::heuristics::{Times, FixedWidth, DivBy};
 
@@ -702,19 +705,19 @@ mod test_adapters {
         var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
 
         let tested = Times(2, FixedWidth(1));
-        assert_eq!(2, tested.max_width(&var_set));
+        assert_eq!(2, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = Times(3, FixedWidth(1));
-        assert_eq!(3, tested.max_width(&var_set));
+        assert_eq!(3, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = Times(1, FixedWidth(10));
-        assert_eq!(10, tested.max_width(&var_set));
+        assert_eq!(10, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = Times(10, FixedWidth(0));
-        assert_eq!(0, tested.max_width(&var_set));
+        assert_eq!(0, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = Times(0, FixedWidth(10));
-        assert_eq!(0, tested.max_width(&var_set));
+        assert_eq!(0, tested.max_width(MDDType::Relaxed, &var_set));
     }
     #[test]
     fn test_div_by() {
@@ -724,16 +727,16 @@ mod test_adapters {
         var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
 
         let tested = DivBy(2, FixedWidth(4));
-        assert_eq!(2, tested.max_width(&var_set));
+        assert_eq!(2, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = DivBy(3, FixedWidth(9));
-        assert_eq!(3, tested.max_width(&var_set));
+        assert_eq!(3, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = Times(1, FixedWidth(10));
-        assert_eq!(10, tested.max_width(&var_set));
+        assert_eq!(10, tested.max_width(MDDType::Relaxed, &var_set));
 
         let tested = Times(10, FixedWidth(0));
-        assert_eq!(0, tested.max_width(&var_set));
+        assert_eq!(0, tested.max_width(MDDType::Relaxed, &var_set));
     }
     #[test] #[should_panic]
     fn test_div_by_panics_when_div_by_zero() {
@@ -743,7 +746,7 @@ mod test_adapters {
         var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
 
         let tested = Times(0, FixedWidth(10));
-        assert_eq!(1, tested.max_width(&var_set));
+        assert_eq!(1, tested.max_width(MDDType::Relaxed, &var_set));
     }
 }
 

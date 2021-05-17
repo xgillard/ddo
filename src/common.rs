@@ -443,6 +443,21 @@ impl Iterator for PartialAssignmentIter<'_> {
 }
 
 // ----------------------------------------------------------------------------
+// --- DD Compilation ---------------------------------------------------------
+// ----------------------------------------------------------------------------
+/// This enumeration characterizes the kind of MDD being generated. It can
+/// either be
+/// * `Exact` if it is a true account of the problem state space.
+/// * `Restricted` if it is an under approximation of the problem state space.
+/// * `Relaxed` if it is an over approximation of the problem state space.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum MDDType {
+    Relaxed,
+    Restricted,
+    Exact
+}
+
+// ----------------------------------------------------------------------------
 // --- Results ----------------------------------------------------------------
 // ----------------------------------------------------------------------------
 /// A reason explaining why the mdd stopped developing

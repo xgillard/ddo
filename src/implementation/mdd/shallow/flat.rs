@@ -27,8 +27,7 @@ use std::sync::Arc;
 
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::{Config, MDD};
-use crate::common::{Completion, Decision, FrontierNode, Reason, Solution, Variable, VarSet, PartialAssignment};
-use crate::implementation::mdd::MDDType;
+use crate::common::{Completion, Decision, FrontierNode, MDDType, Reason, Solution, Variable, VarSet, PartialAssignment};
 use crate::implementation::mdd::shallow::utils::{Edge, Node};
 use crate::implementation::mdd::utils::NodeFlags;
 use std::rc::Rc;
@@ -206,7 +205,7 @@ impl <T, C> MDD<T, C> for FlatMDD<T, C>
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Restricted;
-        self.max_width= self.config.max_width(&free_vars);
+        self.max_width= self.config.max_width(MDDType::Restricted, &free_vars);
 
         self.develop(root, free_vars, best_lb, ub)
     }
@@ -216,7 +215,7 @@ impl <T, C> MDD<T, C> for FlatMDD<T, C>
 
         let free_vars = self.config.load_variables(root);
         self.mddtype  = MDDType::Relaxed;
-        self.max_width= self.config.max_width(&free_vars);
+        self.max_width= self.config.max_width(MDDType::Relaxed, &free_vars);
 
         self.develop(root, free_vars, best_lb, ub)
     }
@@ -526,10 +525,9 @@ mod test_flatmdd {
 
     use crate::abstraction::dp::{Problem, Relaxation};
     use crate::abstraction::mdd::{MDD, Config};
-    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet};
+    use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet, MDDType};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::mdd::MDDType;
     use crate::implementation::mdd::shallow::flat::FlatMDD;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;

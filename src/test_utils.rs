@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use mock_it::{Mock, Matcher};
 
-use crate::abstraction::dp::{Problem, Relaxation};
+use crate::{MDDType, abstraction::dp::{Problem, Relaxation}};
 use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff};
 use crate::abstraction::mdd::Config;
 use crate::common::{Decision, Domain, FrontierNode, Variable, VarSet};
@@ -133,7 +133,7 @@ impl LoadVars<usize> for MockLoadVars {
 
 #[derive(Clone)]
 pub struct MockMaxWidth {
-    pub max_width: Mock<VarSet, usize>
+    pub max_width: Mock<(MDDType, VarSet), usize>
 }
 impl Default for MockMaxWidth {
     fn default() -> Self {
@@ -141,8 +141,8 @@ impl Default for MockMaxWidth {
     }
 }
 impl WidthHeuristic for MockMaxWidth {
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.max_width.called(free_vars.clone())
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        self.max_width.called((mdd_type, free_vars.clone()))
     }
 }
 
@@ -236,7 +236,7 @@ pub struct MockConfig {
     #[allow(clippy::type_complexity)]
     pub select_var      : Mock<(VarSet, Vec<usize>, Vec<usize>), Option<Variable>>,
     pub load_vars       : Mock<FrontierNode<usize>, VarSet>,
-    pub max_width       : Mock<VarSet, usize>,
+    pub max_width       : Mock<(MDDType, VarSet), usize>,
     pub compare         : Mock<(usize, usize), Ordering>,
     pub must_stop       : Mock<Matcher<(isize, isize)>, bool>,
 
@@ -311,8 +311,8 @@ impl Config<usize> for MockConfig {
         self.select_var.called((free_vars.clone(), current_layer.copied().collect(), next_layer.copied().collect()))
     }
 
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.max_width.called(free_vars.clone())
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        self.max_width.called((mdd_type, free_vars.clone()))
     }
 
     fn compare(&self, a: &dyn SelectableNode<usize>, b: &dyn SelectableNode<usize>) -> Ordering {
@@ -369,8 +369,8 @@ impl <X, T: LoadVars<X> + Clone> LoadVars<X> for Proxy<T> {
 }
 
 impl <T: WidthHeuristic + Clone> WidthHeuristic for Proxy<T> {
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.target().max_width(free_vars)
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        self.target().max_width(mdd_type, free_vars)
     }
 }
 impl <X, T: VariableHeuristic<X> + Clone> VariableHeuristic<X> for Proxy<T> {
@@ -438,8 +438,8 @@ impl <X, T: Config<X> + Clone> Config<X> for Proxy<T> {
         self.target().select_var(free_vars, current_layer, next_layer)
     }
 
-    fn max_width(&self, free_vars: &VarSet) -> usize {
-        self.target().max_width(free_vars)
+    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize {
+        self.target().max_width(mdd_type, free_vars)
     }
 
     fn compare(&self, a: &dyn SelectableNode<X>, b: &dyn SelectableNode<X>) -> Ordering {
