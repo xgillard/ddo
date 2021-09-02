@@ -29,13 +29,14 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use rustc_hash::FxHashMap;
+
 use crate::implementation::mdd::shallow::utils::{Node, Edge};
 use crate::common::{PartialAssignment, Solution, FrontierNode, MDDType, Completion, Reason, VarSet, Decision, Variable};
 use crate::abstraction::mdd::{MDD, Config};
 use crate::abstraction::heuristics::SelectableNode;
 use crate::implementation::mdd::deep::mdd::DeepMDD;
 use crate::implementation::mdd::hybrid::CompositeMDD;
-use std::collections::HashMap;
 
 
 /// This structure implements an MDD which is aggressively bounded when 
@@ -150,7 +151,7 @@ impl <T, C> From<C> for AggressivelyBoundedMDD<T, C>
 
 /// This is nothing but a writing simplification to tell that in a flat mdd,
 /// a layer is a hashmap of states to nodes
-type Layer<T> = HashMap<Rc<T>, Rc<Node<T>>>;
+type Layer<T> = FxHashMap<Rc<T>, Rc<Node<T>>>;
 
 /// This structure implements an aggressively bounded maximum width. These are
 /// bounded MDDs which only develops up to max-width nodes in a layer before
@@ -361,7 +362,7 @@ impl <T, C> RestrictedOnly<T, C>
             // absolutely no role to play
             let buffer = unsafe{ &mut *(&mut self.buffer as *mut Vec<Rc<Node<T>>>) };
             buffer.clear();
-            current_layer!(self).values().for_each(|n| buffer.push(Rc::clone(&n)));
+            current_layer!(self).values().for_each(|n| buffer.push(Rc::clone(n)));
             buffer.sort_unstable_by(|a, b| self.config.compare(a, b).reverse());
 
             for node in buffer.iter() {
@@ -452,7 +453,7 @@ impl <T, C> RestrictedOnly<T, C>
             estimate: isize::max_value(),
             flags: node.flags, // if its inexact, it will be or relaxed it will be considered inexact or relaxed too
             best_edge: Some(Edge {
-                parent: Rc::clone(&node),
+                parent: Rc::clone(node),
                 weight,
                 decision
             })

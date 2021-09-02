@@ -25,17 +25,18 @@ use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::sync::Arc;
 
+use rustc_hash::FxHashMap;
+
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::{Config, MDD};
 use crate::common::{Completion, Decision, FrontierNode, MDDType, Reason, Solution, Variable, VarSet, PartialAssignment};
 use crate::implementation::mdd::shallow::utils::{Edge, Node};
 use crate::implementation::mdd::utils::NodeFlags;
 use std::rc::Rc;
-use std::collections::HashMap;
 
 /// This is nothing but a writing simplification to tell that in a flat mdd,
 /// a layer is a hashmap of states to nodes
-type Layer<T> = HashMap<Rc<T>, Rc<Node<T>>>;
+type Layer<T> = FxHashMap<Rc<T>, Rc<Node<T>>>;
 
 /// This is the structure implementing _flat MDD_. This is a kind of
 /// bounded width MDD which offers a real guarantee wrt to the maximum amount
@@ -346,7 +347,7 @@ impl <T, C> FlatMDD<T, C>
             estimate: isize::max_value(),
             flags: node.flags, // if its inexact, it will be or relaxed it will be considered inexact or relaxed too
             best_edge: Some(Edge {
-                parent: Rc::clone(&node),
+                parent: Rc::clone(node),
                 weight,
                 decision
             })
@@ -440,7 +441,7 @@ impl <T, C> FlatMDD<T, C>
 
         let (keep, squash) = nodes.split_at_mut(self.max_width - 1);
         for node in keep {
-            self.layers[self.next].insert(Rc::clone(&node.this_state), Rc::clone(&node));
+            self.layers[self.next].insert(Rc::clone(&node.this_state), Rc::clone(node));
         }
 
         let merged_state = self.config.merge_states(&mut squash.iter().map(|n| n.state()));

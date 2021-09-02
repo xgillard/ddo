@@ -23,8 +23,9 @@
 use std::rc::Rc;
 use std::sync::Arc;
 use std::hash::Hash;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use rustc_hash::FxHashMap;
+
 use crate::{Decision, NodeFlags, PartialAssignment, Config, MDDType, MDD, Completion, FrontierNode, Solution, Reason, Variable, VarSet, SelectableNode};
 use crate::implementation::mdd::deep::deep_pooled::NodeRef::{Virtual, Actual};
 
@@ -158,7 +159,7 @@ struct CutsetNode {
 }
 
 /// A convenient type alias to denote the cutset
-type CutSet = HashMap<NodeRef, Vec<CutsetNode>>;
+type CutSet = FxHashMap<NodeRef, Vec<CutsetNode>>;
 
 /// This structure provides an implementation of a pooled mdd (one that may
 /// feature long arcs) while at the same time being a deep mdd (one that
@@ -182,7 +183,7 @@ pub struct PooledDeepMDD<T, C>
     max_width: usize,
     /// This is the pool of candidate nodes that might possibly participate in
     /// the next layer.
-    pool: HashMap<Rc<T>, NodeData<T>>,
+    pool: FxHashMap<Rc<T>, NodeData<T>>,
     /// This is the complete list with all the nodes data of the graph.
     /// The position a `NodeId` refers to is to be understood as a position
     /// in this vector.
@@ -333,7 +334,7 @@ where T: Eq + Hash + Clone,
     /// (possibly approximate) sub-MDD.
     fn root_pa(&self) -> Arc<PartialAssignment> {
         self.root_pa.as_ref()
-            .map_or(Arc::new(PartialAssignment::Empty), |refto| Arc::clone(&refto))
+            .map_or(Arc::new(PartialAssignment::Empty), |refto| Arc::clone(refto))
     }
     /// Returns the best partial assignment leading to the node identified by
     /// the `node` index in the graph.
@@ -838,8 +839,9 @@ mod test_pooled_deep_mdd {
     use crate::implementation::mdd::config::mdd_builder;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
+    use rustc_hash::FxHashMap;
     use crate::{VariableHeuristic, NaturalOrder, PooledDeepMDD, NodeSelectionHeuristic, SelectableNode};
-    use std::collections::HashMap;
+
     use std::cmp::Ordering;
 
     type DD<T, C> = PooledDeepMDD<T, C>;
@@ -1407,7 +1409,7 @@ mod test_pooled_deep_mdd {
         assert_eq!(false, mdd.is_exact());
         assert_eq!(104,   mdd.best_value());
 
-        let mut v = HashMap::<char, isize>::default();
+        let mut v = FxHashMap::<char, isize>::default();
         mdd.for_each_cutset_node(|n| {v.insert(*n.state, n.ub);});
 
         assert_eq!(104, v[&'c']); // because we cannot distinguish between c and d when they are reconciled with M

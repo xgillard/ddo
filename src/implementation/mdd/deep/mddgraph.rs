@@ -32,11 +32,12 @@ use std::hash::Hash;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use rustc_hash::FxHashMap;
+
 use crate::abstraction::heuristics::SelectableNode;
 use crate::abstraction::mdd::Config;
 use crate::common::Decision;
 use crate::implementation::mdd::utils::NodeFlags;
-use std::collections::HashMap;
 
 /// The errors related to the graph management
 #[allow(dead_code)]
@@ -285,7 +286,7 @@ pub struct Graph<T: Hash + Eq> {
     pub layers: Vec<LayerData>,
     /// This is the map that associates one state of the current layer to the
     /// node index (also belongs to the current layer) which stores it.
-    pub state : HashMap<Rc<T>, NodeIndex>,
+    pub state : FxHashMap<Rc<T>, NodeIndex>,
     /// If present, this is the identifier of the last exact layer.
     pub lel   : Option<LayerIndex>
 }
@@ -941,12 +942,12 @@ mod test_graph {
     use std::rc::Rc;
 
     use mock_it::verify;
+    use rustc_hash::FxHashMap;
 
     use crate::abstraction::heuristics::SelectableNode;
     use crate::common::{Decision, Variable};
     use crate::implementation::mdd::deep::mddgraph::{EdgeIndex, EdgeState, Graph, LayerData, LayerIndex, NodeIndex};
     use crate::test_utils::MockConfig;
-    use std::collections::HashMap;
 
     #[test]
     fn default_graph_is_empty() {
@@ -2590,7 +2591,7 @@ mod test_graph {
     ///     ||           --------------------
     /// L4  ||                     x
     /// ```
-    fn example_graph() -> (HashMap<char, NodeIndex>, Graph<char>) {
+    fn example_graph() -> (FxHashMap<char, NodeIndex>, Graph<char>) {
         let mut g = Graph::new();
 
         let r_id = g.add_root(Rc::new('r'), 0);
@@ -2630,7 +2631,7 @@ mod test_graph {
         g.branch(e_id, 'x', Decision{variable: Variable(3), value: 1}, 3, |_|{});
         g.branch(f_id, 'x', Decision{variable: Variable(3), value: 1}, 3, |_|{});
 
-        let mut ids = HashMap::default();
+        let mut ids = FxHashMap::default();
         ids.insert('r', r_id);
         ids.insert('a', a_id);
         ids.insert('z', z_id);

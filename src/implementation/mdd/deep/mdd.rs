@@ -104,7 +104,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
 
         let init_state = Rc::new(node.state.as_ref().clone());
         let init_value = node.lp_len;
-        let free_vars  = self.config.load_variables(&node);
+        let free_vars  = self.config.load_variables(node);
 
         self.mddtype   = MDDType::Exact;
         self.root      = Some(Arc::clone(&node.path));
@@ -118,7 +118,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
 
         let init_state = Rc::new(node.state.as_ref().clone());
         let init_value = node.lp_len;
-        let free_vars  = self.config.load_variables(&node);
+        let free_vars  = self.config.load_variables(node);
 
         self.mddtype   = MDDType::Restricted;
         self.root      = Some(Arc::clone(&node.path));
@@ -132,7 +132,7 @@ impl <T, C> MDD<T, C> for DeepMDD<T, C>
 
         let init_state = Rc::new(node.state.as_ref().clone());
         let init_value = node.lp_len;
-        let free_vars  = self.config.load_variables(&node);
+        let free_vars  = self.config.load_variables(node);
 
         self.mddtype   = MDDType::Relaxed;
         self.root      = Some(Arc::clone(&node.path));
@@ -217,7 +217,7 @@ impl <T, C> DeepMDD<T, C>
     /// the path between the exact root of the problem and the root of this
     /// (possibly approximate) sub-MDD.
     fn root_pa(&self) -> Arc<PartialAssignment> {
-        self.root.as_ref().map_or(Arc::new(Empty), |refto| Arc::clone(&refto))
+        self.root.as_ref().map_or(Arc::new(Empty), |refto| Arc::clone(refto))
     }
     /// Returns an iterator over the states of the nodes from the given layer
     /// index (when one is given). In case `None` is provided (before the root),
@@ -457,7 +457,7 @@ mod test_deepmdd {
     use crate::implementation::mdd::deep::mdd::DeepMDD;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
-    use std::collections::HashMap;
+    use rustc_hash::FxHashMap;
     use crate::{VariableHeuristic, NaturalOrder};
 
     #[test]
@@ -936,7 +936,7 @@ mod test_deepmdd {
         assert_eq!(false, mdd.is_exact());
         assert_eq!(104,   mdd.best_value());
 
-        let mut v = HashMap::<char, isize>::default();
+        let mut v = FxHashMap::<char, isize>::default();
         mdd.for_each_cutset_node(|n| {v.insert(*n.state, n.ub);});
 
         assert_eq!(16,  v[&'a']);

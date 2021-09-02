@@ -27,7 +27,7 @@ use bitset_fixed::BitSet;
 
 use ddo::{Decision, Domain, Variable, VarSet, Problem, Relaxation, VariableHeuristic};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ItemData {
     pub id      : usize,
     pub profit  : usize,

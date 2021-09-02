@@ -19,6 +19,7 @@ compare          = "0.1.0"
 smallbitset      = "0.3.0"
 bitset-fixed     = "0.1.0"
 binary-heap-plus = "0.4.0"
+rustc-hash       = "1.1.0"
 
 # -- going parallel --------
 num_cpus         = "1.13.0"

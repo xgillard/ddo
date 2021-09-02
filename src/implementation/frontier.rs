@@ -20,6 +20,7 @@
 //! This module provides the implementation of usual frontiers.
 
 use binary_heap_plus::BinaryHeap;
+use rustc_hash::FxHashMap;
 use crate::common::FrontierNode;
 use crate::implementation::heuristics::MaxUB;
 use crate::implementation::utils::NoDupHeap;
@@ -31,7 +32,6 @@ use crate::FrontierOrder;
 use compare::Compare;
 use std::cmp::Ordering;
 use std::marker::PhantomData;
-use std::collections::HashMap;
 
 /// The simplest frontier implementation you can think of: is basically consists
 /// of a binary heap that pushes and pops frontier nodes
@@ -242,7 +242,7 @@ pub struct NoForgetFrontier<T, O=MaxUB> where T: Eq + Hash + Clone, O: FrontierO
     /// The frontier itself
     heap: NoDupHeap<T, O>,
     /// The collection of enqueued states with their respective longest path length
-    states: HashMap<Arc<T>,isize>
+    states: FxHashMap<Arc<T>,isize>
 }
 impl <T> NoForgetFrontier<T, MaxUB> where T: Eq + Hash + Clone {
     pub fn new() -> Self {

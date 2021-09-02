@@ -20,6 +20,8 @@
 //! This module defines some utility types used to help provide concrete
 //! implementations of the objects in the abstraction layer.
 
+use rustc_hash::FxHashMap;
+
 use crate::common::FrontierNode;
 use std::sync::Arc;
 use std::collections::hash_map::Entry::{Vacant, Occupied};
@@ -29,7 +31,6 @@ use std::hash::Hash;
 use std::cmp::Ordering;
 use crate::implementation::heuristics::MaxUB;
 use crate::FrontierOrder;
-use std::collections::HashMap;
 
 /// This is a type-safe identifier for some node in the queue.
 /// Basically, this NodeId equates to the position of the identified
@@ -57,7 +58,7 @@ pub struct NoDupHeap<T, O=MaxUB>
     /// This is the comparator used to order the nodes in the binary heap
     cmp: O,
     /// A mapping that associates some state to a node identifier.
-    states: HashMap<Arc<T>, NodeId>,
+    states: FxHashMap<Arc<T>, NodeId>,
     /// The actual payload (nodes) ordered in the list
     nodes: Vec<FrontierNode<T>>,
     /// The position of the items in the heap
