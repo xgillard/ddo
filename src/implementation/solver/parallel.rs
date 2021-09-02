@@ -34,6 +34,11 @@ use crate::common::{FrontierNode, Solution, Reason, Completion};
 use crate::abstraction::frontier::Frontier;
 use crate::implementation::frontier::SimpleFrontier;
 
+/// The type of a callback function which is called whenever a better solution
+/// has been found.
+type SolutionCallback = dyn Fn(isize, &Solution) + Send + 'static;
+
+
 /// The shared data that may only be manipulated within critical sections
 struct Critical<T : Eq + Hash, F: Frontier<T>> {
     /// This is the fringe: the set of nodes that must still be explored before
@@ -81,6 +86,9 @@ struct Critical<T : Eq + Hash, F: Frontier<T>> {
     upper_bounds: Vec<isize>,
     ///
     new_best: bool,
+    /// an optional call back which is called whenever the best known solution
+    /// is improved.
+    on_solution: Option<Box<SolutionCallback>>,
     /// A marker to tell the compiler we use T
     _phantom: PhantomData<T>
 }
@@ -205,6 +213,7 @@ impl <T, C, DD> ParallelSolver<T, C, SimpleFrontier<T>, DD>
                     upper_bounds: vec![isize::min_value(); nb_threads],
                     abort_proof : None,
                     best_ub     : None,
+                    on_solution : None,
                     _phantom    : PhantomData
                 })
             }),
@@ -234,27 +243,35 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
     }
     /// Sets the kind of frontier to use
     pub fn with_frontier<FF: Frontier<T> + Send + Sync>(self, ff: FF) -> ParallelSolver<T, C, FF, DD> {
+        let shared   = Arc::try_unwrap(self.shared).ok().unwrap();
+        let critical = shared.critical.into_inner();
         ParallelSolver {
             config: self.config,
             verbosity: self.verbosity,
             nb_threads: self.nb_threads,
             shared: Arc::new(Shared {
-                monitor : Condvar::new(),
+                monitor : shared.monitor,
                 critical: Mutex::new(Critical {
-                    best_sol    : None,
-                    best_lb     : isize::min_value(),
-                    ongoing     : 0,
-                    explored    : 0,
-                    new_best    : false,
+                    best_sol    : critical.best_sol,
+                    best_lb     : critical.best_lb,
+                    ongoing     : critical.ongoing,
+                    explored    : critical.explored,
+                    new_best    : critical.new_best,
                     fringe      : ff,
-                    abort_proof : None,
-                    best_ub     : None,
-                    upper_bounds: vec![isize::min_value(); self.nb_threads],
+                    abort_proof : critical.abort_proof,
+                    best_ub     : critical.best_ub,
+                    upper_bounds: critical.upper_bounds,
+                    on_solution : critical.on_solution,
                     _phantom    : PhantomData
                 })
             }),
             _phantom: PhantomData
         }
+    }
+    /// Sets the solution callback
+    pub fn on_solution<X: Fn(isize, &Solution) + Send + 'static>(self, callback: X) -> Self {
+        self.shared.critical.lock().on_solution = Some(Box::new(callback));
+        self
     }
 
     /// This method initializes the problem resolution. Put more simply, this
@@ -302,6 +319,9 @@ impl <T, C, F, DD> ParallelSolver<T, C, F, DD>
             shared.best_lb   = mdd.best_value();
             shared.best_sol  = mdd.best_solution();
             shared.new_best  = true;
+            if let Some(on_solution) = shared.on_solution.as_ref() {
+                on_solution(shared.best_lb, shared.best_sol.as_ref().unwrap());
+            }
         }
     }
     /// If necessary, thightens the bound of nodes in the cutset of `mdd` and

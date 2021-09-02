@@ -28,6 +28,10 @@ use crate::abstraction::solver::Solver;
 use crate::common::{Solution, Reason, Completion};
 use crate::implementation::frontier::SimpleFrontier;
 
+/// The type of a callback function which is called whenever a better solution
+/// has been found.
+type SolutionCallback = dyn Fn(isize, &Solution) + 'static;
+
 /// This is the structure implementing an single-threaded MDD solver.
 ///
 /// # Example Usage
@@ -89,6 +93,9 @@ pub struct SequentialSolver<T, C, F, DD>
     best_lb  : isize,
     best_sol : Option<Solution>,
     verbosity: u8,
+    //
+    on_solution: Option<Box<SolutionCallback>>,
+    //
     _phantom : PhantomData<T>
 }
 // private interface.
@@ -110,6 +117,7 @@ impl <T, C, DD> SequentialSolver<T, C, SimpleFrontier<T>, DD>
             best_lb: std::isize::MIN,
             best_sol: None,
             verbosity,
+            on_solution: None,
             _phantom : PhantomData
         }
     }
@@ -134,13 +142,22 @@ impl <T, C, F, DD> SequentialSolver<T, C, F, DD>
             best_lb  : self.best_lb,
             best_sol : self.best_sol,
             verbosity: self.verbosity,
+            on_solution: self.on_solution,
             _phantom : PhantomData
         }
+    }
+    pub fn on_solution<X: Fn(isize, &Solution) + 'static>(mut self, callback: X) -> Self {
+        self.on_solution = Some(Box::new(callback));
+        self
     }
     fn maybe_update_best(&mut self) {
         if self.mdd.best_value() > self.best_lb {
             self.best_lb   = self.mdd.best_value();
             self.best_sol = self.mdd.best_solution();
+
+            if let Some(on_solution) = self.on_solution.as_ref() {
+                on_solution(self.best_lb, self.best_sol.as_ref().unwrap())
+            }
         }
     }
 

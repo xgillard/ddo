@@ -56,21 +56,19 @@ fn psp(fname: &str, width: usize, threads: Option<usize>) -> isize {
         .with_max_width(FixedWidth(width))
         .into_deep();
 
-    let mut solver = ParallelSolver::customized(mdd, 2, threads)
-        .with_frontier(NoDupFrontier::default());
-
     let start = SystemTime::now();
-    let opt   = -solver.maximize().best_value.unwrap_or(isize::min_value());
-    let end   = SystemTime::now();
-    println!("Optimum {} computed in {:?} with {} threads", opt, end.duration_since(start).unwrap(), threads);
-    opt
+    let mut solver = ParallelSolver::customized(mdd, 0, threads)
+        .with_frontier(NoDupFrontier::default())
+        .on_solution(move |val, _sol| println!("value {} -- {:.2}", val, start.elapsed().unwrap().as_secs_f32()));
+
+    let compl = solver.maximize();
+    
+    -compl.best_value.unwrap_or(isize::MIN)
 }
 
 fn main() {
     let args  = Args::from_args();
-    let value = psp(&args.fname, args.width, args.threads);
-
-    println!("best value = {}", value);
+    psp(&args.fname, args.width, args.threads);
 }
 
 #[cfg(test)]
