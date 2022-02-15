@@ -25,7 +25,6 @@ use std::cmp::Ordering;
 use crate::{MDDType, abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, SelectableNode, VariableHeuristic, WidthHeuristic, Cutoff, FrontierOrder}};
 use crate::common::{FrontierNode, Variable, VarSet};
 use std::time::Duration;
-use std::thread::JoinHandle;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
@@ -412,19 +411,20 @@ impl Cutoff for NoCutoff {
 /// ```
 #[derive(Debug, Clone)]
 pub struct TimeBudget {
-    timer : Arc<JoinHandle<()>>,
     stop  : Arc<AtomicBool>
 }
 impl TimeBudget {
     pub fn new(budget: Duration) -> Self {
         let stop   = Arc::new(AtomicBool::new(false));
         let t_flag = Arc::clone(&stop);
-        let timer  = Arc::new(std::thread::spawn(move || {
+        
+        // timer
+        std::thread::spawn(move || {
             std::thread::sleep(budget);
             t_flag.store(true, Relaxed);
-        }));
+        });
 
-        TimeBudget { timer, stop }
+        TimeBudget { stop }
     }
 }
 impl Cutoff for TimeBudget {

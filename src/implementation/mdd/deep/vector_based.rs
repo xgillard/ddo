@@ -217,7 +217,7 @@ impl <T, C> DeepMDD<T, C>
     /// the path between the exact root of the problem and the root of this
     /// (possibly approximate) sub-MDD.
     fn root_pa(&self) -> Arc<PartialAssignment> {
-        self.root.as_ref().map_or(Arc::new(Empty), |refto| Arc::clone(refto))
+        self.root.as_ref().map_or(Arc::new(Empty), Arc::clone)
     }
     /// Returns an iterator over the states of the nodes from the given layer
     /// index (when one is given). In case `None` is provided (before the root),
@@ -454,7 +454,7 @@ mod test_deepmdd {
     use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Reason, Variable, VarSet, MDDType};
     use crate::implementation::heuristics::FixedWidth;
     use crate::implementation::mdd::config::mdd_builder;
-    use crate::implementation::mdd::deep::mdd::DeepMDD;
+    use crate::implementation::mdd::deep::vector_based::DeepMDD;
     use crate::test_utils::{MockConfig, MockCutoff, Proxy};
     use mock_it::Matcher;
     use rustc_hash::FxHashMap;

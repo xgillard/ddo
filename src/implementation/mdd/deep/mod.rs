@@ -20,7 +20,7 @@
 //! This module and its sub modules provide the structures required to implement
 //! a _deep_ MDD with local bounds.
 
-pub mod mdd;
+pub mod vector_based;
 pub mod mddgraph;
 
 pub mod deep_pooled;

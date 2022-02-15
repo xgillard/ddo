@@ -32,7 +32,7 @@ use crate::abstraction::heuristics::{LoadVars, NodeSelectionHeuristic, Selectabl
 use crate::abstraction::mdd::Config;
 use crate::common::{Decision, Domain, FrontierNode, PartialAssignment, Variable, VarSet};
 use crate::implementation::heuristics::{LoadVarFromPartialAssignment, MinLP, NaturalOrder, NbUnassignedWitdh, NoCutoff};
-use crate::implementation::mdd::deep::mdd::DeepMDD;
+use crate::implementation::mdd::deep::vector_based::DeepMDD;
 use crate::implementation::mdd::shallow::flat::FlatMDD;
 use crate::implementation::mdd::shallow::pooled::PooledMDD;
 

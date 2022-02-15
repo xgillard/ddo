@@ -27,7 +27,7 @@
 use std::hash::Hash;
 use crate::abstraction::mdd::{Config, MDD};
 use crate::implementation::mdd::shallow::pooled::PooledMDD;
-use crate::implementation::mdd::deep::mdd::DeepMDD;
+use crate::implementation::mdd::deep::vector_based::DeepMDD;
 use crate::common::{Completion, FrontierNode, Reason, Solution, MDDType};
 use std::marker::PhantomData;
 use crate::implementation::mdd::shallow::flat::FlatMDD;

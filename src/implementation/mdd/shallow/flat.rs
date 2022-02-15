@@ -374,16 +374,12 @@ impl <T, C> FlatMDD<T, C>
     /// Swaps the indices of the current and next layers effectively moving
     /// to the next layer (next is now considered current)
     fn swap_current_next(&mut self) {
-        let tmp      = self.current;
-        self.current = self.next;
-        self.next    = tmp;
+        std::mem::swap(&mut self.current, &mut self.next)
     }
     /// Swaps the indices of the current and last exact layers, effectively
     /// remembering current as the last exact layer.
     fn swap_current_lel(&mut self) {
-        let tmp      = self.current;
-        self.current = self.lel;
-        self.lel     = tmp;
+        std::mem::swap(&mut self.current, &mut self.lel)
     }
     /// Records the last exact layer. It only has an effect when the mdd is
     /// considered to be still correct. In other words, it will only remember

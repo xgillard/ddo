@@ -334,7 +334,7 @@ where T: Eq + Hash + Clone,
     /// (possibly approximate) sub-MDD.
     fn root_pa(&self) -> Arc<PartialAssignment> {
         self.root_pa.as_ref()
-            .map_or(Arc::new(PartialAssignment::Empty), |refto| Arc::clone(refto))
+            .map_or(Arc::new(PartialAssignment::Empty), Arc::clone)
     }
     /// Returns the best partial assignment leading to the node identified by
     /// the `node` index in the graph.
