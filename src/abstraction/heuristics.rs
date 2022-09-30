@@ -22,117 +22,58 @@
 //! Namely, it defines :
 //!
 //!  - the `WidthHeuristic` which is used to control the maximum width of an MDD
-//!  - the `VariableHeuristic` which is used to control the order in which the
-//!    variables are selected (major impact on the size of an MDD).
-//!  - the `LoadVars` which encapsulates a strategy to retrieve the set of
-//!    unassigned variables from a given frontier node.
-//!  - the `Cutoff` which encapsulates a criterion (external to the solver)
-//!    which imposes to stop searching for a better solution. Typically, this is
-//!    done to grant a given time budget to the search.
+//!  - the `StateRanking` heuristic which is used to guess the nodes promisingess
+//!  - the `Cutoff` heuristic which is used to impose a stopping criterion on the
+//!    solver resolution.
 
-use crate::common::{FrontierNode, Variable, VarSet, MDDType};
 use std::cmp::Ordering;
 
-/// This trait defines an heuristic to determine the maximum allowed width of a
-/// layer in a relaxed or restricted MDD.
-pub trait WidthHeuristic {
-    /// Returns the maximum width allowed for a layer.
-    fn max_width(&self, mdd_type: MDDType, free_vars: &VarSet) -> usize;
-}
-
-/// This trait defines an heuristic to determine the best variable to branch on
-/// while developing an MDD.
+/// This trait enclapsulates the behavior of the heuristic that determines
+/// the maximum permitted width of a decision diagram.
 ///
-/// This trait defines some optional methods that allow you to implement an
-/// incremental variable heuristic (stateful). The implementation of these
-/// methods is definitely *not* mandatory. This is why the trait provides a
-/// default (empty) implementation for these methods. In the event where these
-/// methods are implemented, you may assume that each thread owns a copy of
-/// the heuristic.
-pub trait VariableHeuristic<T> {
-    /// Returns the best variable to branch on from the set of `free_vars`
-    /// or `None` in case no branching is useful (`free_vars` is empty, no decision
-    /// left to make, etc...).
-    fn next_var(&self,
-                free_vars: &VarSet,
-                current_layer: &mut dyn Iterator<Item=&T>,
-                next_layer:  &mut dyn Iterator<Item=&T>) -> Option<Variable>;
-
-    /// This method provides a hook for you to react to the addition of a new
-    /// layer (to the mdd) during development of an mdd. This might be useful
-    /// when implementing an incremental variable heuristic.
-    ///
-    /// *The implementation of this method is _OPTIONAL_*
-    fn upon_new_layer(&mut self,
-                      _var: Variable,
-                      _current_layer: &mut dyn Iterator<Item=&T>){}
-
-    /// This method provides a hook for you to react to the addition of a new
-    /// node to the next layer of the mdd during development of the mdd.
-    /// This might be useful when implementing an incremental variable heuristic.
-    ///
-    /// *The implementation of this method is _OPTIONAL_*
-    fn upon_node_insert(&mut self, _state: &T) {}
-
-    /// When implementing an incremental variable selection heuristic, this
-    /// method should reset the state of the heuristic to a "fresh" state.
-    /// This method is called at the start of the development of any mdd.
-    ///
-    /// *The implementation of this method is _OPTIONAL_*
-    fn clear(&mut self) {}
-}
-
-/// This trait defines a minimal abstraction over the MDD nodes so that they
-/// can easily (and transparently) be ordered by the `NodeSelectionHeuristic`.
-pub trait SelectableNode<T> {
-    /// Returns a reference to the state of this node.
-    fn state (&self) -> &T;
-    /// Returns the value of the objective function at this node. In other words,
-    /// it returns the length of the longest path from root to this node.
-    fn value(&self) -> isize;
-    /// Returns true iff the node is an exact node (not merged, and has no
-    /// merged ancestor).
-    fn is_exact(&self) -> bool;
-}
-
-/// This trait defines an heuristic to rank the nodes in order to remove
-/// (or merge) the less relevant ones from an MDD that is growing too large.
-pub trait NodeSelectionHeuristic<T> {
-    /// Defines an order of 'relevance' over the nodes `a` and `b`. Greater means
-    /// that `a` is more important (hence more likely to be kept) than `b`.
-    fn compare(&self, a: &dyn SelectableNode<T>, b: &dyn SelectableNode<T>) -> Ordering;
-}
-
-/// This trait defines an heuristic to rank the nodes on the solver fringe.
-/// That is, it defines the order in which the frontier nodes are going to be
-/// popped off the fringe (either sequentially or in parallel).
+/// # Technical Note:
+/// Just like `Problem`, `Relaxation` and `StateRanking`, the `WidthHeuristic`
+/// trait is generic over `State`s. However, rather than using the same 
+/// 'assciated-type' mechanism that was used for the former three types, 
+/// `WidthHeuristic` uses a parameter type for this purpose (the type parameter
+/// approach might feel more familiar to Java or C++ programmers than the 
+/// associated-type). 
 ///
-/// # Note:
-/// Because of the assumption which is made on the frontier that all nodes be
-/// popped off the frontier in decreasing upper bound order, it is obligatory
-/// that any frontier order uses the upper bound as first criterion. Failing to
-/// do so will result in the solver stopping to search for the optimal solution
-/// too early.
-pub trait FrontierOrder<T> {
-    /// Defines the order in which the nodes are going to be popped off the
-    /// fringe. If node `a` is `Greater` than node `b`, it means that node
-    /// `a` should be popped off the fringe sooner than node `b`.
-    ///
-    /// # Note:
-    /// Because of the assumption which is made on the frontier that all nodes be
-    /// popped off the frontier in decreasing upper bound order, it is obligatory
-    /// that any frontier order uses the upper bound as first criterion. Failing to
-    /// do so will result in the solver stopping to search for the optimal solution
-    /// too early.
-    fn compare(&self, a: &FrontierNode<T>, b: &FrontierNode<T>) -> Ordering;
+/// This choice was motivated by two factors: 
+/// 1. The `Problem`, `Relaxation` and `StateRanking` are intrinsically tied
+///    to *one type* of state. And thus, the `State` is really a part of the 
+///    problem/relaxation itself. Therefore, it would not make sense to define 
+///    a generic problem implementation which would be applicable to all kind 
+///    of states. Instead, an implementation of the `Problem` trait is the
+///    concrete implementation of a DP model (same argument holds for the other 
+///    traits). 
+///
+/// 2. On the other hand, it does make sense to define a `WidthHeuristic` 
+///    implementation which is applicable regardless of the state of the problem
+///    which is currently being solved. For instance, the ddo framework offers
+///    the `Fixed` and `NbUnassigned` width heuristics which are independent of
+///    the problem. The `Fixed` width heuristic imposes that the maxumum layer
+///    width be constant accross all compiled DDs whereas `NbUnassigned` lets
+///    the maximum width vary depending on the number of problem variables 
+///    which have already been decided upon.
+pub trait WidthHeuristic<State> {
+    /// Estimates a good maximum width for an MDD rooted in the given state
+    fn max_width(&self, state: &State) -> usize;
 }
 
-/// This trait defines a strategy/heuristic to retrieve the smallest set of free
-/// variables from a given `node`
-pub trait LoadVars<T> {
-    /// Returns the minimal set of free variables for the given `problem` when
-    /// starting an exploration in the given `node`.
-    fn variables(&self, node: &FrontierNode<T>) -> VarSet;
+/// A state ranking is an heuristic that imposes a partial order on states.
+/// This order is used by the framework as a means to discriminate the most
+/// promising nodes from the least promising ones when restricting or relaxing
+/// a layer from some given DD.
+pub trait StateRanking {
+    /// As is the case for `Problem` and `Relaxation`, a `StateRanking` must 
+    /// tell the kind of states it is able to operate on.
+    type State;
+
+    /// This method compares two states and determines which is the most 
+    /// desirable to keep. In this ordering, greater means better and hence
+    /// more likely to be kept
+    fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering;
 }
 
 /// This trait encapsulates a criterion (external to the solver) which imposes

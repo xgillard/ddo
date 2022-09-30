@@ -1,9 +1,0 @@
-c Here we have both unit and tautological clauses.
-p wcnf 3 7
-2 3 3 0
-0 -3 3 0
-5 -1 1 0
-7 -2 3 0
-5 -3 -1 0
-5 -3 -2 0
-2 -3 1 0

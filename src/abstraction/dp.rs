@@ -24,136 +24,98 @@
 //! The most important abstractions that should be provided by a client are
 //! `Problem` and `Relaxation`.
 
-use crate::common::{Variable, Domain, VarSet, Decision};
+use std::sync::Arc;
 
-/// This is the main abstraction that should be provided by any user of our
-/// library. Indeed, it defines the problem to be solved in the form of a dynamic
-/// program. Therefore, this trait closely sticks to the formal definition of a
-/// dynamic program.
-///
-/// The type parameter `<T>` denotes the type of the states of the dynamic program.
-pub trait Problem<T> {
-    /// Returns the number of decision variables that play a role in the problem.
-    fn nb_vars(&self) -> usize;
-    /// Returns the initial state of the problem (when no decision is taken).
-    fn initial_state(&self) -> T;
-    /// Returns the initial value of the objective function (when no decision is taken).
+use crate::{Variable, Decision};
+
+/// This trait defines the "contract" of what defines an optimization problem
+/// solvable with the branch-and-bound with DD paradigm. An implementation of
+/// this trait effectively defines a DP formulation of the problem being solved.
+/// That DP model is envisioned as a labeled transition system -- which makes
+/// it more amenable to DD compilation.
+pub trait Problem {
+    /// The DP model of the problem manipulates a state which is user-defined.
+    /// Any type implementing Problem must thus specify the type of its state.
+    type State;
+    /// Any problem bears on a number of variable $x_0, x_1, x_2, ... , x_{n-1}$
+    /// This method returns the value of the number $n$
+    fn nb_variables(&self) -> usize;
+    /// This method returns the initial state of the problem (the state of $r$).
+    fn initial_state(&self) -> Self::State;
+    /// This method returns the intial value $v_r$ of the problem
     fn initial_value(&self) -> isize;
-
-    /// Returns the domain of variable `var` in the given `state`. These are the
-    /// possible values that might possibly be affected to `var` when the system
-    /// has taken decisions leading to `state`.
-    fn domain_of<'a>(&self, state: &'a T, var: Variable) -> Domain<'a>;
-    /// Returns the next state reached by the system if the decision `d` is
-    /// taken when the system is in the given `state` and the given set of `vars`
-    /// are still free (no value assigned).
-    fn transition(&self, state: &T, vars : &VarSet, d: Decision) -> T;
-    /// Returns the marginal benefit (in terms of objective function to maximize)
-    /// of taking decision `d` is when the system is in the given `state` and
-    /// the given set of `vars` are still free (no value assigned).
-    fn transition_cost(&self, state: &T, vars : &VarSet, d: Decision) -> isize;
-
-    /// Optional method for the case where you'd want to use a pooled mdd
-    /// implementation. This method returns true iff taking a decision on
-    /// `variable` might have an impact (state or longest path) on a node
-    /// having the given `state`.
-    #[allow(unused_variables)]
-    fn impacted_by(&self, state: &T, variable: Variable) -> bool {
-        true
-    }
-
-    /// Returns a var set with all the variables of this problem.
-    ///
-    /// This method is (trivially) auto-implemented, but re-implementing it
-    /// does not make much sense.
-    fn all_vars(&self) -> VarSet {
-        VarSet::all(self.nb_vars())
-    }
+    /// This method is an implementation of the transition function mentioned
+    /// in the mathematical model of a DP formulation for some problem.
+    fn transition(&self, state: &Self::State, decision: Decision) -> Self::State;
+    /// This method is an implementation of the transition cost function mentioned
+    /// in the mathematical model of a DP formulation for some problem.
+    fn transition_cost(&self, state: &Self::State, decision: Decision) -> isize;
+    /// Any problem needs to be able to specify an ordering on the variables
+    /// in order to decide which variable should be assigned next. This choice
+    /// is an **heuristic** choice. The variable ordering does not need to be
+    /// fixed either. It may depend on the nodes constitutive of the next layer.
+    /// These nodes are made accessible to this method as an iterator.
+    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+        -> Option<Variable>;
+    /// This method calls the function `f` for any value in the domain of 
+    /// variable `var` when in state `state`.  The function `f` is a function
+    /// (callback, closure, ..) that accepts one decision.
+    fn for_each_in_domain<F>(&self, var: Variable, state: &Self::State, f: F)
+    where F: FnMut(Decision);
 }
 
-/// This is the second most important abstraction that a client should provide
-/// when using this library. It defines the relaxation that may be applied to
-/// the given problem. In particular, the `merge_states` method from this trait
-/// defines how the nodes of a layer may be combined to provide an upper bound
-/// approximation standing for an arbitrarily selected set of nodes.
-///
-/// Again, the type parameter `<T>` denotes the type of the states.
-pub trait Relaxation<T> {
-    /// This method merges the given set of `states` into a new _inexact_ state
-    /// that is an overapproximation of all `states`. The returned value will be
-    /// used as a replacement for the given `states` in the mdd.
-    ///
-    /// In the theoretical framework of Bergman et al, this would amount to
-    /// providing an implementation for the $\oplus$ operator. You should really
-    /// only focus on that aspect when developing a relaxation: all the rest
-    /// is taken care of by the framework.
-    fn merge_states(&self, states: &mut dyn Iterator<Item=&T>) -> T;
-
-    /// This method relaxes the weight of the edge between the nodes `src` and
-    /// `dst` because `dst` is replaced in the current layer by `relaxed`. The
-    /// `decision` labels and the original weight (`cost`) of the edge
-    /// `src` -- `dst` are also recalled.
-    ///
-    /// In the theoretical framework of Bergman et al, this would amount to
-    /// providing an implementation for the $\Gamma$ operator.
-    fn relax_edge(&self, src: &T, dst: &T, relaxed: &T, decision: Decision, cost: isize) -> isize;
-
-    /// This optional method derives a _rough upper bound_ (RUB) on the maximum
-    /// value of the subproblem rooted in the given `_state`. By default, the
-    /// RUB returns the greatest positive integer; which is always safe but does
-    /// not provide any pruning.
-    fn estimate  (&self, _state  : &T) -> isize {isize::max_value()}
+/// A subproblem is a residual problem that must be solved in order to complete the
+/// resolution of the original problem which had been defined. 
+/// 
+/// # Note:
+/// Subproblems are autimatically instanciated from nodes in the exact custsets 
+/// of relaxed decision diagrams. If you are only discovering the API, rest 
+/// assured.. you don't need to implement any subproblem yourself.
+#[derive(Debug, Clone)]
+pub struct SubProblem<T> {
+    /// The root state of this sub problem
+    pub state: Arc<T>,
+    /// The root value of this sub problem
+    pub value: isize,
+    /// The path to traverse to reach this subproblem from the root
+    /// of the original problem
+    pub path: Vec<Decision>,
+    /// An upper bound on the objective reachable in this subproblem
+    pub ub: isize,
 }
 
+/// A relaxation encapsulates the relaxation $\Gamma$ and $\oplus$ which are
+/// necessary when compiling relaxed DDs. These operators respectively relax
+/// the weight of an arc towards a merged node, and merges the staet of two or 
+/// more nodes so as to create a new inexact node.
+pub trait Relaxation {
+    /// Similar to the DP model of the problem it relaxes, a relaxation operates
+    /// on a set of states (the same as the problem). 
+    type State;
 
-// ############################################################################
-// #### TESTS #################################################################
-// ############################################################################
+    /// This method implements the merge operation: it combines several `states`
+    /// and yields a new state which is supposed to stand for all the other
+    /// merged states. In the mathematical model, this operation was denoted
+    /// with the $\oplus$ operator.
+    fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State;
+    
+    /// This method relaxes the cost associated to a particular decision. It
+    /// is called for any arc labeled `decision` whose weight needs to be 
+    /// adjusted because it is redirected from connecting `src` with `dst` to 
+    /// connecting `src` with `new`. In the mathematical model, this operation
+    /// is denoted by the operator $\Gamma$.
+    fn relax(
+        &self,
+        source: &Self::State,
+        dest: &Self::State,
+        new: &Self::State,
+        decision: Decision,
+        cost: isize,
+    ) -> isize;
 
-#[cfg(test)]
-mod test_problem_defaults {
-    use crate::abstraction::dp::{Problem, Relaxation};
-    use crate::common::{Variable, VarSet, Domain, Decision};
-
-    struct MockProblem;
-    impl Problem<usize> for MockProblem {
-        fn nb_vars(&self)       -> usize {  5 }
-        fn initial_state(&self) -> usize { 42 }
-        fn initial_value(&self) -> isize { 84 }
-        fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
-            unimplemented!()
-        }
-        fn transition(&self, _: &usize, _: &VarSet, _: Decision) -> usize {
-            unimplemented!()
-        }
-        fn transition_cost(&self, _: &usize, _: &VarSet, _: Decision) -> isize {
-            unimplemented!()
-        }
-    }
-    struct MockRelax;
-    impl Relaxation<usize> for MockRelax {
-        fn merge_states(&self, _: &mut dyn Iterator<Item=&usize>) -> usize {
-            unimplemented!()
-        }
-        fn relax_edge(&self, _: &usize, _: &usize, _: &usize, _: Decision, _: isize) -> isize {
-            unimplemented!()
-        }
-    }
-
-    #[test]
-    fn by_default_all_vars_return_all_possible_variables(){
-        assert_eq!(VarSet::all(5), MockProblem.all_vars());
-    }
-
-    #[test]
-    fn the_default_rough_upper_bound_is_infinity() {
-        assert_eq!(isize::max_value(), MockRelax.estimate(&12));
-    }
-
-    #[test]
-    fn by_default_all_vars_impact_all_states() {
-        assert!(MockProblem.impacted_by(&0, Variable(0)));
-        assert!(MockProblem.impacted_by(&4, Variable(10)));
-        assert!(MockProblem.impacted_by(&92, Variable(53)));
+    /// Returns a very rough estimation (upper bound) of the optimal value that 
+    /// could be reached if state were the initial state
+    fn fast_upper_bound(&self, _state: &Self::State) -> isize {
+        isize::MAX
     }
 }

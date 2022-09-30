@@ -19,16 +19,24 @@
 
 //! This module defines the `Solver` trait.
 
-use crate::common::{Completion, Solution};
+use crate::{Decision, Completion};
 
-/// The solver trait lets you maximize an objective function.
+/// A decision is nothing but a sequence of decision covering all problem
+/// variables.
+pub type Solution = Vec<Decision>;
+
+/// This is the solver abstraction. It is implemented by a structure that 
+/// implements the branch-and-bound with MDD paradigm (or possibly an other
+/// optimization algorithm -- currently only branch-and-bound with DD) to
+/// find the best possible solution to a given problem.
 pub trait Solver {
-    /// Returns a structure standing for the outcome of the attempted 
-    /// maximization. Such a `Completion` may either be marked **exact** 
-    /// if the maximization has been carried out until optimality was proved.
-    /// Or it can be inexact, in which case it means that the maximization
-    /// process was stopped because of the satisfaction of some cutoff 
-    /// criterion.
+    /// This method orders the solver to search for the optimal solution among
+    /// all possibilities. It returns a structure standing for the outcome of
+    /// the attempted maximization. Such a `Completion` may either be marked 
+    /// **exact** if the maximization has been carried out until optimality was 
+    /// proved. Or it can be inexact, in which case it means that the 
+    /// maximization process was stopped because of the satisfaction of some 
+    /// cutoff criterion.
     ///
     /// Along with the `is_exact` exact flag, the completion provides an 
     /// optional `best_value` of the maximization problem. Four cases are thus
@@ -46,12 +54,15 @@ pub trait Solver {
     ///   cutoff occured.
     ///
     fn maximize(&mut self) -> Completion;
-
-    /// Returns the best solution that has been identified for this problem.
-    fn best_solution(&self) -> Option<Solution>;
-    /// Returns the value of the best solution that has been identified for
-    /// this problem.
+    /// This method returns the value of the objective function for the best
+    /// solution that has been found. It returns `None` when no solution exists
+    /// to the problem.
     fn best_value(&self) -> Option<isize>;
+    /// This method returns the best solution to the optimization problem.
+    /// That is, it returns the vector of decision which maximizes the value 
+    /// of the objective function (sum of transition costs + initial value).
+    /// It returns `None` when the problem admits no feasible solution.
+    fn best_solution(&self) -> Option<Solution>;
 
     /// Returns the best lower bound that has been identified so far.
     /// In case where no solution has been found, it should return the minimum

@@ -1,8 +1,8 @@
 [package]
 name             = "ddo"
-version          = "0.6.0"
+version          = "1.0.0"
 authors          = ["Xavier Gillard <xavier.gillard@uclouvain.be>"]
-edition          = "2018"
+edition          = "2021"
 description      = "DDO a generic and efficient framework for MDD-based optimization."
 repository       = "https://github.com/xgillard/ddo"
 readme           = "README.md"
@@ -15,24 +15,15 @@ exclude          = ["examples/tests/resources/*" ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-compare          = "0.1.0"
-smallbitset      = "0.3.0"
-bitset-fixed     = "0.1.0"
-binary-heap-plus = "0.4.0"
 rustc-hash       = "1.1.0"
+binary-heap-plus = "0.5.0"
 
 # -- going parallel --------
 num_cpus         = "1.13.0"
-parking_lot      = "0.11.1"
-crossbeam        = "0.8.0"
-
-[dev-dependencies]
-peak_alloc       = "0.1.0"
-mock-it          = "0.3.0"
-regex            = "1.4.2"
-structopt        = "0.3.21"
+parking_lot      = "0.12.1"
 
 [profile.release]
-incremental      = true
-lto              = true
+lto              = 'fat'
 panic            = 'abort'
+opt-level        = 3
+incremental      = true

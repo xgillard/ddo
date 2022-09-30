@@ -17,6 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+
 //! # DDO
 //! DDO is a truly generic framework to develop MDD-based combinatorial
 //! optimization solvers in Rust. Its goal is to let you describe your
@@ -246,42 +247,6 @@
 
 mod common;
 mod abstraction;
-mod implementation;
 
-#[cfg(test)]
-mod test_utils;
-
-// ----------------------------------------------------------------------------
-// --- The following lines re-export all the public API of the crate.      ----
-// --- This should hopefully ease the development of solvers based on DDO. ----
-// ----------------------------------------------------------------------------
-
-// Commonalities
-pub use crate::common::*;
-
-// Abstractions
-pub use crate::abstraction::dp::*;
-pub use crate::abstraction::mdd::*;
-pub use crate::abstraction::heuristics::*;
-pub use crate::abstraction::frontier::*;
-pub use crate::abstraction::solver::*;
-
-// Implementations
-pub use crate::implementation::mdd::{
-      config::*,
-      deep::vector_based::DeepMDD,
-      deep::deep_pooled::PooledDeepMDD,
-      shallow::flat::FlatMDD,
-      shallow::pooled::PooledMDD,
-      hybrid::{CompositeMDD,HybridFlatDeep,HybridPooledDeep},
-      aggressively_bounded::AggressivelyBoundedMDD,
-      utils::NodeFlags,
-};
-pub use crate::implementation::heuristics::*;
-pub use crate::implementation::frontier::*;
-pub use crate::implementation::solver::sequential::SequentialSolver;
-pub use crate::implementation::solver::parallel::ParallelSolver;
-
-// And because that's convenient to import while writing tests too
-#[cfg(test)]
-pub use crate::test_utils::*;
+pub use common::*;
+pub use abstraction::*;
