@@ -21,6 +21,8 @@
 //! the code of our library (both at the abstraction and implementation levels).
 //! These are also the types your client library is likely to work with.
 
+use std::sync::Arc;
+
 // ----------------------------------------------------------------------------
 // --- VARIABLE ---------------------------------------------------------------
 // ----------------------------------------------------------------------------
@@ -56,6 +58,30 @@ impl Variable {
 pub struct Decision {
     pub variable : Variable,
     pub value    : isize
+}
+
+
+// ----------------------------------------------------------------------------
+// --- SUBPROBLEM -------------------------------------------------------------
+// ----------------------------------------------------------------------------
+/// A subproblem is a residual problem that must be solved in order to complete the
+/// resolution of the original problem which had been defined. 
+/// 
+/// # Note:
+/// Subproblems are automatically instanciated from nodes in the exact custsets 
+/// of relaxed decision diagrams. If you are only discovering the API, rest 
+/// assured.. you don't need to implement any subproblem yourself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubProblem<T> {
+    /// The root state of this sub problem
+    pub state: Arc<T>,
+    /// The root value of this sub problem
+    pub value: isize,
+    /// The path to traverse to reach this subproblem from the root
+    /// of the original problem
+    pub path: Vec<Decision>,
+    /// An upper bound on the objective reachable in this subproblem
+    pub ub: isize,
 }
 
 // ----------------------------------------------------------------------------

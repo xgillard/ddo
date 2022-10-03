@@ -28,6 +28,8 @@
 
 use std::cmp::Ordering;
 
+use crate::SubProblem;
+
 /// This trait enclapsulates the behavior of the heuristic that determines
 /// the maximum permitted width of a decision diagram.
 ///
@@ -58,22 +60,40 @@ use std::cmp::Ordering;
 ///    which have already been decided upon.
 pub trait WidthHeuristic<State> {
     /// Estimates a good maximum width for an MDD rooted in the given state
-    fn max_width(&self, state: &State) -> usize;
+    fn max_width(&self, state: &SubProblem<State>) -> usize;
 }
 
 /// A state ranking is an heuristic that imposes a partial order on states.
 /// This order is used by the framework as a means to discriminate the most
 /// promising nodes from the least promising ones when restricting or relaxing
 /// a layer from some given DD.
+/// 
+/// According to this ordering, greater means better and hence more likely to
+/// means a node with a given state is more likely to be kept after restriction
+/// or relaxation.
 pub trait StateRanking {
     /// As is the case for `Problem` and `Relaxation`, a `StateRanking` must 
     /// tell the kind of states it is able to operate on.
     type State;
 
     /// This method compares two states and determines which is the most 
-    /// desirable to keep. In this ordering, greater means better and hence
-    /// more likely to be kept
+    /// desirable to keep. In this ordering, 
     fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering;
+}
+
+/// A subproblem ranking is an heuristic that imposes a partial order on
+/// subproblems on the solver frontier. This order is used by the framework 
+/// as a means to impose a given ordering on the nodes that are popped from
+/// the solver frontier.
+pub trait SubProblemRanking {
+    /// As is the case for `Problem` and `Relaxation`, a `SubProblemRanking` 
+    /// must tell the kind of states it is able to operate on.
+    type State;
+
+    /// This method compares two subproblems and determines which is the one 
+    /// that needs to be popped off the fringe first. In this ordering, greater
+    /// means more likely to be popped first.
+    fn compare(&self, a: &SubProblem<Self::State>, b: &SubProblem<Self::State>) -> Ordering;
 }
 
 /// This trait encapsulates a criterion (external to the solver) which imposes
@@ -81,8 +101,5 @@ pub trait StateRanking {
 /// a given time budget to the search.
 pub trait Cutoff {
     /// Returns true iff the criterion is met and the search must stop.
-    ///
-    /// - lb is supposed to be the best known lower bound
-    /// - ub is supposed to be the best known upper bound
-    fn must_stop(&self, lb: isize, ub: isize) -> bool;
+    fn must_stop(&self) -> bool;
 }

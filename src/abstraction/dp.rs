@@ -24,8 +24,6 @@
 //! The most important abstractions that should be provided by a client are
 //! `Problem` and `Relaxation`.
 
-use std::sync::Arc;
-
 use crate::{Variable, Decision};
 
 /// This trait defines the "contract" of what defines an optimization problem
@@ -62,26 +60,6 @@ pub trait Problem {
     /// (callback, closure, ..) that accepts one decision.
     fn for_each_in_domain<F>(&self, var: Variable, state: &Self::State, f: F)
     where F: FnMut(Decision);
-}
-
-/// A subproblem is a residual problem that must be solved in order to complete the
-/// resolution of the original problem which had been defined. 
-/// 
-/// # Note:
-/// Subproblems are autimatically instanciated from nodes in the exact custsets 
-/// of relaxed decision diagrams. If you are only discovering the API, rest 
-/// assured.. you don't need to implement any subproblem yourself.
-#[derive(Debug, Clone)]
-pub struct SubProblem<T> {
-    /// The root state of this sub problem
-    pub state: Arc<T>,
-    /// The root value of this sub problem
-    pub value: isize,
-    /// The path to traverse to reach this subproblem from the root
-    /// of the original problem
-    pub path: Vec<Decision>,
-    /// An upper bound on the objective reachable in this subproblem
-    pub ub: isize,
 }
 
 /// A relaxation encapsulates the relaxation $\Gamma$ and $\oplus$ which are

@@ -21,9 +21,14 @@ binary-heap-plus = "0.5.0"
 # -- going parallel --------
 num_cpus         = "1.13.0"
 parking_lot      = "0.12.1"
+compare          = "0.1.0"
 
 [profile.release]
 lto              = 'fat'
 panic            = 'abort'
 opt-level        = 3
 incremental      = true
+
+# --- refactor mode: this must be turned back on when everything is done ----
+[lib]
+doctest = false
