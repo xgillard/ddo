@@ -29,7 +29,7 @@ use parking_lot::{Condvar, Mutex};
 use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason};
 
 /// The shared data that may only be manipulated within critical sections
-struct Critical<'a, F: Frontier> {
+struct Critical<'a, State> {
     /// This is the fringe: the set of nodes that must still be explored before
     /// the problem can be considered 'solved'.
     ///
@@ -40,7 +40,7 @@ struct Critical<'a, F: Frontier> {
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut F,
+    fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
     /// This is the number of nodes that are currently being explored.
     ///
     /// # Note
@@ -76,33 +76,25 @@ struct Critical<'a, F: Frontier> {
 /// The state which is shared among the many running threads: it provides an
 /// access to the critical data (protected by a mutex) as well as a monitor
 /// (condvar) to park threads in case of node-starvation.
-struct Shared<'a, P, R, O, W, C, F: Frontier>
-where
-    P: Problem + Send + Sync + 'a,
-    R: Relaxation<State = P::State> + Send + Sync + 'a,
-    O: StateRanking<State = P::State> + Send + Sync + 'a,
-    W: WidthHeuristic<P::State> + Send + Sync + 'a,
-    C: Cutoff + Send + Sync + 'a,
-    F: Frontier<State = P::State> + Send + Sync + 'a,
-{
+struct Shared<'a, State> {
     /// A reference to the problem being solved with branch-and-bound MDD
-    problem: &'a P,
+    problem: &'a (dyn Problem<State = State> + Send + Sync),
     /// The relaxation used when a DD layer grows too large
-    relaxation: &'a R,
+    relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
     /// The ranking heuristic used to discriminate the most promising from
     /// the least promising states
-    ranking: &'a O,
+    ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
     /// The maximum width heuristic used to enforce a given maximum memory
     /// usage when compiling mdds
-    width_heu: &'a W,
+    width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
     /// A cutoff heuristic meant to decide when to stop the resolution of 
     /// a given problem.
-    cutoff: &'a C,
+    cutoff: &'a (dyn Cutoff + Send + Sync),
 
     /// This is the shared state data which can only be accessed within critical
     /// sections. Therefore, it is protected by a mutex which prevents concurrent
     /// reads/writes.
-    critical: Mutex<Critical<'a, F>>,
+    critical: Mutex<Critical<'a, State>>,
     /// This is the monitor on which nodes must wait when facing an empty fringe.
     /// The corollary, it that whenever a node has completed the processing of
     /// a subproblem, it must wakeup all parked threads waiting on this monitor.
@@ -120,18 +112,11 @@ enum WorkLoad<T> {
     WorkItem { node: SubProblem<T> },
 }
 
-pub struct ParallelSolver<'a, P, R, O, W, C, F, D>
-where
-    P: Problem + Send + Sync + 'a,
-    R: Relaxation<State = P::State> + Send + Sync + 'a,
-    O: StateRanking<State = P::State> + Send + Sync + 'a,
-    W: WidthHeuristic<P::State> + Send + Sync + 'a,
-    C: Cutoff + Send + Sync + 'a,
-    F: Frontier<State = P::State> + Send + Sync + 'a,
-    D: DecisionDiagram<State = P::State> + Default,
+pub struct ParallelSolver<'a, State, D> 
+where D: DecisionDiagram<State = State> + Default,
 {
     /// This is the shared state. Each thread is going to take a reference to it.
-    shared: Shared<'a, P, R, O, W, C, F>,
+    shared: Shared<'a, State>,
     /// This is a configuration parameter that tunes the number of threads that
     /// will be spawned to solve the problem. By default, this number amounts
     /// to the number of hardware threads available on the machine.
@@ -142,46 +127,34 @@ where
 }
 
 // private interface.
-impl <'a, P, R, O, W, C, F> ParallelSolver<'a, P, R, O, W, C, F, DefaultMDD<P::State>> 
-where 
-    P: Problem + Send + Sync + 'a,
-    R: Relaxation<State = P::State> + Send + Sync + 'a,
-    O: StateRanking<State = P::State> + Send + Sync + 'a,
-    W: WidthHeuristic<P::State> + Send + Sync + 'a,
-    C: Cutoff + Send + Sync + 'a,
-    F: Frontier<State = P::State> + Send + Sync + 'a,
-    P::State: Eq + Hash + Clone
+impl <'a, State> ParallelSolver<'a, State, DefaultMDD<State>>
+where State: Eq + Hash + Clone
 {
     pub fn new(
-        problem: &'a P,
-        relaxation: &'a R,
-        ranking: &'a O,
-        width: &'a W,
-        cutoff: &'a C, 
-        fringe: &'a mut F,
+        problem: &'a (dyn Problem<State = State> + Send + Sync),
+        relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
+        ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+        width: &'a (dyn WidthHeuristic<State> + Send + Sync),
+        cutoff: &'a (dyn Cutoff + Send + Sync), 
+        fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, cutoff, fringe, num_cpus::get())
     }
 }
 
 
-impl<'a, P, R, O, W, C, F, D> ParallelSolver<'a, P, R, O, W, C, F, D>
-where
-    P: Problem + Send + Sync + 'a,
-    R: Relaxation<State = P::State> + Send + Sync + 'a,
-    O: StateRanking<State = P::State> + Send + Sync + 'a,
-    W: WidthHeuristic<P::State> + Send + Sync + 'a,
-    C: Cutoff + Send + Sync + 'a,
-    F: Frontier<State = P::State> + Send + Sync + 'a,
-    D: DecisionDiagram<State = P::State> + Default,
+impl<'a, State, D>  ParallelSolver<'a, State, D>
+where 
+    State: Eq + Hash + Clone,
+    D: DecisionDiagram<State = State> + Default,
 {
     pub fn custom(
-        problem: &'a P,
-        relaxation: &'a R,
-        ranking: &'a O,
-        width_heu: &'a W,
-        cutoff: &'a C,
-        fringe: &'a mut F,
+        problem: &'a (dyn Problem<State = State> + Send + Sync),
+        relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
+        ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+        width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
+        cutoff: &'a (dyn Cutoff + Send + Sync),
+        fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
         nb_threads: usize,
     ) -> Self {
         ParallelSolver {
@@ -222,7 +195,7 @@ where
         self.shared.critical.lock().fringe.push(root);
     }
 
-    fn root_node(&self) -> SubProblem<P::State> {
+    fn root_node(&self) -> SubProblem<State> {
         let shared = &self.shared;
         SubProblem {
             state: Arc::new(shared.problem.initial_state()),
@@ -238,8 +211,8 @@ where
     /// it stores cutset nodes onto the fringe for further parallel processing.
     fn process_one_node(
         mdd: &mut D,
-        shared: &Shared<P, R, O, W, C, F>,
-        node: SubProblem<P::State>,
+        shared: &Shared<'a, State>,
+        node: SubProblem<State>,
     ) -> Result<(), Reason> {
         // 1. RESTRICTION
         let node_ub = node.ub;
@@ -283,14 +256,14 @@ where
         Ok(())
     }
 
-    fn best_lb(shared: &Shared<P, R, O, W, C, F>) -> isize {
+    fn best_lb(shared: &Shared<'a, State>) -> isize {
         shared.critical.lock().best_lb
     }
 
     /// This private method updates the shared best known node and lower bound in
     /// case the best value of the current `mdd` expansion improves the current
     /// bounds.
-    fn maybe_update_best(mdd: &D, shared: &Shared<P, R, O, W, C, F>) {
+    fn maybe_update_best(mdd: &D, shared: &Shared<'a, State>) {
         let mut shared = shared.critical.lock();
         let dd_best_value = mdd.best_value().unwrap_or(isize::MIN);
         if dd_best_value > shared.best_lb {
@@ -300,7 +273,7 @@ where
     }
     /// If necessary, thightens the bound of nodes in the cutset of `mdd` and
     /// then add the relevant nodes to the shared fringe.
-    fn enqueue_cutset(mdd: &mut D, shared: &Shared<P, R, O, W, C, F>, ub: isize) {
+    fn enqueue_cutset(mdd: &mut D, shared: &Shared<'a, State>, ub: isize) {
         let mut critical = shared.critical.lock();
         let best_lb = critical.best_lb;
         let fringe = &mut critical.fringe;
@@ -312,14 +285,14 @@ where
         });
     }
     /// Acknowledges that a thread finished processing its node.
-    fn notify_node_finished(shared: &Shared<P, R, O, W, C, F>, thread_id: usize) {
+    fn notify_node_finished(shared: &Shared<'a, State>, thread_id: usize) {
         let mut critical = shared.critical.lock();
         critical.ongoing -= 1;
         critical.upper_bounds[thread_id] = isize::MAX;
         shared.monitor.notify_all();
     }
 
-    fn abort_search(shared: &Shared<P, R, O, W, C, F>, reason: Reason, current_ub: isize) {
+    fn abort_search(shared: &Shared<'a, State>, reason: Reason, current_ub: isize) {
         let mut critical = shared.critical.lock();
         critical.abort_proof = Some(reason);
         if critical.best_ub == isize::MAX {
@@ -339,7 +312,7 @@ where
     ///     and thus the problem cannot be considered solved).
     ///   + WorkItem, when the thread successfully obtained a subproblem to
     ///     process.
-    fn get_workload(shared: &Shared<P, R, O, W, C, F>, thread_id: usize) -> WorkLoad<P::State>
+    fn get_workload(shared: &Shared<'a, State>, thread_id: usize) -> WorkLoad<State>
     {
         let mut critical = shared.critical.lock();
 
@@ -375,15 +348,10 @@ where
     }
 }
 
-impl<'a, P, R, O, W, C, F, D> Solver for ParallelSolver<'a, P, R, O, W, C, F, D>
+impl<'a, State, D> Solver for ParallelSolver<'a, State, D>
 where
-    P: Problem + Send + Sync + 'a,
-    R: Relaxation<State = P::State> + Send + Sync + 'a,
-    O: StateRanking<State = P::State> + Send + Sync + 'a,
-    W: WidthHeuristic<P::State> + Send + Sync + 'a,
-    C: Cutoff + Send + Sync + 'a,
-    F: Frontier<State = P::State> + Send + Sync + 'a,
-    D: DecisionDiagram<State = P::State> + Default,
+    State: Eq + PartialEq + Hash + Clone,
+    D: DecisionDiagram<State = State> + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers
@@ -406,7 +374,7 @@ where
                                 let ub = node.ub;
                                 let outcome = Self::process_one_node(&mut mdd, shared, node);
                                 if let Err(reason) = outcome {
-                                    Self::abort_search(&shared, reason, ub);
+                                    Self::abort_search(shared, reason, ub);
                                     Self::notify_node_finished(shared, i); 
                                     break;
                                 } else {

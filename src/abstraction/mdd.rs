@@ -33,27 +33,21 @@ pub enum CompilationType {
 }
 
 /// The set of parameters used to tweak the compilation of a MDD
-pub struct CompilationInput<'a, P, R, O, C>
-where
-    P: Problem,
-    R: Relaxation<State = P::State>,
-    O: StateRanking<State = P::State>,
-    C: Cutoff
-{   
+pub struct CompilationInput<'a, State> {   
     /// How is the mdd being compiled ?
     pub comp_type: CompilationType,
     /// A reference to the original problem we try to maximize
-    pub problem: &'a P,
+    pub problem: &'a dyn Problem<State = State>,
     /// The relaxation which we use to merge nodes in a relaxed dd
-    pub relaxation: &'a R,
+    pub relaxation: &'a dyn Relaxation<State = State>,
     /// The state ranking heuristic to chose the nodes to keep and those to discard
-    pub ranking: &'a O,
+    pub ranking: &'a dyn StateRanking<State = State>,
     /// The cutoff used to decide when to stop trying to solve the problem
-    pub cutoff: &'a C,
+    pub cutoff: &'a dyn Cutoff,
     /// What is the maximum width of the mdd ?
     pub max_width: usize,
     /// The subproblem whose state space must be explored
-    pub residual: SubProblem<P::State>,
+    pub residual: SubProblem<State>,
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
 }
@@ -67,13 +61,8 @@ pub trait DecisionDiagram {
 
     /// This method provokes the compilation of the DD based on the given 
     /// compilation input (compilation type, and root subproblem)
-    fn compile<P, R, O, C>(&mut self, input: &CompilationInput<P, R, O, C>) 
-        -> Result<Completion, Reason>
-    where
-        P: Problem<State = Self::State>,
-        R: Relaxation<State = P::State>,
-        O: StateRanking<State = P::State>,
-        C: Cutoff;
+    fn compile(&mut self, input: &CompilationInput<Self::State>) 
+        -> Result<Completion, Reason>;
     /// Returns true iff the DD which has been compiled is an exact DD.
     fn is_exact(&self) -> bool;
     /// Returns the optimal value of the objective function or None when no 

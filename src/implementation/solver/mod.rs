@@ -27,4 +27,4 @@ mod parallel;
 pub use parallel::*;
 
 /// A type alias to emphasize that this is the solver that should be used by default.
-pub type DefaultSolver<'a, P, R, O, W, C, F, D> = ParallelSolver<'a, P, R, O, W, C, F, D>;
+pub type DefaultSolver<'a, State, D> = ParallelSolver<'a, State, D>;

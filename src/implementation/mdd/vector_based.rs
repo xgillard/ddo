@@ -4,7 +4,7 @@ use std::{collections::hash_map::Entry, hash::Hash, ops::Deref, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
-use crate::{Decision, DecisionDiagram, CompilationInput, Problem, Relaxation, StateRanking, Cutoff, SubProblem, CompilationType, Completion, Reason};
+use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason};
 
 use super::node_flags::NodeFlags;
 
@@ -123,14 +123,8 @@ where
 {
     type State = T;
 
-    fn compile<P, R, O, C>(&mut self, input: &CompilationInput<P, R, O, C>)
-        -> Result<Completion, Reason>
-    where
-        P: Problem<State = Self::State>,
-        R: Relaxation<State = P::State>,
-        O: StateRanking<State = P::State>,
-        C: Cutoff,
-    {
+    fn compile(&mut self, input: &CompilationInput<T>)
+        -> Result<Completion, Reason> {
         self._compile(input)
     }
 
@@ -256,14 +250,8 @@ where
         }
     }
 
-    fn _compile<P, R, O, C>(&mut self, input: &CompilationInput<P, R, O, C>)
-        -> Result<Completion, Reason>
-    where
-        P: Problem<State = T>,
-        R: Relaxation<State = P::State>,
-        O: StateRanking<State = P::State>,
-        C: Cutoff,
-    {
+    fn _compile(&mut self, input: &CompilationInput<T>)
+        -> Result<Completion, Reason> {
         self.clear();
 
         let mut depth = 0;
@@ -335,7 +323,7 @@ where
                 self.nodes[node_id.0].rub = rub;
                 let ub = rub.saturating_add(self.nodes[node_id.0].value);
                 if ub > input.best_lb {
-                    input.problem.for_each_in_domain(var, state, |decision| {
+                    input.problem.for_each_in_domain(var, state, &mut |decision| {
                         self.branch_on(state, *node_id, decision, input.problem)
                     })
                 }
@@ -373,12 +361,12 @@ where
         }
     }
 
-    fn branch_on<P: Problem<State = T>>(
+    fn branch_on(
         &mut self,
         state: &T,
         from_id: NodeId,
         decision: Decision,
-        problem: &P,
+        problem: &dyn Problem<State = T>,
     ) {
         let next_state = problem.transition(state, decision);
         let cost = problem.transition_cost(state, decision);
@@ -439,16 +427,7 @@ where
         }
     }
 
-    fn restrict<P, R, O, C>(
-        &mut self,
-        input: &CompilationInput<P, R, O, C>,
-        curr_l: &mut Vec<(T, NodeId)>,
-    ) where
-        P: Problem<State = T>,
-        R: Relaxation<State = P::State>,
-        O: StateRanking<State = P::State>,
-        C: Cutoff,
-    {
+    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
         curr_l.sort_unstable_by(|a, b| {
             self.nodes[a.1 .0]
                 .value
@@ -459,13 +438,7 @@ where
         curr_l.truncate(input.max_width);
     }
 
-    fn relax<P, R, O, C>(&mut self, input: &CompilationInput<P, R, O, C>, curr_l: &mut Vec<(T, NodeId)>)
-    where
-        P: Problem<State = T>,
-        R: Relaxation<State = P::State>,
-        O: StateRanking<State = P::State>,
-        C: Cutoff,
-    {
+    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
         curr_l.sort_unstable_by(|a, b| {
             self.nodes[a.1 .0]
                 .value
@@ -596,7 +569,7 @@ mod test_default_mdd {
 
     use rustc_hash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason};
+    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -1179,8 +1152,7 @@ mod test_default_mdd {
                 _   => None,
             }
         }
-        fn for_each_in_domain<F>(&self, variable: Variable, state: &Self::State, mut f: F)
-        where F: FnMut(crate::Decision) {
+        fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback) {
             /* do nothing, just consider that all domains are empty */
             (match *state {
                 'r' => vec![10, 7],
@@ -1194,7 +1166,7 @@ mod test_default_mdd {
             })
             .iter()
             .copied()
-            .for_each(|value| f(Decision{variable, value}))
+            .for_each(&mut |value| f.apply(Decision{variable, value}))
         }
 
         fn transition(&self, state: &char, d: Decision) -> char {
@@ -1310,10 +1282,9 @@ mod test_default_mdd {
                 .map(Variable)
         }
 
-        fn for_each_in_domain<F>(&self, var: crate::Variable, _: &Self::State, mut f: F)
-        where F: FnMut(crate::Decision) {
+        fn for_each_in_domain(&self, var: crate::Variable, _: &Self::State, f: &mut dyn DecisionCallback) {
             for d in 0..=2 {
-                f(Decision {variable: var, value: d})
+                f.apply(Decision {variable: var, value: d})
             }
         }
     }
@@ -1351,8 +1322,7 @@ mod test_default_mdd {
                 .map(Variable)
         }
 
-        fn for_each_in_domain<F>(&self, _: crate::Variable, _: &Self::State, _: F)
-        where F: FnMut(crate::Decision) {
+        fn for_each_in_domain(&self, _: crate::Variable, _: &Self::State, _: &mut dyn DecisionCallback) {
             /* do nothing, just consider that all domains are empty */
         }
     }

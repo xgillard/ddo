@@ -58,8 +58,7 @@ pub trait Problem {
     /// This method calls the function `f` for any value in the domain of 
     /// variable `var` when in state `state`.  The function `f` is a function
     /// (callback, closure, ..) that accepts one decision.
-    fn for_each_in_domain<F>(&self, var: Variable, state: &Self::State, f: F)
-    where F: FnMut(Decision);
+    fn for_each_in_domain(&self, var: Variable, state: &Self::State, f: &mut dyn DecisionCallback);
 }
 
 /// A relaxation encapsulates the relaxation $\Gamma$ and $\oplus$ which are
@@ -95,5 +94,20 @@ pub trait Relaxation {
     /// could be reached if state were the initial state
     fn fast_upper_bound(&self, _state: &Self::State) -> isize {
         isize::MAX
+    }
+}
+
+/// This trait basically defines a callback which is passed on to the problem
+/// so as to let it efficiently enumerate the domain values of some given 
+/// variable.
+pub trait DecisionCallback {
+    /// executes the callback using the given decision
+    fn apply(&mut self, decision: Decision);
+}
+/// The simplest and most natural callback implementation is to simply use
+/// a closure.
+impl <X: FnMut(Decision)> DecisionCallback for X {
+    fn apply(&mut self, decision: Decision) {
+        self(decision)
     }
 }

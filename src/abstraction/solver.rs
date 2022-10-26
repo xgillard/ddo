@@ -75,4 +75,20 @@ pub trait Solver {
 
     /// Sets a primal (best known value and solution) of the problem.
     fn set_primal(&mut self, value: isize, solution: Solution);
+
+    /// Computes the optimality gap
+    fn gap(&self) -> f32 {
+        let ub = self.best_upper_bound();
+        let lb = self.best_lower_bound();
+        if ub == isize::MAX || lb == isize::MIN {
+            return 1.0;
+        } else {
+            let aub = ub.abs();
+            let alb = lb.abs();
+            let u = aub.max(alb);
+            let l = aub.min(alb);
+        
+            (u - l) as f32 / u as f32
+        }
+    }    
 }
