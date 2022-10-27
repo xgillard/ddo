@@ -101,16 +101,50 @@ class KnapsackRanking:
     An heuristic to discriminate the better states from the worse ones
     '''
     def compare(self, a, b):
-        return a.capacity - b.capacity
+        return a.capa - b.capa
+
+
+#### UTILS #######################
+def read_instance(fname):
+    '''
+    returns a tuple (capa, [profits], [weights])
+    '''
+    with open(fname) as f:
+        is_first = True
+        n        = 0
+        capa     = 0
+        count    = 0
+        profits  = []
+        weights  = []
+        for line in f.readlines():
+            if is_first:
+                is_first = False
+                a,b  = line.split(" ")
+                n    = int(a)
+                capa = int(b)
+            else:
+                if count >= n:
+                    break
+                count += 1
+                a,b = line.split(" ")
+                profits.append(int(a))
+                weights.append(int(b))
+        return (capa, profits, weights)
+
 
 if __name__ == "__main__":
-    problem = Knapsack(
-        50,                 # capa
-        [60, 100, 120],     # profit
-        [10,  20,  30]      # weight
-    )
-    relax   = KnapsackRelax(problem)
-    ranking = KnapsackRanking()
-    result  = ddo.maximize(problem, relax, ranking, True)
-    print("Duration:   {:.3f} seconds \nObjective:  {}\nSolution:   {}"
-        .format(result.duration, result.objective, result.assignment))
+    instance  = "/Users/xgillard/Downloads/instances_01_KP(1)/large_scale/knapPI_3_100_1000_1"
+    (c, p, w) = read_instance(instance)
+    problem   = Knapsack(c, p, w)
+    relax     = KnapsackRelax(problem)
+    ranking   = KnapsackRanking()
+    result    = ddo.maximize(problem, relax, ranking, True, 100, 15)
+    print("Duration:   {:.3f} seconds \nObjective:  {}\nUpper Bnd:  {}\nLower Bnd:  {}\nGap:        {}\nAborted:    {}\nSolution:   {}"
+        .format(
+            result.duration, 
+            result.objective, 
+            result.upper_bound, 
+            result.lower_bound, 
+            result.gap, 
+            result.aborted, 
+            result.assignment))

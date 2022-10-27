@@ -1,3 +1,5 @@
+use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Instant}};
+
 use ddo::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,19 +73,66 @@ impl StateRanking for KPranking {
     }
 }
 
+fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, std::io::Error> {
+    let f = File::open(fname)?;
+    let f = BufReader::new(f);
+    
+    let mut is_first = true;
+    let mut n = 0;
+    let mut count = 0;
+    let mut capa = 0;
+    let mut profit = vec![];
+    let mut weight = vec![];
+
+    for line in f.lines() {
+        let line = line?;
+        if is_first {
+            is_first = false;
+            let mut ab = line.split(" ");
+            n = ab.next().unwrap().parse().unwrap();
+            capa = ab.next().unwrap().parse().unwrap();
+        } else {
+            if count >= n {
+                break;
+            }
+            let mut ab = line.split(" ");
+            profit.push(ab.next().unwrap().parse().unwrap());
+            weight.push(ab.next().unwrap().parse().unwrap());
+            count += 1;
+        }
+    }
+    Ok(Knapsack { capacity: capa, profit, weight })
+}
+
 fn main() {
-    let problem = Knapsack {
-        capacity: 50,
-        profit: vec![60, 100, 120],
-        weight: vec![10, 20, 30],
-    };
+    let instance = "/Users/xgillard/Downloads/instances_01_KP(1)/large_scale/knapPI_3_100_1000_1";
+    let problem = read_instance(instance).unwrap();
     let relaxation= KPRelax;
     let heuristic= KPranking;
     let width = FixedWidth(100);
-    let cutoff = NoCutoff;
+    let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
 
     let mut solver = DefaultSolver::new(&problem, &relaxation, &heuristic, &width, &cutoff, &mut frontier);
-    solver.maximize();
-    println!("best value {}", solver.best_value().unwrap())
+
+    let start = Instant::now();
+    let Completion{ is_exact, best_value } = solver.maximize();
+    
+    let duration = start.elapsed();
+    let upper_bound = solver.best_upper_bound();
+    let lower_bound = solver.best_lower_bound();
+    let gap = solver.gap();
+    let best_solution  = solver.best_solution().map(|mut decisions|{
+        decisions.sort_unstable_by_key(|d| d.variable.id());
+        decisions.iter().map(|d| d.value).collect()
+    });
+
+    println!("Duration:   {:.3} seconds \nObjective:  {}\nUpper Bnd:  {}\nLower Bnd:  {}\nGap:        {:.3}\nAborted:    {}\nSolution:   {:?}",
+            duration.as_secs_f32(), 
+            best_value.unwrap_or(-1), 
+            upper_bound, 
+            lower_bound, 
+            gap, 
+            !is_exact, 
+            best_solution.unwrap_or(vec![]));
 }

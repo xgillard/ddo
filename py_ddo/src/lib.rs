@@ -31,6 +31,12 @@ pub struct Solution {
     /// -> If no solution was found, then the objective value will be None
     pub objective: Option<isize>,
     #[pyo3(get)]
+    /// The best known upper bound on the objective value
+    pub upper_bound: isize,
+    #[pyo3(get)]
+    /// The best known lower bound on the objective value
+    pub lower_bound: isize,
+    #[pyo3(get)]
     /// What are the assigments leading to the best solution ? 
     /// `assignment[x] = y` means value `y` was assigned to variable `x`.
     /// -> If no solution was found, then the assignment value will be None
@@ -74,8 +80,10 @@ fn maximize<'a>(
         });
         
         Solution {
-            aborted:    !is_exact,
-            objective:  best_value,
+            aborted:     !is_exact,
+            objective:   best_value,
+            upper_bound: solver.best_upper_bound(),
+            lower_bound: solver.best_lower_bound(),
             assignment,
             gap,
             duration

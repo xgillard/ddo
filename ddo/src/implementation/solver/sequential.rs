@@ -245,6 +245,7 @@ where
             return WorkLoad::Aborted;
         }
         if self.fringe.is_empty() {
+            self.best_ub = self.best_lb;
             return WorkLoad::Complete;
         }
 
