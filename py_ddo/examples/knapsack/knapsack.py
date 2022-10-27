@@ -64,8 +64,11 @@ class Knapsack:
 
 class KnapsackRelax:
     '''
-    This is the problem relaxation
+    This is the problem relaxation 
     '''
+    def __init__(self, problem):
+        self.problem = problem
+
     def merge(self, states):
         depth = 0
         capa  = 0
@@ -76,6 +79,22 @@ class KnapsackRelax:
 
     def relax(self, edge):
         return edge["cost"]
+
+    def fast_upper_bound(self, state):
+        '''
+        Implementing this method is not mandatory but it has the potential
+        to greatly speed up the resolution of your problem.
+        
+        If you implement it wrong, it also has the potential to make the 
+        resolution of your problem seem impossible when it is not actually
+        the case (try returning -9223372036854775808 if you want to see).
+        '''
+        #return -9223372036854775808
+        tot = 0
+        for i in range(state.depth, self.problem.nb_variables()):
+            tot += self.problem.profit[i]
+        return tot
+
 
 class KnapsackRanking:
     '''
@@ -90,7 +109,7 @@ if __name__ == "__main__":
         [60, 100, 120],     # profit
         [10,  20,  30]      # weight
     )
-    relax   = KnapsackRelax()
+    relax   = KnapsackRelax(problem)
     ranking = KnapsackRanking()
     result  = ddo.maximize(problem, relax, ranking, True)
     print("Duration:   {:.3f} seconds \nObjective:  {}\nSolution:   {}"

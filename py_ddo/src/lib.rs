@@ -209,7 +209,7 @@ impl <'a> Problem for PyProblem<'a> {
 
 pub struct PyRelax<'a> {
     gil: Python<'a>,
-    obj: PyObject
+    obj: PyObject,
 }
 unsafe impl Send for PyRelax<'_> {}
 impl <'a> Relaxation for PyRelax<'a> {
@@ -247,6 +247,15 @@ impl <'a> Relaxation for PyRelax<'a> {
         let res = self.obj.call_method(self.gil, "relax", (dict,), None)
             .unwrap();
         res.extract(self.gil).unwrap()
+    }
+
+    fn fast_upper_bound(&self, state: &Self::State) -> isize {
+        let res = self.obj.call_method(self.gil, "fast_upper_bound", (&state.obj,), None);
+        if let Ok(res) = res {
+            res.extract(self.gil).unwrap()
+        } else {
+            isize::MAX
+        }
     }
 }
 
