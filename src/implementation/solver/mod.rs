@@ -18,13 +18,10 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This module provide the solver implementation.
-//! 
-//! # Note:
-//! It made little sense to maintain both the parallel and sequential solvers when
-//! the parallel version can be created with a flag telling that it should use only
-//! one thread. This is why only the parallel version has been kept.
 mod parallel;
+mod sequential;
 pub use parallel::*;
+pub use sequential::*;
 
 /// A type alias to emphasize that this is the solver that should be used by default.
 pub type DefaultSolver<'a, State, D> = ParallelSolver<'a, State, D>;
