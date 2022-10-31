@@ -11,4 +11,4 @@ crate-type  = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.17.2", features = ["extension-module"] }
-ddo  = { path = "../ddo" }
+ddo  = { path    = "../ddo" }

@@ -51,8 +51,8 @@ impl Problem for Knapsack {
     }
 }
 
-struct KPRelax;
-impl Relaxation for KPRelax {
+struct KPRelax<'a>{pb: &'a Knapsack}
+impl Relaxation for KPRelax<'_> {
     type State = KnapsackState;
 
     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
@@ -61,6 +61,16 @@ impl Relaxation for KPRelax {
 
     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
         cost
+    }
+
+    fn fast_upper_bound(&self, state: &Self::State) -> isize {
+        let mut tot = 0;
+        for var in state.depth..self.pb.nb_variables() {
+            if self.pb.weight[var] <= state.capacity {
+                tot += self.pb.profit[var];
+            }
+        }
+        tot as isize
     }
 }
 
@@ -105,11 +115,12 @@ fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, std::io::Error> {
 }
 
 fn main() {
-    let instance = "/Users/xgillard/Downloads/instances_01_KP(1)/large_scale/knapPI_3_100_1000_1";
+    //let instance = "/Users/xgillard/Downloads/instances_01_KP(1)/large_scale/knapPI_3_100_1000_1";
+    let instance = "/Users/xgillard/Documents/REPO/linfo2266-solutions/data/Knapsack/instance_n100_c500_10_5_10_5_0";
     let problem = read_instance(instance).unwrap();
-    let relaxation= KPRelax;
+    let relaxation= KPRelax{pb: &problem};
     let heuristic= KPranking;
-    let width = FixedWidth(100);
+    let width = FixedWidth(250);
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
 

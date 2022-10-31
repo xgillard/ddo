@@ -81,7 +81,7 @@ pub trait Solver {
         let ub = self.best_upper_bound();
         let lb = self.best_lower_bound();
         if ub == isize::MAX || lb == isize::MIN {
-            return 1.0;
+            1.0
         } else {
             let aub = ub.abs();
             let alb = lb.abs();
