@@ -150,11 +150,11 @@ struct Args {
     /// The path to the instance file
     fname: String,
     /// The number of concurrent threads
-    #[clap(short='t', long, default_value = "4")]
+    #[clap(short, long, default_value = "8")]
     threads: usize,
     /// The maximum amount of time you would like this solver to run
-    #[clap(short='T', long, default_value = "30")]
-    timeout: u64,
+    #[clap(short, long, default_value = "30")]
+    duration: u64,
 }
 
 fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Misp, Errors> {
@@ -227,7 +227,7 @@ fn main() {
     let ranking = MispRanking;
 
     let width = NbUnassignedWitdh(problem.nb_variables());
-    let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));
+    let cutoff = TimeBudget::new(Duration::from_secs(args.duration));
     let mut fringe = NoDupFrontier::new(MaxUB::new(&ranking));
 
     let mut solver = DefaultSolver::new(
