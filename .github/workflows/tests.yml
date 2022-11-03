@@ -29,6 +29,6 @@ jobs:
           version: 0.16.0
           args: -p ddo
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
+        uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}

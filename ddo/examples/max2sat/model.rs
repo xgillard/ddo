@@ -444,7 +444,7 @@ mod tests {
     fn locate(id: &str) -> PathBuf {
         PathBuf::new()
             .join(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../ddo/examples/tests/resources/max2sat/")
+            .join("examples/tests/resources/max2sat/")
             .join(id)
     }
 
