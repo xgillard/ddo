@@ -10,4 +10,4 @@ jobs:
       - name: Build the library
         uses: actions-rs/cargo@v1
         with:
-          command: build
+          command: build -p ddo
