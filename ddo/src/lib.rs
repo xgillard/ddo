@@ -47,41 +47,127 @@
 //!
 //! #### Describe the problem as dynamic program
 //! The first thing to do in this example is to describe the binary knapsack
-//! problem in terms of a dynamic program. Here, the state of a node, is nothing
-//! more than an unsigned integer (usize). That unsigned integer represents the
-//! remaining capacity of our sack. To do so, you define your own structure and
-//! make sure it implements the `Problem<usize>` trait.
+//! problem in terms of a dynamic program. Here, the state of a node, is a simple
+//! structure that comprises the remaining capacity of the sack (usize) and 
+//! a depth to denote the number of variables that have already been assigned.
 //! ```
-//! # use ddo::*;
-//! #
-//! #[derive(Debug, Clone)]
-//! struct Knapsack {
-//!     capacity: usize,
-//!     profit  : Vec<usize>,
-//!     weight  : Vec<usize>
+//! /// In our DP model, we consider a state that simply consists of the remaining 
+//! /// capacity in the knapsack. Additionally, we also consider the *depth* (number
+//! /// of assigned variables) as part of the state since it useful when it comes to
+//! /// determine the next variable to branch on.
+//! #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+//! struct KnapsackState {
+//!     /// the number of variables that have already been decided upon in the complete
+//!     /// problem.
+//!     depth: usize,
+//!     /// the remaining capacity in the knapsack. That is the maximum load the sack
+//!     /// can bear withouth cracking **given what is already in the sack**.
+//!     capacity: usize
 //! }
-//! impl Problem<usize> for Knapsack {
-//!     fn nb_vars(&self) -> usize {
+//! ```
+//! 
+//! Additionally, we also define a Knapsack structure to store the parameters
+//! of the instance being solved. Knapsack is the structure that actually 
+//! implements the dynamic programming model for the problem at hand.
+//! ```
+//! use ddo::*;
+//! #
+//! # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+//! # struct KnapsackState {
+//! #     depth: usize,
+//! #     capacity: usize
+//! # }
+//! # 
+//! /// This structure represents a particular instance of the knapsack problem.
+//! /// This is the sctructure that will implement the knapsack model.
+//! /// 
+//! /// The problem definition is quite easy to understand: there is a knapsack having 
+//! /// a maximum (weight) capacity, and a set of items to chose from. Each of these
+//! /// items having a weight and a profit, the goal is to select the best subset of
+//! /// the items to place them in the sack so as to maximize the profit.
+//! struct Knapsack {
+//!     /// The maximum capacity of the sack (when empty)
+//!     capacity: usize,
+//!     /// the profit of each item
+//!     profit: Vec<usize>,
+//!     /// the weight of each item.
+//!     weight: Vec<usize>,
+//! }
+//! 
+//! /// For each variable in the decision problem, there are two possible choices:
+//! /// either we take the item in the sack, or we decide to leave it out. This
+//! /// constant is used to indicate that the item is to be taken in the sack.
+//! const TAKE_IT: isize = 1;
+//! /// For each variable in the decision problem, there are two possible choices:
+//! /// either we take the item in the sack, or we decide to leave it out. This
+//! /// constant is used to indicate that the item is to be left out of the sack.
+//! const LEAVE_IT_OUT: isize = 0;
+//! 
+//! /// This is how you implement the labeled transition system (LTS) semantics of
+//! /// a simple dynamic program solving the knapsack problem. The definition of
+//! /// each of the methods should be pretty clear and easy to grasp. Should you
+//! /// want more details on the role of each of these methods, then you are 
+//! /// encouraged to go checking the documentation of the `Problem` trait.
+//! impl Problem for Knapsack {
+//!     // This associated type indicates that the type which is used to represent
+//!     // a state of the knapsack problem is `KnapsackState`. Hence the statespace
+//!     // of the problem consists of the set of KnapsackStates that can be represented
+//!     type State = KnapsackState;
+//! 
+//!     // This method is used to tell the number of variables in the knapsack instance
+//!     // you are willing to solve. In the literature, it is often referred to as 'N'.
+//!     fn nb_variables(&self) -> usize {
 //!         self.profit.len()
 //!     }
-//!     fn domain_of<'a>(&self, state: &'a usize, var: Variable) ->Domain<'a> {
-//!         if *state >= self.weight[var.id()] {
-//!             vec![0, 1].into()
-//!         } else {
-//!             vec![0].into()
-//!         }
+//!     // This method returns the intial state of your DP model. In our case, that
+//!     // is nothing but an empty sack.
+//!     fn initial_state(&self) -> Self::State {
+//!         KnapsackState{ depth: 0, capacity: self.capacity }
 //!     }
-//!     fn initial_state(&self) -> usize {
-//!         self.capacity
-//!     }
+//!     // This method returns the initial value of the DP. This value accounts for the
+//!     // constant factors that have an impact on the final objective. In the case of
+//!     // the knapsack, when the sack is empty, the objective value is 0. Hence the
+//!     // initial value is zero as well.
 //!     fn initial_value(&self) -> isize {
 //!         0
 //!     }
-//!     fn transition(&self, state: &usize, _vars: &VarSet, dec: Decision) -> usize {
-//!         state - (self.weight[dec.variable.id()] * dec.value as usize)
+//!     // This method implements a transition in the DP model. It yields a new sate
+//!     // based on a decision (affectation of a value to a variable) which is made from
+//!     // a given state. 
+//!     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+//!         let mut ret = state.clone();
+//!         ret.depth  += 1;
+//!         if dec.value == TAKE_IT { 
+//!             ret.capacity -= self.weight[dec.variable.id()] 
+//!         }
+//!         ret
 //!     }
-//!     fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> isize {
+//!     // This method is analogous to the transition function. But instead to returning
+//!     // the next state when a decision is made, it returns the "cost", that is the 
+//!     // impact of making that decision on the objective function.
+//!     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 //!         self.profit[dec.variable.id()] as isize * dec.value
+//!     }
+//!     // This method is used to determine the order in which the variables will be branched
+//!     // on when solving the knapsack. In this case, we implement a basic scheme telling that
+//!     // the variables are selected in order (0, 1, 2, ... , N).
+//!     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+//!         let n = self.nb_variables();
+//!         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+//!     }
+//!     // If you followed this example until now, you might be surprised not to have seen
+//!     // any mention of the domain of the variables. Search no more. This function is 
+//!     // designed to perform a call to the callback `f` for each possible decision regarding
+//!     // a given state and variable. In other words, it calls the callback `f` for each value
+//!     // in the domain of `variable` given that the current state is `state`.
+//!     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+//!     {
+//!         if state.capacity >= self.weight[variable.id()] {
+//!             f.apply(Decision { variable, value: TAKE_IT });
+//!             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+//!         } else {
+//!             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+//!         }
 //!     }
 //! }
 //! ```
@@ -96,105 +182,234 @@
 //! problem in the relaxation. However, we wont do it in this minimalistic
 //! example since the framework provides you with a default implementation.
 //! If you were to override the default implementation you would need to
-//! implement the `estimate()` method of the `Relaxation` trait.
+//! implement the `fast_upper_bound()` method of the `Relaxation` trait.
 //!
 //! ```
 //! # use ddo::*;
+//! #
+//! # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+//! # struct KnapsackState {
+//! #     depth: usize,
+//! #     capacity: usize
+//! # }
 //! # 
-//! #[derive(Debug, Clone)]
-//! struct KPRelax;
-//! impl Relaxation<usize> for KPRelax {
-//!     /// To merge a given selection of states (capacities) we will keep the
-//!     /// maximum capacity. This is an obvious relaxation as it allows us to
-//!     /// put more items in the sack.
-//!     fn merge_states(&self, states: &mut dyn Iterator<Item=&usize>) -> usize {
-//!         // the selection is guaranteed to have at least one state so using
-//!         // unwrap after max to get rid of the wrapping 'Option' is perfectly safe.
-//!         *states.max().unwrap()
+//! # struct Knapsack {
+//! #     capacity: usize,
+//! #     profit: Vec<usize>,
+//! #     weight: Vec<usize>,
+//! # }
+//! # 
+//! # const TAKE_IT: isize = 1;
+//! # const LEAVE_IT_OUT: isize = 0;
+//! # 
+//! # impl Problem for Knapsack {
+//! #     type State = KnapsackState;
+//! #     fn nb_variables(&self) -> usize {
+//! #         self.profit.len()
+//! #     }
+//! #     fn initial_state(&self) -> Self::State {
+//! #         KnapsackState{ depth: 0, capacity: self.capacity }
+//! #     }
+//! #     fn initial_value(&self) -> isize {
+//! #         0
+//! #     }
+//! #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+//! #         let mut ret = state.clone();
+//! #         ret.depth  += 1;
+//! #         if dec.value == TAKE_IT { 
+//! #             ret.capacity -= self.weight[dec.variable.id()] 
+//! #         }
+//! #         ret
+//! #     }
+//! #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+//! #         self.profit[dec.variable.id()] as isize * dec.value
+//! #     }
+//! #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+//! #         let n = self.nb_variables();
+//! #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+//! #     }
+//! #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+//! #     {
+//! #         if state.capacity >= self.weight[variable.id()] {
+//! #             f.apply(Decision { variable, value: TAKE_IT });
+//! #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+//! #         } else {
+//! #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+//! #         }
+//! #     }
+//! # }
+//! struct KPRelax<'a>{pb: &'a Knapsack}
+//! impl Relaxation for KPRelax<'_> {
+//!     // The type of states which this relaxation operates on is KnapsackState.
+//!     // Just like the Problem definition which told us that its state spaces
+//!     // consisted of all the possible KnapsackStates.
+//!     type State = KnapsackState;
+//!     
+//!     // This method creates and returns a new KnapsackState that will stand for
+//!     // all the states returned by the 'states' iterator. The newly created state
+//!     // will replace all these nodes in a relaxed DD that has too many nodes.
+//!     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+//!         states.max_by_key(|node| node.capacity).copied().unwrap()
 //!     }
-//!     /// When relaxing (merging) the states, we did not run into the risk of
-//!     /// possibly decreasing the maximum objective value reachable from the
-//!     /// components of the merged node. Hence, we dont need to do anything
-//!     /// when relaxing the edge. Still, if we wanted to, we could chose to
-//!     /// return an higher value.
-//!     fn relax_edge(&self, src: &usize, dst: &usize, relaxed: &usize, d: Decision, cost: isize) -> isize {
+//!     // This method is used to offset a portion of the cost that would be lost in
+//!     // the merge operations towards the edges entering the merged node. It is important
+//!     // to know this method exists, even though most of the time, you will simply return
+//!     // the cost of the relaxed edge (that is you wont offset any cost on the entering
+//!     // edges as that wont be required by your relaxation. But is some -- infrequent -- cases
+//!     // your model will require that you do something smart here). 
+//!     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
 //!         cost
 //!     }
 //! }
 //! ```
 //!
+//! ### State Ranking
+//! There is a third piece of information which you will need to pass on to the 
+//! solver before being able to use ddo. This third bit of information is called
+//! a `StateRanking` and it is an heuristic used to discriminate the most promising 
+//! states from the least promising one. That way, the solver isn't blind when it
+//! needs to decide which nodes to delete or merge as it compiles restricted and
+//! relaxed DDs for you.
+//! 
+//! For instance, in the case of the knapsack, when all else is equal, you will 
+//! obviously prefer that the solver leaves the states with a higher remaining
+//! capacity untouched and merge or delete the others.
+//! ```
+//! use ddo::*;
+//! #
+//! # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+//! # struct KnapsackState {
+//! #     depth: usize,
+//! #     capacity: usize
+//! # }
+//! # 
+//! struct KPRanking;
+//! impl StateRanking for KPRanking {
+//!     // This associated type has the same meaning as in the problem and 
+//!     // relaxation definitions.
+//!     type State = KnapsackState;
+//!     
+//!     // It compares two states and returns an ordering. Greater means that
+//!     // state a is prefered over state b. Less means that state b should be 
+//!     // preferred over state a. And Equals means you dont care.
+//!     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+//!         a.capacity.cmp(&b.capacity)
+//!     }
+//! }
+//! ```
+//! 
 //! # Instanciate your Solver
-//! As soon as you have defined a problem and relaxation, you are good to go.
-//! The only thing you still need to do is to write your main method and spin
-//! your solver to solve actual problems. Here is how you would do it.
+//! As soon as you have defined a problem and relaxation and state ranking, you are 
+//! good to go. The only thing you still need to do is to write your main method and 
+//! spin your solver to solve actual problems. Here is how you would do it.
 //!
 //! ```
 //! # use ddo::*;
 //! #
-//! # #[derive(Debug, Clone)]
+//! # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+//! # struct KnapsackState {
+//! #     depth: usize,
+//! #     capacity: usize
+//! # }
+//! # 
 //! # struct Knapsack {
 //! #     capacity: usize,
-//! #     profit  : Vec<usize>,
-//! #     weight  : Vec<usize>
+//! #     profit: Vec<usize>,
+//! #     weight: Vec<usize>,
 //! # }
-//! # impl Problem<usize> for Knapsack {
-//! #     fn nb_vars(&self) -> usize {
+//! # 
+//! # const TAKE_IT: isize = 1;
+//! # const LEAVE_IT_OUT: isize = 0;
+//! # 
+//! # impl Problem for Knapsack {
+//! #     type State = KnapsackState;
+//! #     fn nb_variables(&self) -> usize {
 //! #         self.profit.len()
 //! #     }
-//! #     fn domain_of<'a>(&self, state: &'a usize, var: Variable) ->Domain<'a> {
-//! #         if *state >= self.weight[var.id()] {
-//! #             vec![0, 1].into()
-//! #         } else {
-//! #             vec![0].into()
-//! #         }
-//! #     }
-//! #     fn initial_state(&self) -> usize {
-//! #         self.capacity
+//! #     fn initial_state(&self) -> Self::State {
+//! #         KnapsackState{ depth: 0, capacity: self.capacity }
 //! #     }
 //! #     fn initial_value(&self) -> isize {
 //! #         0
 //! #     }
-//! #     fn transition(&self, state: &usize, _vars: &VarSet, dec: Decision) -> usize {
-//! #         state - (self.weight[dec.variable.id()] * dec.value as usize)
+//! #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+//! #         let mut ret = state.clone();
+//! #         ret.depth  += 1;
+//! #         if dec.value == TAKE_IT { 
+//! #             ret.capacity -= self.weight[dec.variable.id()] 
+//! #         }
+//! #         ret
 //! #     }
-//! #     fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> isize {
+//! #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 //! #         self.profit[dec.variable.id()] as isize * dec.value
 //! #     }
-//! # }
-//! #
-//! # #[derive(Debug, Clone)]
-//! # struct KPRelax;
-//! # impl Relaxation<usize> for KPRelax {
-//! #     /// To merge a given selection of states (capacities) we will keep the
-//! #     /// maximum capacity. This is an obvious relaxation as it allows us to
-//! #     /// put more items in the sack.
-//! #     fn merge_states(&self, states: &mut dyn Iterator<Item=&usize>) -> usize {
-//! #         // the selection is guaranteed to have at least one state so using
-//! #         // unwrap after max to get rid of the wrapping 'Option' is perfectly safe.
-//! #         *states.max().unwrap()
+//! #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+//! #         let n = self.nb_variables();
+//! #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
 //! #     }
-//! #     /// When relaxing (merging) the states, we did not run into the risk of
-//! #     /// possibly decreasing the maximum objective value reachable from the
-//! #     /// components of the merged node. Hence, we dont need to do anything
-//! #     /// when relaxing the edge. Still, if we wanted to, we could chose to
-//! #     /// return an higher value.
-//! #     fn relax_edge(&self, src: &usize, dst: &usize, relaxed: &usize, d: Decision, cost: isize) -> isize {
+//! #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+//! #     {
+//! #         if state.capacity >= self.weight[variable.id()] {
+//! #             f.apply(Decision { variable, value: TAKE_IT });
+//! #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+//! #         } else {
+//! #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+//! #         }
+//! #     }
+//! # }
+//! # struct KPRelax<'a>{pb: &'a Knapsack}
+//! # impl Relaxation for KPRelax<'_> {
+//! #     type State = KnapsackState;
+//! # 
+//! #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+//! #         states.max_by_key(|node| node.capacity).copied().unwrap()
+//! #     }
+//! #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
 //! #         cost
 //! #     }
 //! # }
+//! # 
+//! # struct KPRanking;
+//! # impl StateRanking for KPRanking {
+//! #     type State = KnapsackState;
+//! #     
+//! #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+//! #         a.capacity.cmp(&b.capacity)
+//! #     }
+//! # }
+//! 
 //! // 1. Create an instance of our knapsack problem
 //! let problem = Knapsack {
 //!     capacity: 50,
 //!     profit  : vec![60, 100, 120],
 //!     weight  : vec![10,  20,  30]
 //! };
-//! // 2. Build an MDD for the given problem and relaxation
-//! let mdd = mdd_builder(&problem, KPRelax).into_deep();
-//! // 3. Create a parllel solver on the basis of this MDD (this is how
-//! //    you can specify the MDD implementation you wish to use to develop
-//! //    the relaxed and restricted MDDs).
-//! let mut solver = ParallelSolver::new(mdd);
-//! // 4. Maximize your objective function
+//! 
+//! // 2. Create a relaxation of the problem
+//! let relaxation = KPRelax{pb: &problem};
+//! 
+//! // 3. Create a ranking to discriminate the promising and uninteresting states
+//! let heuristic = KPRanking;
+//! 
+//! // 4. Define the policy you will want to use regarding the maximum width of the DD
+//! let width = FixedWidth(100); // here we mean max 100 nodes per layer
+//! 
+//! // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+//! let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
+//! 
+//! // 5. Create the solver frontier
+//! let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+//!  
+//! // 6. Instanciate your solver
+//! let mut solver = DefaultSolver::new(
+//!       &problem, 
+//!       &relaxation, 
+//!       &heuristic, 
+//!       &width, 
+//!       &cutoff, 
+//!       &mut frontier);
+//! 
+//! // 7. Maximize your objective function
 //! // the outcome provides the value of the best solution that was found for
 //! // the problem (if one was found) along with a flag indicating whether or
 //! // not the solution was proven optimal. Hence an unsatisfiable problem
@@ -205,7 +420,7 @@
 //! // The best solution (if one exist) is retrieved with
 //! let solution   = solver.best_solution();
 //!
-//! // 5. Do whatever you like with the optimal solution.
+//! // 8. Do whatever you like with the optimal solution.
 //! assert_eq!(Some(220), outcome.best_value);
 //! println!("Solution");
 //! for decision in solution.unwrap().iter() {
