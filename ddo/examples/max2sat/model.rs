@@ -17,37 +17,50 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+//! This is the module where you will find the definition of the state and DP model
+//! for the MAX2SAT problem. 
 use std::cmp::{max, min, Ordering};
-use std::fs::File;
-use std::io::{BufRead, BufReader, Lines, Read};
 use std::ops::{Index, IndexMut};
 
 use ddo::*;
 
-use crate::instance::Weighed2Sat;
+use crate::data::Weighed2Sat;
 
+/// A constant to represent the value TRUE being assigned to a given literal
 const T: isize = 1;
+/// A constant to represent the value FALSE being assigned to a given literal
 const F: isize = -1;
 
+/// An utility function to retrieve the canonical representation of some variable
 pub const fn v(x: Variable) -> isize {
     1 + x.0 as isize
 }
+/// An utility function to retrieve the canonical representation of the positive
+/// literal for some given variable
 pub const fn t(x: Variable) -> isize {
     v(x)
 }
+/// An utility function to retrieve the canonical representation of the negative
+/// literal for some given variable
 pub const fn f(x: Variable) -> isize {
     -v(x)
 }
+/// An utility function to crop the value of x if it is less than 0.
+/// Represents the notation $(x)^+$ in the paper
 fn pos(x: isize) -> isize {
     max(0, x)
 }
 
+/// In our DP model, we consider a state that consists of the marginal benefit of 
+/// assigning True to each variable. Additionally, we also consider the *depth* 
+/// (number of assigned variables) as part of the state since it useful when it 
+/// comes to determine the next variable to branch on.
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct State {
     pub depth: usize,
     pub substates: Vec<isize>,
 }
-
+/// For the sake of convenience, a state can be indexd as if it were a plain vector
 impl Index<Variable> for State {
     type Output = isize;
 
@@ -55,6 +68,7 @@ impl Index<Variable> for State {
         self.substates.get(index.0).unwrap()
     }
 }
+/// For the sake of convenience, a state can be mutated as if it were a plain vector
 impl IndexMut<Variable> for State {
     fn index_mut(&mut self, index: Variable) -> &mut isize {
         self.substates.get_mut(index.0).unwrap()
@@ -75,6 +89,13 @@ impl PartialOrd for State {
         Some(self.cmp(other))
     }
 }
+
+/// This structure encapsulates the DP definition of the MAX2SAT problem.
+/// This DP model is not trivial to understand, but it performs well and 
+/// it is an exact translation of the model described in 
+/// ``Discrete optimization with decision diagrams'' 
+///   by Bergman, Cire, and Van Hoeve
+///   in INFORMS Journal (2016)
 
 #[derive(Debug, Clone)]
 pub struct Max2Sat {
@@ -326,26 +347,13 @@ impl Problem for Max2Sat {
         }
     }
 }
-impl From<File> for Max2Sat {
-    fn from(file: File) -> Self {
-        BufReader::new(file).into()
-    }
-}
-impl<S: Read> From<BufReader<S>> for Max2Sat {
-    fn from(buf: BufReader<S>) -> Self {
-        buf.lines().into()
-    }
-}
-impl<B: BufRead> From<Lines<B>> for Max2Sat {
-    fn from(lines: Lines<B>) -> Self {
-        Max2Sat::new(lines.into())
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use std::fs::File;
     use std::path::PathBuf;
+
+    use crate::data::read_instance;
 
     use super::*;
 
@@ -450,6 +458,6 @@ mod tests {
 
     fn instance(id: &str) -> Max2Sat {
         let location = locate(id);
-        File::open(location).expect("File not found").into()
+        read_instance(location).expect("could not parse instance")
     }
 }

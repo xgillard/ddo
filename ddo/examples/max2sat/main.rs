@@ -1,12 +1,14 @@
-use std::{fs::File, path::Path, time::{Duration, Instant}};
+use std::time::{Duration, Instant};
 
 use clap::Parser;
-use ddo::{TimeBudget, NoCutoff, Cutoff, FixedWidth, DefaultSolver, NoDupFrontier, MaxUB, Solver, Completion, WidthHeuristic, NbUnassignedWitdh, Problem};
+use ddo::{TimeBudget, NoCutoff, Cutoff, FixedWidth, DefaultSolver, NoDupFrontier, MaxUB, Solver, Completion, WidthHeuristic, NbUnassignedWitdh, Problem, Decision, Variable};
+use model::{f, t};
 
-use crate::{heuristics::Max2SatRanking, model::Max2Sat, relax::Max2SatRelax};
+use crate::{heuristics::Max2SatRanking, model::{Max2Sat, v}, relax::Max2SatRelax, data::read_instance};
 
+mod errors;
 mod heuristics;
-mod instance;
+mod data;
 mod model;
 mod relax;
 
@@ -25,13 +27,9 @@ struct Params {
     timeout: Option<u64>,
 }
 
-fn main() -> Result<(), std::io::Error>{
+fn main() {
     let Params{file, width, timeout} = Params::parse();
-
-    let path: &dyn AsRef<Path> = &file;
-    let name = path.as_ref().file_stem().map(|x| x.to_string_lossy()).unwrap();
-
-    let problem = Max2Sat::from(File::open(&file)?);
+    let problem = Max2Sat::new(read_instance(&file).unwrap());
     let relax = Max2SatRelax(&problem);
     let rank = Max2SatRanking;
     let width = max_width(&problem, width);
@@ -46,35 +44,26 @@ fn main() -> Result<(), std::io::Error>{
         cutoff.as_ref(), 
         &mut fringe);
 
-    let start = Instant::now();
-    let Completion{is_exact, best_value} = solver.maximize();
-    let duration = start.elapsed();
-    let best_value = best_value
-        .map(|v| v.to_string())
-        .unwrap_or_else(|| "not found".to_owned());
-
-    let lb = solver.best_lower_bound();
-    let ub = solver.best_upper_bound();
-    let gap = solver.gap();
-
-    let status = if is_exact {
-        "proved"
-    } else {
-        "timeout"
-    };
-
-    println!(
-        "{:>30} | {:>15} | {:>8.2} | {:>10} | {:>10} | {:>10} | {:>5.4}",
-        name,
-        status,
-        duration.as_secs_f32(),
-        best_value,
-        lb,
-        ub,
-        gap
-    );
-
-    Ok(())
+        let start = Instant::now();
+        let Completion{ is_exact, best_value } = solver.maximize();
+        
+        let duration = start.elapsed();
+        let upper_bound = solver.best_upper_bound();
+        let lower_bound = solver.best_lower_bound();
+        let gap = solver.gap();
+        let best_solution  = solver.best_solution().map(|mut decisions|{
+            decisions.sort_unstable_by_key(|d| d.variable.id());
+            decisions.iter().map(|d| v(d.variable) * d.value).collect()
+        });
+    
+        println!("Duration:   {:.3} seconds", duration.as_secs_f32());
+        println!("Objective:  {}",            best_value.unwrap_or(-1));
+        println!("Upper Bnd:  {}",            upper_bound);
+        println!("Lower Bnd:  {}",            lower_bound);
+        println!("Gap:        {:.3}",         gap);
+        println!("Aborted:    {}",            !is_exact);
+        println!("Cost:       {:?}",          solution_cost(&problem, &solver.best_solution()));
+        println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
 }
 
 fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {
@@ -89,5 +78,36 @@ fn max_width<P: Problem>(p: &P, w: Option<usize>) -> Box<dyn WidthHeuristic<P::S
         Box::new(FixedWidth(w))
     } else {
         Box::new(NbUnassignedWitdh(p.nb_variables()))
+    }
+}
+
+fn solution_cost(pb: &Max2Sat, solution: &Option<Vec<Decision>>) -> isize {
+    if let Some(sol) = solution {
+        let n = pb.nb_vars;
+        let mut model = vec![0; n];
+        for d in sol.iter() {
+            model[d.variable.id()] = d.value;
+        }
+
+        let mut cost = 0;
+        for i in 0..n {
+            for j in i..n {
+                if model[i] == 1 && model[j] == 1 {
+                    cost += pb.weight(f(Variable(i)), f(Variable(j)))
+                }
+                if model[i] ==-1 && model[j] ==-1 {
+                    cost += pb.weight(t(Variable(i)), t(Variable(j)))
+                }
+                if model[i] == 1 && model[j] ==-1 {
+                    cost += pb.weight(f(Variable(i)), t(Variable(j)))
+                }
+                if model[i] ==-1 && model[j] == 1 {
+                    cost += pb.weight(t(Variable(i)), f(Variable(j)))
+                }
+            }
+        }
+        cost
+    } else {
+        0
     }
 }

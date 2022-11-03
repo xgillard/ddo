@@ -282,12 +282,11 @@ fn main() {
         decisions.iter().map(|d| d.value).collect()
     });
 
-    println!("Duration:   {:.3} seconds \nObjective:  {}\nUpper Bnd:  {}\nLower Bnd:  {}\nGap:        {:.3}\nAborted:    {}\nSolution:   {:?}",
-            duration.as_secs_f32(), 
-            best_value.unwrap_or(-1), 
-            upper_bound, 
-            lower_bound, 
-            gap, 
-            !is_exact, 
-            best_solution.unwrap_or(vec![]));
+    println!("Duration:   {:.3} seconds", duration.as_secs_f32());
+    println!("Objective:  {}",            best_value.unwrap_or(-1));
+    println!("Upper Bnd:  {}",            upper_bound);
+    println!("Lower Bnd:  {}",            lower_bound);
+    println!("Gap:        {:.3}",         gap);
+    println!("Aborted:    {}",            !is_exact);
+    println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
 }

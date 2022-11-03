@@ -21,6 +21,23 @@ use ddo::{Decision, Relaxation, Variable};
 use std::cmp::min;
 use crate::model::{State, Max2Sat};
 
+
+/// This structure encapsulates the relaxation of the MAX2SAT problem.
+/// It is not trivial to understand, but it performs well and 
+/// it is an exact translation of the relaxation described in 
+/// 
+/// ``Discrete optimization with decision diagrams'' 
+///   by Bergman, Cire, and Van Hoeve
+///   in INFORMS Journal (2016)
+/// 
+/// The correctness of the fast upper bound that is implemented here
+/// was proved in: 
+/// ``Discrete optimization with decision diagrams: design of a generic solver,
+///   improved bounding techniques, and fast discovery of good feasible solutions
+///   with large neighborhood search''
+///   by Gillard (PhD dissertation)
+///   in UCLouvain (http://hdl.handle.net/2078.1/266171)
+
 #[derive(Debug, Clone)]
 pub struct Max2SatRelax<'a>(pub &'a Max2Sat);
 impl Relaxation for Max2SatRelax<'_> {

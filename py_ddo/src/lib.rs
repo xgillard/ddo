@@ -44,7 +44,7 @@ pub struct Solution {
 }
 
 #[pyfunction]
-fn maximize<'a>(
+fn maximize(
     pb      : PyObject, 
     relax   : PyObject,
     ranking : PyObject,
@@ -161,7 +161,7 @@ impl <'a> Problem for PyProblem<'a> {
             self.obj.call_method(self.gil, "initial_state", (), None)
             .unwrap()
         };
-        PyState { gil: self.gil.clone(), obj: res }
+        PyState { gil: self.gil, obj: res }
     }
 
     fn initial_value(&self) -> isize {
@@ -176,7 +176,7 @@ impl <'a> Problem for PyProblem<'a> {
             self.obj.call_method(self.gil, "transition", (&state.obj, decision.variable.0, decision.value), None)
             .unwrap()
         };
-        PyState { gil: self.gil.clone(), obj: res }
+        PyState { gil: self.gil, obj: res }
     }
 
     fn transition_cost(&self, state: &Self::State, decision: ::ddo::Decision) -> isize {
@@ -229,7 +229,7 @@ impl <'a> Relaxation for PyRelax<'a> {
             self.obj.call_method(self.gil, "merge", (states,), None)
             .unwrap()
         };
-        PyState { gil: self.gil.clone(), obj: res }
+        PyState { gil: self.gil, obj: res }
     }
 
     fn relax(
@@ -281,12 +281,10 @@ impl <'a> StateRanking for PyRanking<'a> {
         let res = res.extract::<isize>(self.gil)
             .unwrap();
         
-        if res == 0 {
-            std::cmp::Ordering::Equal
-        } else if res < 0 {
-            std::cmp::Ordering::Less
-        } else {
-            std::cmp::Ordering::Greater
+        match res {
+        _ if res == 0 => std::cmp::Ordering::Equal,
+        _ if res <  0 => std::cmp::Ordering::Less,
+        _ =>             std::cmp::Ordering::Greater
         }
     }
 }

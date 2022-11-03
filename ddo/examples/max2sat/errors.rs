@@ -17,22 +17,23 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::cmp::Ordering;
-use ddo::*;
-use crate::model::State;
+//! This module contains the definition of the errors that can be triggered when
+//! parsing an instance of the max2sat problem.
+
+use std::num::ParseIntError;
 
 
-/// In addition to a problem definition and a relaxation (DP model and Relax), ddo requires
-/// that we provide it with a `StateRanking`. This is an heuristic which is used to select 
-/// the most and least promising nodes as a means to only delete/merge the *least* promising
-/// nodes when compiling restricted and relaxed DDs.
-#[derive(Debug, Clone)]
-pub struct Max2SatRanking;
-impl StateRanking for Max2SatRanking {
-    type State = State;
-    fn compare(&self, x: &State, y: &State) -> Ordering {
-        let xrank = x.rank();
-        let yrank = y.rank();
-        xrank.cmp(&yrank)
-    }
+/// This enumeration simply groups the kind of errors that might occur when parsing a
+/// instance file. There can be io errors (file unavailable ?), format error
+/// (e.g. the file is not an instance but contains the text of your next paper), 
+/// or parse int errors (which are actually a variant of the format errror since it tells 
+/// you that the parser expected an integer number but got ... something else).
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// There was an io related error
+    #[error("io error {0}")]
+    Io(#[from] std::io::Error),
+    /// The parser expected to read somehting that was an integer but got some garbage
+    #[error("parse int {0}")]
+    ParseInt(#[from] ParseIntError),
 }
