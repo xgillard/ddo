@@ -17,8 +17,6 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::{str::FromStr, fmt::Display};
-
 use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff};
 
 /// How are we to compile the decision diagram ? 
@@ -84,28 +82,4 @@ pub trait DecisionDiagram {
     fn drain_cutset<F>(&mut self, func: F)
     where
         F: FnMut(SubProblem<Self::State>);
-}
-
-
-
-impl FromStr for CompilationType {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "exact" => Ok(CompilationType::Exact),
-            "relaxed" => Ok(CompilationType::Relaxed),
-            "restricted" => Ok(CompilationType::Restricted),
-            _ => Err("Only 'exact', 'relaxed' and 'restricted' are allowed"),
-        }
-    }
-}
-impl Display for CompilationType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompilationType::Exact => write!(f, "exact"),
-            CompilationType::Relaxed => write!(f, "relaxed"),
-            CompilationType::Restricted => write!(f, "restricted"),
-        }
-    }
 }

@@ -458,6 +458,6 @@ mod tests {
 
     fn instance(id: &str) -> Max2Sat {
         let location = locate(id);
-        read_instance(location).expect("could not parse instance")
+        Max2Sat::new(read_instance(location).expect("could not parse instance"))
     }
 }
