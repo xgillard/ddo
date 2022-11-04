@@ -111,3 +111,46 @@ impl <X: FnMut(Decision)> DecisionCallback for X {
         self(decision)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{Relaxation, DecisionCallback, Decision};
+
+    struct DummyRelax;
+    impl Relaxation for DummyRelax {
+        type State = char;
+
+        fn merge(&self, _states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+            todo!()
+        }
+
+        fn relax(
+            &self,
+            _source: &Self::State,
+            _dest: &Self::State,
+            _new: &Self::State,
+            _decision: crate::Decision,
+            _cost: isize,
+        ) -> isize {
+            todo!()
+        }
+    }
+    #[test]
+    fn by_default_fast_upperbound_yields_positive_max() {
+        let rlx = DummyRelax;
+        assert_eq!(isize::MAX, rlx.fast_upper_bound(&'x'));
+    }
+
+    #[test]
+    fn any_closure_is_a_decision_callback() {
+        let mut changed = false;
+        let chg = &mut changed;
+        let closure: &mut dyn DecisionCallback = &mut |_: Decision| {
+            *chg = true;
+        };
+
+        closure.apply(Decision{variable: crate::Variable(0), value: 4});
+        
+        assert!(changed);
+    }
+}

@@ -448,3 +448,406 @@ where
         }
     }
 }
+
+
+// ############################################################################
+// #### TESTS #################################################################
+// ############################################################################
+
+/// Unlike the rest of the library, the solvers modules are not tested in depth
+/// with unit tests (this is way too hard to do even for the sequential module).
+/// So we basically unit test the configuration capabilities of the solvers
+/// and then resort to the solving of benchmark instances (see examples) with
+/// known optimum solution to validate the behavior of the maximize function.
+
+#[cfg(test)]
+mod test_solver {
+    use crate::*;
+    
+    #[test]
+    fn by_default_best_lb_is_min_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        assert_eq!(isize::min_value(), solver.best_lower_bound());
+    }
+    #[test]
+    fn by_default_best_ub_is_plus_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        assert_eq!(isize::max_value(), solver.best_upper_bound());
+    }
+    #[test]
+    fn when_the_problem_is_solved_best_lb_is_best_value() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_lower_bound());
+    }
+    #[test]
+    fn when_the_problem_is_solved_best_ub_is_best_value() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        let _ = solver.maximize();
+        assert_eq!(220, solver.best_upper_bound());
+    }
+    
+    #[test]
+    fn no_solution_before_solving() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+        assert!(solver.best_sol.is_none());
+    }
+    #[test]
+    fn empty_fringe_before_solving() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        assert!(solver.fringe.is_empty());
+    }
+    #[test]
+    fn default_best_lb_is_neg_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        assert_eq!(isize::min_value(), solver.best_lb);
+    }
+    #[test]
+    fn default_best_ub_is_pos_infinity() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        assert_eq!(isize::max_value(), solver.best_ub);
+    }
+
+    #[test]
+    fn maximizes_yields_the_optimum() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision{variable: Variable(0), value: 0},
+            Decision{variable: Variable(1), value: 1},
+            Decision{variable: Variable(2), value: 1},
+        ]);
+    }
+
+    #[test]
+    fn maximizes_yields_the_optimum_2() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 210, 12, 5, 100, 120, 110],
+            weight  : vec![10,  45, 20, 4,  20,  30,  50]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision { variable: Variable(0), value: 0 },
+            Decision { variable: Variable(1), value: 0 },
+            Decision { variable: Variable(2), value: 0 },
+            Decision { variable: Variable(3), value: 0 },
+            Decision { variable: Variable(4), value: 1 },
+            Decision { variable: Variable(5), value: 1 },
+            Decision { variable: Variable(6), value: 0 }
+        ]);
+    }
+    #[test]
+    fn set_primal_overwrites_best_value_and_sol_if_it_improves() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        let d1  = Decision{variable: Variable(0), value: 10};
+        let sol = vec![d1];
+
+        solver.set_primal(10, sol.clone());
+        assert!(solver.best_sol.is_some());
+        assert_eq!(10, solver.best_lb);
+
+        // in this case, it wont update because there is no improvement
+        solver.set_primal(5, sol.clone());
+        assert!(solver.best_sol.is_some());
+        assert_eq!(10, solver.best_lb);
+
+        // but here, it will update as it improves the best known sol
+        solver.set_primal(10000, sol);
+        assert!(solver.best_sol.is_some());
+        assert_eq!(10000, solver.best_lb);
+
+        // it wont do much as the primal is better than the actual feasible solution
+        let maximized = solver.maximize();
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(10000));
+        assert!(solver.best_solution().is_some());
+    }
+
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    struct KnapsackState {
+        depth: usize,
+        capacity: usize
+    }
+    struct Knapsack {
+        capacity: usize,
+        profit: Vec<usize>,
+        weight: Vec<usize>,
+    }
+
+    const TAKE_IT: isize = 1;
+    const LEAVE_IT_OUT: isize = 0;
+
+    impl Problem for Knapsack {
+        type State = KnapsackState;
+        fn nb_variables(&self) -> usize {
+            self.profit.len()
+        }
+        fn initial_state(&self) -> Self::State {
+            KnapsackState{ depth: 0, capacity: self.capacity }
+        }
+        fn initial_value(&self) -> isize {
+            0
+        }
+        fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+            let mut ret = state.clone();
+            ret.depth  += 1;
+            if dec.value == TAKE_IT { 
+                ret.capacity -= self.weight[dec.variable.id()] 
+            }
+            ret
+        }
+        fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+            self.profit[dec.variable.id()] as isize * dec.value
+        }
+        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+            let n = self.nb_variables();
+            next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+        }
+        fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+        {
+            if state.capacity >= self.weight[variable.id()] {
+                f.apply(Decision { variable, value: TAKE_IT });
+                f.apply(Decision { variable, value: LEAVE_IT_OUT });
+            } else {
+                f.apply(Decision { variable, value: LEAVE_IT_OUT });
+            }
+        }
+    }
+    struct KPRelax<'a>{pb: &'a Knapsack}
+    impl Relaxation for KPRelax<'_> {
+        type State = KnapsackState;
+
+        fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+            states.max_by_key(|node| node.capacity).copied().unwrap()
+        }
+        fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+            cost
+        }
+        fn fast_upper_bound(&self, state: &Self::State) -> isize {
+            let mut tot = 0;
+            for var in state.depth..self.pb.nb_variables() {
+                if self.pb.weight[var] <= state.capacity {
+                    tot += self.pb.profit[var];
+                }
+            }
+            tot as isize
+        }
+    }
+    struct KPRanking;
+    impl StateRanking for KPRanking {
+        type State = KnapsackState;
+
+        fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+            a.capacity.cmp(&b.capacity)
+        }
+    }
+}
