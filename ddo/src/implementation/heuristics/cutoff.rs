@@ -270,3 +270,24 @@ impl Cutoff for TimeBudget {
         self.stop.load(std::sync::atomic::Ordering::Relaxed)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{time::Duration, thread};
+
+    use crate::*;
+
+    #[test]
+    fn no_cutoff_must_never_stops() {
+        let cutoff = NoCutoff;
+        assert!(!cutoff.must_stop());
+    }
+
+    #[test]
+    fn time_budget_must_stop_only_when_elapsed() {
+        let cutoff = TimeBudget::new(Duration::from_secs(3));
+        assert!(!cutoff.must_stop());
+        thread::sleep(Duration::from_secs(4));
+        assert!(cutoff.must_stop());
+    }
+}
