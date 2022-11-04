@@ -2,6 +2,8 @@
 members = [
     "ddo",
     "py_ddo",
+    #
+    "xtask",
 ]
 
 [profile.release]
