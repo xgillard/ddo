@@ -27,6 +27,6 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: 0.16.0
-          args: -p ddo
+          args: -p ddo --ignore-tests
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
