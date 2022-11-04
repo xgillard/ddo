@@ -570,6 +570,8 @@ where
 mod test_solver {
     use crate::*;
     
+    type DD<'a> = ParallelSolver<'a, KnapsackState, DefaultMDD<KnapsackState>>;
+
     #[test]
     fn by_default_best_lb_is_min_infinity() {
         let problem = Knapsack {
@@ -582,13 +584,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         assert_eq!(isize::min_value(), solver.best_lower_bound());
@@ -605,13 +608,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         assert_eq!(isize::max_value(), solver.best_upper_bound());
@@ -628,13 +632,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = ParallelSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         let _ = solver.maximize();
@@ -652,13 +657,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = ParallelSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         let _ = solver.maximize();
@@ -677,13 +683,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
         assert!(solver.best_solution().is_none());
     }
@@ -699,19 +706,20 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         assert!(solver.best_value().is_none());
         assert!(fringe.is_empty());
     }
-    
+
     /* this, I can't test...
     #[test]
     fn when_the_solver_is_cutoff_ub_is_that_of_the_best_thread() {
@@ -725,7 +733,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
@@ -750,13 +758,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         assert_eq!(isize::min_value(), solver.best_lower_bound());
@@ -773,13 +782,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         assert_eq!(isize::max_value(), solver.best_upper_bound());
@@ -797,13 +807,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = ParallelSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         let maximized = solver.maximize();
@@ -833,13 +844,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = ParallelSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         let maximized = solver.maximize();
@@ -872,13 +884,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = ParallelSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         let d1  = Decision{variable: Variable(0), value: 10};
@@ -917,13 +930,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let solver = ParallelSolver::new(
+        let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         assert_eq!(1.0, solver.gap());
@@ -940,13 +954,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = ParallelSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            1
         );
 
         let Completion{is_exact, best_value} = solver.maximize();
