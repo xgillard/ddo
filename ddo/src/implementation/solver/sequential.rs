@@ -771,6 +771,55 @@ mod test_solver {
         assert!(solver.best_solution().is_some());
     }
 
+    #[test]
+    fn when_no_solution_is_found_the_gap_is_one() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        assert_eq!(1.0, solver.gap());
+    }
+    #[test]
+    fn when_optimum_solution_is_found_the_gap_is_zero() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe
+        );
+
+        let Completion{is_exact, best_value} = solver.maximize();
+        assert!(is_exact);
+        assert!(best_value.is_some());
+        assert_eq!(0.0, solver.gap());
+    }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     struct KnapsackState {
