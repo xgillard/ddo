@@ -26,6 +26,111 @@ use crate::Cutoff;
 
 /// _This is the default cutoff heuristic._ It imposes that the search goes
 /// proves optimality before to stop.
+/// 
+/// # Typical Usage Example
+/// The cutoff policy is typically created when instanciating a solver. The following
+/// example shows how one can create a solver that never stops before it found the 
+/// optimal solution to a given problem instance.
+/// 
+/// ```
+/// # use ddo::*;
+/// #
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
+/// #     }
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// struct KPRelax<'a>{pb: &'a Knapsack}
+/// impl Relaxation for KPRelax<'_> {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// }
+/// # 
+/// struct KPRanking;
+/// impl StateRanking for KPRanking {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// }
+/// 
+/// let problem = Knapsack {
+///       // details omitted
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let relaxation = KPRelax{pb: &problem};
+/// let width = FixedWidth(100);
+/// let heuristic = KPRanking;
+/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// #
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &width,
+///       // this solver will only stop when optimality is proved
+///       &NoCutoff, 
+///       &mut frontier);
+/// let outcome = solver.maximize();
+/// ```
 #[derive(Debug, Default, Copy, Clone)]
 pub struct NoCutoff;
 impl Cutoff for NoCutoff {
@@ -35,44 +140,112 @@ impl Cutoff for NoCutoff {
 /// Once the time budget is elapsed, the optimization stops and the best solution
 /// that has been found (so far) is returned.
 ///
-/// # Example
+/// # Typical Usage Example
+/// The cutoff policy is typically created when instanciating a solver. The following
+/// example shows how one can create a solver that is allowed to run for no more than
+/// 30 seonds (wall time).
+/// 
 /// ```
+/// # use std::time::Duration;
 /// # use ddo::*;
-/// use std::time::Duration;
 /// #
-/// # #[derive(Copy, Clone)]
-/// # struct MockProblem;
-/// # impl Problem<usize> for MockProblem {
-/// #     fn nb_vars(&self)       -> usize {  5 }
-/// #     fn initial_state(&self) -> usize { 42 }
-/// #     fn initial_value(&self) -> isize   { 84 }
-/// #     fn domain_of<'a>(&self, _: &'a usize, _: Variable) -> Domain<'a> {
-/// #         (0..=1).into()
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
 /// #     }
-/// #     fn transition(&self, state: &usize, _: &VarSet, _: Decision) -> usize {
-/// #         41
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
 /// #     }
-/// #     fn transition_cost(&self, state: &usize, _: &VarSet, _: Decision) -> isize {
-/// #         42
+/// #     fn initial_value(&self) -> isize {
+/// #         0
 /// #     }
-/// # }
-/// # #[derive(Copy, Clone)]
-/// # struct MockRelax;
-/// # impl Relaxation<usize> for MockRelax {
-/// #     fn merge_states(&self, n: &mut dyn Iterator<Item=&usize>) -> usize {
-/// #         *n.next().unwrap()
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
 /// #     }
-/// #     fn relax_edge(&self, _src: &usize, _dst: &usize, _rlx: &usize, _d: Decision, cost: isize) -> isize {
-/// #        cost
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// # }
-/// # let problem = MockProblem;
-/// # let relax   = MockRelax;
-/// let mdd = mdd_builder(&problem, relax)
-///         .with_cutoff(TimeBudget::new(Duration::from_secs(10)))
-///         .into_deep();
-/// let mut solver = ParallelSolver::new(mdd);
-/// let optimum = solver.maximize(); // will run for maximum 10 seconds
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// struct KPRelax<'a>{pb: &'a Knapsack}
+/// impl Relaxation for KPRelax<'_> {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// }
+/// # 
+/// struct KPRanking;
+/// impl StateRanking for KPRanking {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// }
+/// 
+/// let problem = Knapsack {
+///       // details omitted
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let relaxation = KPRelax{pb: &problem};
+/// let width = FixedWidth(100);
+/// let heuristic = KPRanking;
+/// 
+/// // this solver will be allowed to run for 30 seconds
+/// let cutoff = TimeBudget::new(Duration::from_secs(30));
+/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// #
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &width,
+///       &cutoff, 
+///       &mut frontier);
+/// let outcome = solver.maximize();
 /// ```
 #[derive(Debug, Clone)]
 pub struct TimeBudget {

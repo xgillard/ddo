@@ -23,33 +23,50 @@ use std::cmp::Ordering;
 
 use compare::Compare;
 
-use crate::{StateRanking, SubProblemRanking, SubProblem};
+use crate::{SubProblemRanking, SubProblem};
 
-
-/// This is a thin wrapper to convert a StateRanking into a `Compare` object
-/// as is sometimes required. 
-/// 
-/// This struct has no behavior of its own: it simply delegates to the 
-/// underlying implementation.
-#[derive(Debug, Clone, Copy)]
-pub struct CompareState<X:StateRanking>(X);
-impl <X:StateRanking> CompareState<X> {
-    /// Creates a new instance
-    pub fn new(x: X) -> Self {
-        Self(x)
-    }
-}
-impl <X:StateRanking> Compare<X::State> for CompareState<X> {
-    fn compare(&self, l: &X::State, r: &X::State) -> Ordering {
-        self.0.compare(l, r)
-    }
-}
 
 /// This is a thin wrapper to convert a SubProblemRanking into a `Compare` 
 /// object as is sometimes required (e.g. to configure the order in a binary heap)
 /// 
 /// This struct has no behavior of its own: it simply delegates to the 
 /// underlying implementation.
+/// 
+/// # Example
+/// ```
+/// # use ddo::*;
+/// # use binary_heap_plus::BinaryHeap;
+/// 
+/// // Assuming the existence of a simple KnapsackState type
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///     depth: usize,
+///     capacity: usize
+/// }
+/// 
+/// // One can define a simple StateRanking to compare these states
+/// struct KPRanking;
+/// impl StateRanking for KPRanking {
+///     type State = KnapsackState;
+///     
+///     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+///         a.capacity.cmp(&b.capacity)
+///     }
+/// }
+/// 
+/// // However, if you were in need to create a heap capable of ordering
+/// // the subproblems with your custom state ranking, you would need to use an
+/// // object that implents the `Compare` trait. This is what `CompareSubProblem`
+/// // is used for: it provides a convenient zero sized adapter for that
+/// // purpose.
+/// 
+/// // This allows to compare two subproblems, ordering them in best first order
+/// let comparator = CompareSubProblem::new(MaxUB::new(&KPRanking));
+/// 
+/// // And that comparator can in turn be used to parameterize the behavior
+/// // of a heap (for instance).
+/// let heap = BinaryHeap::from_vec_cmp(vec![], comparator);
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct CompareSubProblem<X:SubProblemRanking>(X);
 impl <X:SubProblemRanking> CompareSubProblem<X> {
@@ -68,7 +85,7 @@ impl <X:SubProblemRanking> Compare<SubProblem<X::State>> for CompareSubProblem<X
 mod test {
     use std::{cmp::Ordering, ops::Deref, sync::Arc};
     use compare::Compare;
-    use crate::{StateRanking, SubProblemRanking, SubProblem, CompareState, CompareSubProblem};
+    use crate::{StateRanking, SubProblemRanking, SubProblem, CompareSubProblem};
 
     /// A dummy state comparator for use in the tests
     struct CharRanking;
@@ -85,22 +102,6 @@ mod test {
         fn compare(&self, a: &SubProblem<char>, b: &SubProblem<char>) -> Ordering {
             <Self as StateRanking>::compare(self, a.state.deref(), b.state.deref())
         }
-    }
-
-    #[test]
-    fn when_a_is_less_than_b_comparestate_returns_less() {
-        let cmp = CompareState::new(CharRanking);
-        assert_eq!(cmp.compare(&'a', &'b'), Ordering::Less);
-    }
-    #[test]
-    fn when_a_is_greater_than_b_comparestate_returns_greater() {
-        let cmp = CompareState::new(CharRanking);
-        assert_eq!(cmp.compare(&'b', &'a'), Ordering::Greater);
-    }
-    #[test]
-    fn when_a_is_equal_to_b_comparestate_returns_equal() {
-        let cmp = CompareState::new(CharRanking);
-        assert_eq!(cmp.compare(&'a', &'a'), Ordering::Equal);
     }
 
     #[test]

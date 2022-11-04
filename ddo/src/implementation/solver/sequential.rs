@@ -40,6 +40,139 @@ enum WorkLoad<T> {
     WorkItem { node: SubProblem<T> },
 }
 
+/// This is the structure implementing an single-threaded MDD solver.
+///
+/// # Example Usage
+/// ```
+/// # use ddo::*;
+/// #
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// # struct KnapsackState {
+/// #     depth: usize,
+/// #     capacity: usize
+/// # }
+/// # 
+/// # struct Knapsack {
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// # }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// # impl Problem for Knapsack {
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
+/// #     }
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// # }
+/// # struct KPRelax<'a>{pb: &'a Knapsack}
+/// # impl Relaxation for KPRelax<'_> {
+/// #     type State = KnapsackState;
+/// # 
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// # }
+/// # 
+/// # struct KPRanking;
+/// # impl StateRanking for KPRanking {
+/// #     type State = KnapsackState;
+/// #     
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// # }
+/// 
+/// // To create a new solver, you need to be able to provide it with a problem instance, a relaxation
+/// // and the various required heuristic. This example assumes the existence of the Knapsack structure
+/// // and relaxation.
+/// 
+/// // 1. Create an instance of our knapsack problem
+/// let problem = Knapsack {
+///     capacity: 50,
+///     profit  : vec![60, 100, 120],
+///     weight  : vec![10,  20,  30]
+/// };
+/// 
+/// // 2. Create a relaxation of the problem
+/// let relaxation = KPRelax{pb: &problem};
+/// 
+/// // 3. Create a ranking to discriminate the promising and uninteresting states
+/// let heuristic = KPRanking;
+/// 
+/// // 4. Define the policy you will want to use regarding the maximum width of the DD
+/// let width = FixedWidth(100); // here we mean max 100 nodes per layer
+/// 
+/// // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+/// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
+/// 
+/// // 5. Create the solver frontier
+/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+///  
+/// // 6. Instanciate your solver
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &width, 
+///       &cutoff, 
+///       &mut frontier);
+/// 
+/// // 7. Maximize your objective function
+/// // the outcome provides the value of the best solution that was found for
+/// // the problem (if one was found) along with a flag indicating whether or
+/// // not the solution was proven optimal. Hence an unsatisfiable problem
+/// // would have `outcome.best_value == None` and `outcome.is_exact` true.
+/// // The `is_exact` flag will only be false if you explicitly decide to stop
+/// // searching with an arbitrary cutoff.
+/// let outcome = solver.maximize();
+/// // The best solution (if one exist) is retrieved with
+/// let solution = solver.best_solution();
+///
+/// // 8. Do whatever you like with the optimal solution.
+/// assert_eq!(Some(220), outcome.best_value);
+/// println!("Solution");
+/// for decision in solution.unwrap().iter() {
+///     if decision.value == 1 {
+///         println!("{}", decision.variable.id());
+///     }
+/// }
+/// ```
 pub struct SequentialSolver<'a, State, D> 
 where D: DecisionDiagram<State = State> + Default,
 {

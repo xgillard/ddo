@@ -416,9 +416,9 @@
 //! // would have `outcome.best_value == None` and `outcome.is_exact` true.
 //! // The `is_exact` flag will only be false if you explicitly decide to stop
 //! // searching with an arbitrary cutoff.
-//! let outcome    = solver.maximize();
+//! let outcome = solver.maximize();
 //! // The best solution (if one exist) is retrieved with
-//! let solution   = solver.best_solution();
+//! let solution = solver.best_solution();
 //!
 //! // 8. Do whatever you like with the optimal solution.
 //! assert_eq!(Some(220), outcome.best_value);

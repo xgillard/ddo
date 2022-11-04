@@ -28,22 +28,116 @@ use crate::{WidthHeuristic, SubProblem};
 ///
 /// # Example
 /// Assuming a fixed width of 100, and problem with 5 variables (0..=4). The
-/// heuristic will return 100 no matter how many free vars there are left to
-/// assign (`free_vars`).
+/// heuristic will return 100 regardles of the suproblem being processed.
 ///
 /// ```
 /// # use ddo::*;
-/// #
-/// let heuristic   = FixedWidth(100);      // assume a fixed width of 100
-/// let mut var_set = VarSet::all(5);       // assume a problem with 5 variables
-/// let mdd_type    = MDDType:: Restricted; // assume we're compiling a restricted mdd
-/// assert_eq!(100, heuristic.max_width(mdd_type, &var_set));
-/// var_set.remove(Variable(1));            // let's say we fixed variables {1, 3, 4}.
-/// var_set.remove(Variable(3));            // hence, only variables {0, 2} remain
-/// var_set.remove(Variable(4));            // in the set of `free_vars`.
-///
+/// # use std::sync::Arc;
+/// let heuristic = FixedWidth(100); // assume a fixed width of 100
+/// 
+/// // assume the exsitence of whatever subroblem you like..
+/// let subproblem = SubProblem {state: Arc::new('a'), value: 42, ub: 100, path: vec![]};
 /// // still, the heuristic always return 100.
-/// assert_eq!(100, heuristic.max_width(mdd_type, &var_set));
+/// assert_eq!(100, heuristic.max_width(&subproblem));
+/// ```
+/// 
+/// # Typical usage example
+/// Typically, you will only ever create a FixedWidth policy when instanciating 
+/// your solver. The following example shows how you create a solver that imposes
+/// a fixed maximum layer width to all layers it compiles.
+/// 
+/// ```
+/// # use ddo::*;
+/// # use std::sync::Arc;
+/// #
+/// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// # struct KnapsackState {
+/// #     depth: usize,
+/// #     capacity: usize
+/// # }
+/// # 
+/// # struct Knapsack {
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// # }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// # impl Problem for Knapsack {
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
+/// #     }
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// # }
+/// # struct KPRelax<'a>{pb: &'a Knapsack}
+/// # impl Relaxation for KPRelax<'_> {
+/// #     type State = KnapsackState;
+/// # 
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// # }
+/// # 
+/// # struct KPRanking;
+/// # impl StateRanking for KPRanking {
+/// #     type State = KnapsackState;
+/// #     
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// # }
+/// # let problem = Knapsack {
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// # };
+/// # let relaxation = KPRelax{pb: &problem};
+/// # let heuristic = KPRanking;
+/// # let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
+/// # let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// #
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &FixedWidth(100), // all DDs will be compiled with a maximum width of 100 nodes 
+///       &cutoff, 
+///       &mut frontier);
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct FixedWidth(pub usize);
@@ -61,20 +155,191 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// # Example
 /// Assuming a problem with 5 variables (0..=4). If we are calling this heuristic
 /// to derive the maximum allowed width for the layers of an approximate MDD
-/// when variables {1, 3, 4} have been fixed, then the set of `free_vars` will
-/// contain only the variables {0, 2}. In that case, this strategy will return
+/// when variables {1, 3, 4} have been fixed, then there are only two "free"
+/// variables. Namely, variables 0 and 2. In that case, this strategy will return
 /// a max width of two.
 ///
 /// ```
 /// # use ddo::*;
+/// # use std::sync::Arc;
 /// #
-/// let mut var_set = VarSet::all(5);  // assume a problem with 5 variables
-/// let mdd_type    = MDDType::Relaxed;// assume we are compiling a relaxed dd
-/// var_set.remove(Variable(1));       // variables {1, 3, 4} have been fixed
-/// var_set.remove(Variable(3));
-/// var_set.remove(Variable(4));       // only variables {0, 2} remain in the set
-///
-/// assert_eq!(2, NbUnassignedWitdh.max_width(mdd_type, &var_set));
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///      type State = KnapsackState;
+///      fn nb_variables(&self) -> usize {
+///          5
+///      }
+///       // details omitted in this example
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// let problem = Knapsack {
+///       // details omitted in this example
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let heuristic = NbUnassignedWitdh(problem.nb_variables());
+/// let subproblem= SubProblem {
+/// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
+/// #    value: 5, 
+/// #    ub: 100, 
+///     // three decisions have already been made. There only remain variables 0 and 2
+///     path: vec![
+///         Decision{variable: Variable(1), value: 1},
+///         Decision{variable: Variable(3), value: 1},
+///         Decision{variable: Variable(4), value: 1},
+///     ]
+/// };
+/// assert_eq!(2, heuristic.max_width(&subproblem));
+/// ```
+/// 
+/// # Typical usage example
+/// Typically, you will only ever create a NbUnassignedWitdh policy when instanciating 
+/// your solver. The following example shows how you create a solver that imposes
+/// a maximum layer width of one node per unassigned variable.
+/// 
+/// ```
+/// # use ddo::*;
+/// # use std::sync::Arc;
+/// #
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
+/// #     }
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// struct KPRelax<'a>{pb: &'a Knapsack}
+/// impl Relaxation for KPRelax<'_> {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// }
+/// # 
+/// struct KPRanking;
+/// impl StateRanking for KPRanking {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// }
+/// 
+/// let problem = Knapsack {
+///       // details omitted
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let relaxation = KPRelax{pb: &problem};
+/// let heuristic = KPRanking;
+/// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
+/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// #
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &NbUnassignedWitdh(problem.nb_variables()),
+///       &cutoff, 
+///       &mut frontier);
 /// ```
 #[derive(Default, Debug, Copy, Clone)]
 pub struct NbUnassignedWitdh(pub usize);
@@ -96,19 +361,195 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// going to return 0 for a value of the max width.
 ///
 /// # Example
-/// Here is an example of how to use this strategy to allow 5 nodes per
-/// unassigned variable in a layer.
+/// Here is an example of how to use this strategy to allow 5 times as many nodes
+/// as there are nodes unassigned variable in a layer.
+/// 
+/// In ther following example, there are 5 variables. Three of these have already
+/// been assigned. Which means there are only two unassinged variables left.
+/// Using the Times(5) decorator would mean that the maximum allowed width for a
+/// layer is 10 nodes. 
 ///
 /// ```
 /// # use ddo::*;
+/// # use std::sync::Arc;
 /// #
-/// # let mut var_set = VarSet::all(5);  // assume a problem with 5 variables
-/// # let mdd_type = MDDType::Restricted;// assume we are compiling a restricted dd
-/// # var_set.remove(Variable(1));       // variables {1, 3, 4} have been fixed
-/// # var_set.remove(Variable(3));
-/// # var_set.remove(Variable(4));       // only variables {0, 2} remain in the set
-/// let custom = Times(5, NbUnassignedWitdh);
-/// assert_eq!(5 * NbUnassignedWitdh.max_width(mdd_type, &var_set), custom.max_width(mdd_type, &var_set));
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///      type State = KnapsackState;
+///      fn nb_variables(&self) -> usize {
+///          5
+///      }
+///       // details omitted in this example
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// let problem = Knapsack {
+///       // details omitted in this example
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let heuristic = Times(5, NbUnassignedWitdh(problem.nb_variables()));
+/// let subproblem= SubProblem {
+/// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
+/// #    value: 5, 
+/// #    ub: 100, 
+///     // three decisions have already been made. There only remain variables 0 and 2
+///     path: vec![
+///         Decision{variable: Variable(1), value: 1},
+///         Decision{variable: Variable(3), value: 1},
+///         Decision{variable: Variable(4), value: 1},
+///     ]
+/// };
+/// assert_eq!(10, heuristic.max_width(&subproblem));
+/// ```
+/// 
+/// # Typical usage example
+/// Typically, you will only ever create a Times policy when instanciating 
+/// your solver. The following example shows how you create a solver that imposes
+/// a fixed maximum layer width of five node per unassigned variable.
+/// 
+/// ```
+/// # use ddo::*;
+/// # use std::sync::Arc;
+/// #
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
+/// #     }
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// struct KPRelax<'a>{pb: &'a Knapsack}
+/// impl Relaxation for KPRelax<'_> {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// }
+/// # 
+/// struct KPRanking;
+/// impl StateRanking for KPRanking {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// }
+/// 
+/// let problem = Knapsack {
+///       // details omitted
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let relaxation = KPRelax{pb: &problem};
+/// let heuristic = KPRanking;
+/// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
+/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// #
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &Times(5, NbUnassignedWitdh(problem.nb_variables())),
+///       &cutoff, 
+///       &mut frontier);
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct Times<X>(pub usize, pub X);
@@ -134,16 +575,191 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// Here is an example of how to use this strategy to allow 1 nodes per two
 /// unassigned variables in a layer.
 ///
+/// In ther following example, there are 5 variables. Three of these have already
+/// been assigned. Which means there are only two unassinged variables left.
+/// Using the DivBy(2) decorator would mean that the maximum allowed width for a
+/// layer is 1 node. 
+///
+/// ```
+/// # use ddo::*;
+/// # use std::sync::Arc;
+/// #
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///      type State = KnapsackState;
+///      fn nb_variables(&self) -> usize {
+///          5
+///      }
+///       // details omitted in this example
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// let problem = Knapsack {
+///       // details omitted in this example
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let heuristic = DivBy(2, NbUnassignedWitdh(problem.nb_variables()));
+/// let subproblem= SubProblem {
+/// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
+/// #    value: 5, 
+/// #    ub: 100, 
+///     // three decisions have already been made. There only remain variables 0 and 2
+///     path: vec![
+///         Decision{variable: Variable(1), value: 1},
+///         Decision{variable: Variable(3), value: 1},
+///         Decision{variable: Variable(4), value: 1},
+///     ]
+/// };
+/// assert_eq!(1, heuristic.max_width(&subproblem));
+/// ```
+/// 
+/// # Typical usage example
+/// Typically, you will only ever create a DivBy policy when instanciating 
+/// your solver. The following example shows how you create a solver that imposes
+/// a maximum layer width of one node per two unassigned variables.
+/// 
 /// ```
 /// # use ddo::*;
 /// #
-/// # let mut var_set = VarSet::all(5); // assume a problem with 5 variables
-/// # let mdd_type = MDDType::Relaxed;  // asume we're developing a relaxed dd 
-/// # var_set.remove(Variable(1));      // variables {1, 3, 4} have been fixed
-/// # var_set.remove(Variable(3));
-/// # var_set.remove(Variable(4));      // only variables {0, 2} remain in the set
-/// let custom = DivBy(2, NbUnassignedWitdh);
-/// assert_eq!(NbUnassignedWitdh.max_width(mdd_type, &var_set) / 2, custom.max_width(mdd_type, &var_set));
+/// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// struct KnapsackState {
+///       // details omitted in this example
+/// #     depth: usize,
+/// #     capacity: usize
+/// }
+/// # 
+/// struct Knapsack {
+///       // details omitted in this example
+/// #     capacity: usize,
+/// #     profit: Vec<usize>,
+/// #     weight: Vec<usize>,
+/// }
+/// # 
+/// # const TAKE_IT: isize = 1;
+/// # const LEAVE_IT_OUT: isize = 0;
+/// # 
+/// impl Problem for Knapsack {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn nb_variables(&self) -> usize {
+/// #         self.profit.len()
+/// #     }
+/// #     fn initial_state(&self) -> Self::State {
+/// #         KnapsackState{ depth: 0, capacity: self.capacity }
+/// #     }
+/// #     fn initial_value(&self) -> isize {
+/// #         0
+/// #     }
+/// #     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+/// #         let mut ret = state.clone();
+/// #         ret.depth  += 1;
+/// #         if dec.value == TAKE_IT { 
+/// #             ret.capacity -= self.weight[dec.variable.id()] 
+/// #         }
+/// #         ret
+/// #     }
+/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #         self.profit[dec.variable.id()] as isize * dec.value
+/// #     }
+/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #         let n = self.nb_variables();
+/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #     }
+/// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+/// #     {
+/// #         if state.capacity >= self.weight[variable.id()] {
+/// #             f.apply(Decision { variable, value: TAKE_IT });
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         } else {
+/// #             f.apply(Decision { variable, value: LEAVE_IT_OUT });
+/// #         }
+/// #     }
+/// }
+/// struct KPRelax<'a>{pb: &'a Knapsack}
+/// impl Relaxation for KPRelax<'_> {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+/// #         states.max_by_key(|node| node.capacity).copied().unwrap()
+/// #     }
+/// #     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
+/// #         cost
+/// #     }
+/// }
+/// # 
+/// struct KPRanking;
+/// impl StateRanking for KPRanking {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+/// #         a.capacity.cmp(&b.capacity)
+/// #     }
+/// }
+/// 
+/// let problem = Knapsack {
+///       // details omitted
+/// #     capacity: 50,
+/// #     profit  : vec![60, 100, 120],
+/// #     weight  : vec![10,  20,  30]
+/// };
+/// let relaxation = KPRelax{pb: &problem};
+/// let heuristic = KPRanking;
+/// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
+/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// #
+/// let mut solver = DefaultSolver::new(
+///       &problem, 
+///       &relaxation, 
+///       &heuristic, 
+///       &DivBy(2, NbUnassignedWitdh(problem.nb_variables())),
+///       &cutoff, 
+///       &mut frontier);
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct DivBy<X>(pub usize, pub X);

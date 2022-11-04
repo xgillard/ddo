@@ -37,8 +37,18 @@ use crate::{StateRanking, SubProblemRanking, SubProblem};
 ///
 /// # Example
 /// ```
+/// # use std::sync::Arc;
+/// # use std::cmp::Ordering;
 /// # use ddo::*;
 /// #
+/// struct CharRanking;
+/// impl StateRanking for CharRanking {
+///     type State = char;
+///     fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+///         a.cmp(b)
+///     }
+/// }
+/// 
 /// let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
 /// let b = SubProblem {state: Arc::new('b'), value:  2, ub: 100, path: vec![]};
 /// let c = SubProblem {state: Arc::new('c'), value: 24, ub: 150, path: vec![]};
@@ -46,7 +56,8 @@ use crate::{StateRanking, SubProblemRanking, SubProblem};
 /// let e = SubProblem {state: Arc::new('e'), value: 65, ub: 700, path: vec![]};
 /// let f = SubProblem {state: Arc::new('f'), value: 19, ub: 100, path: vec![]};
 ///
-/// let mut priority_q = SimpleFrontier::new_with_order(MaxUB);
+/// let ranking = MaxUB::new(&CharRanking);
+/// let mut priority_q = SimpleFrontier::new(ranking);
 /// priority_q.push(a);
 /// priority_q.push(b);
 /// priority_q.push(c);
