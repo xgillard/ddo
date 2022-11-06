@@ -1,5 +1,9 @@
 //! This is an adaptation of the vector based architecture which implements all
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
+//! 
+//! This implementation varies from the default one in that it implements long 
+//! arcs in the decision diagrams. This might or might not be suitable for your
+//! purpose.
 use std::{collections::hash_map::Entry, hash::Hash, ops::Deref, sync::Arc};
 
 use rustc_hash::FxHashMap;
@@ -19,8 +23,10 @@ struct NodeId(usize);
 struct EdgeId(usize);
 
 /// Represents an effective node from the decision diagram
-#[derive(Debug, Clone, Copy)]
-struct Node {
+#[derive(Debug, Clone)]
+struct Node<T> {
+    /// The state associated with this node
+    state: Arc<T>,
     /// The length of the longest path between the problem root and this
     /// specific node
     value: isize,
@@ -71,15 +77,21 @@ struct Edge {
 /// nodes in two vectors (enabling preallocation and good cache locality). 
 /// In addition to that, it also keeps track of the path (root_pa) from the
 /// problem root to the root of this decision diagram (explores a sub problem). 
-/// The prev_l comprises information about the nodes that are currently being
-/// expanded, next_l stores the information about the nodes from the next layer 
-/// and lel simply stores a last exact layer cutset.
+/// 
+/// # Note
+/// This version of the decision diagram is one that implements long arcs.
 /// 
 /// # Exact Cutset
 /// The exact cutset which is used in this implementation is the 
 /// Last Exact Layer cutset (LEL).
+/// 
+/// # Performance
+/// While the implementation of this MDD with long arcs is extremely similar
+/// to that of the vector based mdd without long arcs; the potential use of 
+/// long arcs incurs a performance cost which you are likely not willing to 
+/// pay when not using these long arcs.
 #[derive(Debug, Clone)]
-pub struct VectorBased<T>
+pub struct WithLongArcs<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -89,23 +101,21 @@ where
     /// All the nodes composing this decision diagram. The vector comprises 
     /// nodes from all layers in the DD. A nice property is that all nodes
     /// belonging to one same layer form a sequence in the ‘nodes‘ vector.
-    nodes: Vec<Node>,
+    nodes: Vec<Node<T>>,
     /// This vector stores the information about all edges connecting the nodes 
     /// of the decision diagram.
     edges: Vec<Edge>,
-    /// Maintains the association nodeid−>state for the nodes of the layer which 
-    /// is currently being expanded. This association is only used during the
-    /// unrolling of transition relation, and when merging nodes of a relaxed DD.
-    prev_l: FxHashMap<NodeId, T>,
     /// The nodes from the next layer; those are the result of an application 
     /// of the transition function to a node in ‘prev_l‘.
     /// Note: next_l in itself is indexed on the state associated with nodes.
     /// The rationale being that two transitions to the same state in the same
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
-    next_l: FxHashMap<T, NodeId>,
+    next_l: FxHashMap<Arc<T>, NodeId>,
+    /// The identifiers of the nodes in the previous layer
+    prev_l: Vec<NodeId>,
     /// The last exact layer of the decision diagram
-    lel: Option<Vec<(T, NodeId)>>,
+    lel: Option<Vec<NodeId>>,
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
     best_n: Option<NodeId>,
@@ -113,7 +123,7 @@ where
     /// traverses no merged node (Exact Best Path Optimization aka EBPO).
     exact: bool,
 }
-impl<T> Default for VectorBased<T>
+impl<T> Default for WithLongArcs<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -121,7 +131,7 @@ where
         Self::new()
     }
 }
-impl<T> DecisionDiagram for VectorBased<T>
+impl<T> DecisionDiagram for WithLongArcs<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -151,7 +161,7 @@ where
         self._drain_cutset(func)
     }
 }
-impl<T> VectorBased<T>
+impl<T> WithLongArcs<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -160,7 +170,7 @@ where
             root_pa: vec![],
             nodes: vec![],
             edges: vec![],
-            prev_l: Default::default(),
+            prev_l: vec![],
             next_l: Default::default(),
             lel: None,
             best_n: None,
@@ -171,6 +181,7 @@ where
         self.root_pa.clear();
         self.nodes.clear();
         self.edges.clear();
+        self.prev_l.clear();
         self.next_l.clear();
         self.lel = None;
         self.exact = true;
@@ -210,7 +221,7 @@ where
     fn _best_path_partial_borrow(
         id: NodeId,
         root_pa: &[Decision],
-        nodes: &[Node],
+        nodes: &[Node<T>],
         edges: &[Edge],
     ) -> Vec<Decision> {
         let mut sol = root_pa.to_owned();
@@ -229,7 +240,7 @@ where
     {
         if let Some(best_value) = self.best_value() {
             if let Some(lel) = self.lel.as_mut() {
-                for (state, id) in lel.drain(..) {
+                for id in lel.drain(..) {
                     let node = &self.nodes[id.0];
 
                     if node.flags.is_marked() {
@@ -238,8 +249,8 @@ where
                         let ub = rub.min(locb).min(best_value);
 
                         func(SubProblem {
-                            state: Arc::new(state),
-                            value: self.nodes[id.0].value,
+                            state: node.state.clone(),
+                            value: node.value,
                             path: Self::_best_path_partial_borrow(
                                 id,
                                 &self.root_pa,
@@ -260,10 +271,12 @@ where
 
         let mut depth = 0;
         let mut curr_l = vec![];
+        let mut long_arc = vec![];
         
-        let root_s = input.residual.state.deref().clone();
+        let root_s = Arc::new(input.residual.state.deref().clone());
         let root_v = input.residual.value;
         let root_n = Node {
+            state: Arc::clone(&root_s),
             value: root_v,
             best: None,
             inbound: None,
@@ -281,21 +294,31 @@ where
         self.nodes.push(root_n);
         self.next_l.insert(root_s, NodeId(0));
 
-        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys()) {
+        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|x| x.as_ref())) {
             // Did the cutoff kick in ?
             if input.cutoff.must_stop() {
                 return Err(Reason::CutoffOccurred);
             }
+
             self.prev_l.clear();
-            for (state, id) in curr_l.drain(..) {
-                self.prev_l.insert(id, state);
-            }
-            for (state, id) in self.next_l.drain() {
-                curr_l.push((state, id));
+            for (_, id) in curr_l.drain(..) {
+                self.prev_l.push(id);
             }
 
-            if curr_l.is_empty() {
+            for (state, id) in self.next_l.drain() {
+                if input.problem.is_impacted_by(var, &state) {
+                    curr_l.push((state, id));
+                } else {
+                    long_arc.push((state, id));
+                }
+            }
+
+            if curr_l.is_empty() && long_arc.is_empty() {
                 break; 
+            }
+
+            for (state, id) in long_arc.iter() {
+                self.next_l.insert(state.clone(), *id);
             }
 
             match input.comp_type {
@@ -333,6 +356,10 @@ where
                 }
             }
 
+            for tuple_s_id in long_arc.drain(..) {
+                curr_l.push(tuple_s_id);
+            }
+
             depth += 1;
         }
 
@@ -354,8 +381,8 @@ where
     fn maybe_save_lel(&mut self) -> bool {
         if self.lel.is_none() {
             let mut lel = vec![];
-            for (id, state) in self.prev_l.iter() {
-                lel.push((state.clone(), *id));
+            for id in self.prev_l.iter() {
+                lel.push(*id);
                 self.nodes[id.0].flags.set_cutset(true);
             }
             self.lel = Some(lel);
@@ -372,10 +399,10 @@ where
         decision: Decision,
         problem: &dyn Problem<State = T>,
     ) {
-        let next_state = problem.transition(state, decision);
+        let next_state = Arc::new(problem.transition(state, decision));
         let cost = problem.transition_cost(state, decision);
 
-        match self.next_l.entry(next_state) {
+        match self.next_l.entry(next_state.clone()) {
             Entry::Vacant(e) => {
                 let node_id = NodeId(self.nodes.len());
                 let edge_id = EdgeId(self.edges.len());
@@ -389,7 +416,7 @@ where
                     next: None,
                 });
                 self.nodes.push(Node {
-                    //my_id  : node_id,
+                    state: next_state,
                     value: self.nodes[from_id.0].value.saturating_add(cost),
                     best: Some(edge_id),
                     inbound: Some(edge_id),
@@ -431,35 +458,36 @@ where
         }
     }
 
-    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(Arc<T>, NodeId)>) {
         curr_l.sort_unstable_by(|a, b| {
             self.nodes[a.1 .0]
                 .value
                 .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+                .then_with(|| input.ranking.compare(a.0.as_ref(), b.0.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
         curr_l.truncate(input.max_width);
     }
 
-    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(Arc<T>, NodeId)>) {
         curr_l.sort_unstable_by(|a, b| {
             self.nodes[a.1 .0]
                 .value
                 .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+                .then_with(|| input.ranking.compare(a.0.as_ref(), b.0.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
 
         //--
         let (keep, merge) = curr_l.split_at_mut(input.max_width - 1);
-        let merged = input.relaxation.merge(&mut merge.iter().map(|(k, _v)| k));
-
+        let merged = input.relaxation.merge(&mut merge.iter().map(|(k, _v)| k.as_ref()));
+        let merged = Arc::new(merged);
         let recycled = keep.iter().find(|(k, _v)| k.eq(&merged)).map(|(_k, v)| *v);
 
         let merged_id = recycled.unwrap_or_else(|| {
             let node_id = NodeId(self.nodes.len());
             self.nodes.push(Node {
+                state: Arc::clone(&merged),
                 //my_id  : node_id,
                 value: isize::MIN,
                 best: None,    // yet
@@ -479,7 +507,7 @@ where
             let mut edge_id = self.nodes[drop_v.0].inbound;
             while let Some(eid) = edge_id {
                 let edge = self.edges[eid.0];
-                let src = &self.prev_l[&edge.from];
+                let src = self.nodes[edge.from.0].state.as_ref();
 
                 let rcost = input
                     .relaxation
@@ -573,11 +601,11 @@ mod test_default_mdd {
 
     use rustc_hash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback};
+    use crate::{Variable, WithLongArcs, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
-        let mdd = VectorBased::<usize>::new();
+        let mdd = WithLongArcs::<usize>::new();
 
         assert!(mdd.is_exact());
     }
@@ -600,7 +628,7 @@ mod test_default_mdd {
             }
         };
 
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
@@ -631,7 +659,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
 
         assert!(mdd.compile(&input).is_ok());
         assert!(mdd.best_solution().is_some());
@@ -662,7 +690,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
 
         assert!(mdd.compile(&input).is_ok());
         assert!(mdd.best_solution().is_some());
@@ -693,7 +721,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
 
         assert!(result.is_ok());
@@ -718,7 +746,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         
         assert!(result.is_ok());
@@ -743,7 +771,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         
         assert!(result.is_ok());
@@ -774,7 +802,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
@@ -797,7 +825,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
@@ -819,7 +847,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
@@ -842,7 +870,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
 
         assert!(result.is_ok());
@@ -874,7 +902,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -900,7 +928,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -924,7 +952,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -948,7 +976,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -971,7 +999,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -994,7 +1022,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1017,7 +1045,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1039,7 +1067,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_value().is_none())
@@ -1061,7 +1089,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1083,7 +1111,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1105,10 +1133,65 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
+    }
+
+    #[test]
+    fn it_must_be_possible_to_introduce_long_arcs() {
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Restricted,
+            problem:    &DummyLongArcProblem,
+            relaxation: &DummyLongArcRelax,
+            ranking:    &DummyLongArcRanking,
+            cutoff:     &NoCutoff,
+            max_width:  usize::MAX,
+            best_lb:    1000,
+            residual: SubProblem { 
+                state: Arc::new('e'), 
+                value: 1, 
+                path:  vec![], 
+                ub:    isize::MAX
+            }
+        };
+        let mut mdd = WithLongArcs::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        assert!(mdd.best_solution().is_some());
+        assert!(mdd.best_solution().unwrap().is_empty());
+    }
+
+    #[test]
+    fn exact_cutset_must_include_long_arcs() {
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Relaxed,
+            problem:    &DummyLongArcProblem,
+            relaxation: &DummyLongArcRelax,
+            ranking:    &DummyLongArcRanking,
+            cutoff:     &NoCutoff,
+            max_width:  2,
+            best_lb:    isize::MIN,
+            residual: SubProblem { 
+                state: Arc::new('a'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX
+            }
+        };
+        let mut mdd = WithLongArcs::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        assert!(mdd.best_solution().is_some());
+        
+        let mut cutset = vec![];
+        mdd.drain_cutset(|x| {
+            cutset.push(*x.state.as_ref())
+        });
+
+        cutset.sort();
+        assert_eq!(vec!['c', 'd', 'e'], cutset);
     }
 
     /// The example problem and relaxation for the local bounds should generate
@@ -1233,7 +1316,7 @@ mod test_default_mdd {
                 ub:    isize::MAX
             }
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = WithLongArcs::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
@@ -1328,6 +1411,110 @@ mod test_default_mdd {
 
         fn for_each_in_domain(&self, _: crate::Variable, _: &Self::State, _: &mut dyn DecisionCallback) {
             /* do nothing, just consider that all domains are empty */
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    struct DummyLongArcProblem;
+    impl Problem for DummyLongArcProblem {
+        type State = char;
+
+        fn nb_variables(&self)  -> usize { 5 }
+        fn initial_value(&self) -> isize { 0 }
+        fn initial_state(&self) -> char  {'a'}
+
+        fn transition(&self, s: &Self::State, d: crate::Decision) -> Self::State {
+            let Decision{variable, value, ..} = d;
+            match (*s, variable.id(), value) {
+                ('a', 0, _)=> 'b',
+
+                ('b', 1, _)=> 'b',
+                
+                ('b', 2, 0)=> 'c',
+                ('b', 2, 1)=> 'd',
+                ('b', 2, 2)=> 'e',
+                
+                ('c', 3, 0)=> 'f',
+                ('c', 3, 1)=> 'g',
+                ('c', 3, 2)=> 'h',
+                ('d', 3, 0)=> 'i',
+                ('d', 3, 1)=> 'j',
+                ('d', 3, 2)=> 'k',
+
+                _ => 'x',
+                
+            }
+        }
+
+        fn transition_cost(&self, state: &Self::State, _: crate::Decision) -> isize {
+            match *state {
+                'a' => 1,
+                'b' => 2,
+                'c' => 3,
+                'd' => 1,
+                'e' => 1,
+                'f' => 1,
+                'g' => 1,
+                'h' => 1,
+                'i' => 1,
+                'j' => 1,
+                'k' => 1,
+                'M' => 100000,
+                _   => 1
+            }
+        }
+
+        fn next_variable(&self, _: &mut dyn Iterator<Item = &Self::State>)
+            -> Option<crate::Variable> {
+            
+            static mut COUNT : usize = 0;
+            let value = unsafe {
+                let x = COUNT;
+                COUNT +=1;
+                x
+            };
+
+            if value < self.nb_variables() { Some(Variable(value))} else {None}
+        }
+
+        fn for_each_in_domain(&self, var: crate::Variable, _: &Self::State, f: &mut dyn DecisionCallback) {
+            for d in 0..=2 {
+                f.apply(Decision {variable: var, value: d})
+            }
+        }
+
+        fn is_impacted_by(&self, _: Variable, state: &Self::State) -> bool {
+            *state != 'e'
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    struct DummyLongArcRelax;
+    impl Relaxation for DummyLongArcRelax {
+        type State = char;
+
+        fn merge(&self, _it: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+            'M'
+        }
+
+        fn relax(
+            &self,
+            _: &Self::State,
+            _: &Self::State,
+            _: &Self::State,
+            _: Decision,
+            cost: isize,
+        ) -> isize {
+            cost
+        }
+    }
+    #[derive(Copy, Clone)]
+    struct DummyLongArcRanking;
+    impl StateRanking for DummyLongArcRanking {
+        type State = char;
+
+        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+            a.cmp(b)
         }
     }
 

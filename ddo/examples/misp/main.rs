@@ -139,6 +139,9 @@ impl Problem for Misp {
         })
     }
 
+    fn is_impacted_by(&self, var: Variable, state: &Self::State) -> bool {
+        state.contains(var.id())
+    }
 }
 
 /// In addition to a dynamic programming (DP) model of the problem you want to solve, 
@@ -331,7 +334,7 @@ fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {
 }
 
 /// This is your executable's entry point. It is the place where all the pieces are put together
-/// to create a fast an effectuve solver for the knapsack problem.
+/// to create a fast an effective solver for the knapsack problem.
 fn main() {
     let args = Args::parse();
     let fname = &args.fname;
@@ -343,14 +346,15 @@ fn main() {
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFrontier::new(MaxUB::new(&ranking));
 
-    let mut solver = DefaultSolver::new(
+    // This solver compile DD that allow the definition of long arcs spanning over several layers.
+    let mut solver = DefaultSolver::<BitSet, WithLongArcs<BitSet>>::custom(
         &problem, 
         &relaxation, 
         &ranking, 
         width.as_ref(), 
         cutoff.as_ref(), 
-        &mut fringe)
-    .with_nb_threads(args.threads);
+        &mut fringe,
+        args.threads);
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();

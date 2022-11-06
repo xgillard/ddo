@@ -59,6 +59,14 @@ pub trait Problem {
     /// variable `var` when in state `state`.  The function `f` is a function
     /// (callback, closure, ..) that accepts one decision.
     fn for_each_in_domain(&self, var: Variable, state: &Self::State, f: &mut dyn DecisionCallback);
+    /// This method returns false iff this node can be moved forward to the next
+    /// layer without making any decision about the variable `_var`.
+    /// When that is the case, a default decision is to be assumed about the 
+    /// variable. Implementing this method is only ever useful if you intend to 
+    /// compile a decision diagram that comprises long arcs.
+    fn is_impacted_by(&self, _var: Variable, _state: &Self::State) -> bool {
+        true
+    }
 }
 
 /// A relaxation encapsulates the relaxation $\Gamma$ and $\oplus$ which are
@@ -114,8 +122,59 @@ impl <X: FnMut(Decision)> DecisionCallback for X {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Relaxation, DecisionCallback, Decision};
+    use crate::{Relaxation, DecisionCallback, Decision, Problem};
+    
+    #[test]
+    fn by_default_fast_upperbound_yields_positive_max() {
+        let rlx = DummyRelax;
+        assert_eq!(isize::MAX, rlx.fast_upper_bound(&'x'));
+    }
+    #[test]
+    fn by_default_all_states_are_impacted_by_all_vars() {
+        let pb = DummyProblem;
+        assert!(pb.is_impacted_by(crate::Variable(10), &'x'));
+    }
 
+    #[test]
+    fn any_closure_is_a_decision_callback() {
+        let mut changed = false;
+        let chg = &mut changed;
+        let closure: &mut dyn DecisionCallback = &mut |_: Decision| {
+            *chg = true;
+        };
+
+        closure.apply(Decision{variable: crate::Variable(0), value: 4});
+        
+        assert!(changed);
+    }
+
+    struct DummyProblem;
+    impl Problem for DummyProblem {
+        type State = char;
+
+        fn nb_variables(&self) -> usize {
+            todo!()
+        }
+        fn initial_state(&self) -> Self::State {
+            todo!()
+        }
+        fn initial_value(&self) -> isize {
+            todo!()
+        }
+        fn transition(&self, _: &Self::State, _: Decision) -> Self::State {
+            todo!()
+        }
+        fn transition_cost(&self, _: &Self::State, _: Decision) -> isize {
+            todo!()
+        }
+        fn next_variable(&self, _: &mut dyn Iterator<Item = &Self::State>)
+            -> Option<crate::Variable> {
+            todo!()
+        }
+        fn for_each_in_domain(&self, _: crate::Variable, _: &Self::State, _: &mut dyn DecisionCallback) {
+            todo!()
+        }
+    }
     struct DummyRelax;
     impl Relaxation for DummyRelax {
         type State = char;
@@ -134,23 +193,5 @@ mod tests {
         ) -> isize {
             todo!()
         }
-    }
-    #[test]
-    fn by_default_fast_upperbound_yields_positive_max() {
-        let rlx = DummyRelax;
-        assert_eq!(isize::MAX, rlx.fast_upper_bound(&'x'));
-    }
-
-    #[test]
-    fn any_closure_is_a_decision_callback() {
-        let mut changed = false;
-        let chg = &mut changed;
-        let closure: &mut dyn DecisionCallback = &mut |_: Decision| {
-            *chg = true;
-        };
-
-        closure.apply(Decision{variable: crate::Variable(0), value: 4});
-        
-        assert!(changed);
     }
 }
