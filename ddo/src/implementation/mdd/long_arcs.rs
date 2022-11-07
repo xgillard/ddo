@@ -317,10 +317,6 @@ where
                 break; 
             }
 
-            for (state, id) in long_arc.iter() {
-                self.next_l.insert(state.clone(), *id);
-            }
-
             match input.comp_type {
                 CompilationType::Exact => { /* do nothing: you want to explore the complete DD */ }
                 CompilationType::Restricted => {
@@ -345,6 +341,9 @@ where
                 }
             }
 
+            for tuple_s_id in long_arc.drain(..) {
+                curr_l.push(tuple_s_id);
+            }
             for (state, node_id) in curr_l.iter() {
                 let rub = input.relaxation.fast_upper_bound(state);
                 self.nodes[node_id.0].rub = rub;
@@ -356,9 +355,6 @@ where
                 }
             }
 
-            for tuple_s_id in long_arc.drain(..) {
-                curr_l.push(tuple_s_id);
-            }
 
             depth += 1;
         }
