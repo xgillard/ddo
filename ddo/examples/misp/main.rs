@@ -363,11 +363,24 @@ fn main() {
     let upper_bound = solver.best_upper_bound();
     let lower_bound = solver.best_lower_bound();
     let gap = solver.gap();
-    let best_solution  = solver.best_solution().map(|mut decisions|{
+    let best_solution: Option<Vec<_>>  = solver.best_solution().map(|mut decisions|{
         decisions.sort_unstable_by_key(|d| d.variable.id());
-        decisions.iter().map(|d| d.value).collect()
+        decisions.iter()
+            .filter(|d| d.value == 1)
+            .map(|d| d.variable.id())
+            .collect()
     });
 
+    // check solution
+    if let Some(bs) = best_solution.as_ref() {
+        for (i, a) in bs.iter().copied().enumerate() {
+            for b in bs.iter().copied().skip(i+1) {
+                if !problem.neighbors[a].contains(b) {
+                    println!("not a solution ! {a} -- {b}");
+                }
+            }
+        }
+    }
         
     println!("Duration:   {:.3} seconds", duration.as_secs_f32());
     println!("Objective:  {}",            best_value.unwrap_or(-1));
