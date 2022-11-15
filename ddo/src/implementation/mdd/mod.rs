@@ -28,10 +28,8 @@
 //! a previous version of ddo (<= 0.5.0).
 mod node_flags;
 mod vector_based;
-mod long_arcs;
 
 pub use vector_based::*;
-pub use long_arcs::*;
 
 /// By default, the mdd implementation which you will want to use is the vector based
 /// implementation. In most cases, it is faster than everything else I have tried.
