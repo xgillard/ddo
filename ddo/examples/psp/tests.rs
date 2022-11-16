@@ -39,7 +39,7 @@ mod psp_test_utils {
         let fname = fname.unwrap();
         
         let problem = read_instance(fname).unwrap();
-        let relaxation = PspRelax {pb: &problem};
+        let relaxation = PspRelax::new(&problem);
         let ranking = PspRanking;
 
         let width = FixedWidth(1000);

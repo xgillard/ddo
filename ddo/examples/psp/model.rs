@@ -180,12 +180,20 @@ impl Relaxation for PspRelax<'_> {
     fn relax(
         &self,
         _source: &Self::State,
-        _dest: &Self::State,
-        _new: &Self::State,
+        dest: &Self::State,
+        new:  &Self::State,
         _decision: Decision,
         cost: isize,
     ) -> isize {
-        cost
+        let mut c = cost;
+
+        for (i, (a, b)) in dest.prev_demands.iter().zip(new.prev_demands.iter()).enumerate() {
+            if a > b {
+                c -= self.pb.stocking[i] as isize * (a - b);
+            }
+        }
+
+        c
     }
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
