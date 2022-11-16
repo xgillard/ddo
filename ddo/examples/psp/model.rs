@@ -24,7 +24,6 @@
 use std::vec;
 
 use ddo::*;
-use rustc_hash::FxHashMap;
 use smallbitset::Set32;
 
 use crate::ub_utils::{all_mst, wagner_whithin};
@@ -135,7 +134,7 @@ impl Problem for Psp {
 pub struct PspRelax<'a>{
     pb: &'a Psp,
 
-    mst: FxHashMap<Set32, usize>,
+    mst: Vec<usize>,
     ww: Vec<usize>
 }
 
@@ -190,8 +189,8 @@ impl Relaxation for PspRelax<'_> {
     }
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
-        let idx = Self::members(state);
-        let co = self.mst[&idx];
+        let idx: u32 = u32::from(Self::members(state));
+        let co = self.mst[idx as usize];
         let ww = self.ww[state.time - 1];
         -((co + ww) as isize)
     }

@@ -18,7 +18,6 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use ddo::{Problem, Variable, Decision};
-use rustc_hash::FxHashMap;
 use smallbitset::Set32;
 
 use crate::model::Psp;
@@ -52,14 +51,14 @@ pub fn wagner_whithin(psp: &Psp) -> Vec<usize> {
 }
 
 /// returns the cost the minimum spanning trees for all subset of items
-pub fn all_mst(changeover: &Vec<Vec<usize>>) -> FxHashMap<Set32, usize> {
+pub fn all_mst(changeover: &Vec<Vec<usize>>) -> Vec<usize> {
     let n_items = changeover.len() as u8;
 
     let n_poss = 2_u32.pow(n_items as u32);
-    let mut ret = FxHashMap::default();
+    let mut ret = vec![];
     for i in 0..n_poss {
         let bs = Set32::from(i);
-        ret.insert(bs, mst(bs, changeover));
+        ret.push(mst(bs, changeover));
     }
     ret
 }
