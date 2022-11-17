@@ -34,7 +34,7 @@ as a dependency to your Cargo.toml file and building your project.
 
 ```toml
 [dependencies]
-ddo = "0.5.0"
+ddo = "1.0.0"
 ```
 
 ## Simplistic yet complete example
@@ -56,43 +56,90 @@ try to optimize).
 
 ### Describe the problem as dynamic program
 The first thing to do in this example is to describe the binary knapsack
-problem in terms of a dynamic program. Here, the state of a node, is nothing
-more than an unsigned integer (usize). That unsigned integer represents the
-remaining capacity of our sack. To do so, you define your own structure and
-make sure it implements the `Problem<usize>` trait.
+problem in terms of a dynamic program. That means, describing the states of the
+DP model, as well as the DP model itself.
 
 ```rust
-/// Describe the binary knapsack problem in terms of a dynamic program.
-/// Here, the state of a node, is nothing more than an unsigned integer (usize).
-/// That unsigned integer represents the remaining capacity of our sack.
-#[derive(Debug, Clone)]
-struct Knapsack {
-    capacity: usize,
-    profit  : Vec<usize>,
-    weight  : Vec<usize>
+/// In our DP model, we consider a state that simply consists of the remaining 
+/// capacity in the knapsack. Additionally, we also consider the *depth* (number
+/// of assigned variables) as part of the state since it useful when it comes to
+/// determine the next variable to branch on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct KnapsackState {
+    /// the number of variables that have already been decided upon in the complete
+    /// problem.
+    depth: usize,
+    /// the remaining capacity in the knapsack. That is the maximum load the sack
+    /// can bear withouth cracking **given what is already in the sack**.
+    capacity: usize
 }
-impl Problem<usize> for Knapsack {
-    fn nb_vars(&self) -> usize {
+
+/// This structure represents a particular instance of the knapsack problem.
+/// This is the sctructure that will implement the knapsack model.
+/// 
+/// The problem definition is quite easy to understand: there is a knapsack having 
+/// a maximum (weight) capacity, and a set of items to chose from. Each of these
+/// items having a weight and a profit, the goal is to select the best subset of
+/// the items to place them in the sack so as to maximize the profit.
+struct Knapsack {
+    /// The maximum capacity of the sack (when empty)
+    capacity: usize,
+    /// the profit of each item
+    profit: Vec<usize>,
+    /// the weight of each item.
+    weight: Vec<usize>,
+}
+
+/// For each variable in the decision problem, there are two possible choices:
+/// either we take the item in the sack, or we decide to leave it out. This
+/// constant is used to indicate that the item is to be taken in the sack.
+const TAKE_IT: isize = 1;
+/// For each variable in the decision problem, there are two possible choices:
+/// either we take the item in the sack, or we decide to leave it out. This
+/// constant is used to indicate that the item is to be left out of the sack.
+const LEAVE_IT_OUT: isize = 0;
+
+/// This is how you implement the labeled transition system (LTS) semantics of
+/// a simple dynamic program solving the knapsack problem. The definition of
+/// each of the methods should be pretty clear and easy to grasp. Should you
+/// want more details on the role of each of these methods, then you are 
+/// encouraged to go checking the documentation of the `Problem` trait.
+impl Problem for Knapsack {
+    type State = KnapsackState;
+
+    fn nb_variables(&self) -> usize {
         self.profit.len()
     }
-    fn domain_of<'a>(&self, state: &'a usize, var: Variable) ->Domain<'a> {
-        if *state >= self.weight[var.id()] {
-            vec![0, 1].into()
+    fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
+    {
+        if state.capacity >= self.weight[variable.id()] {
+            f.apply(Decision { variable, value: TAKE_IT });
+            f.apply(Decision { variable, value: LEAVE_IT_OUT });
         } else {
-            vec![0].into()
+            f.apply(Decision { variable, value: LEAVE_IT_OUT });
         }
     }
-    fn initial_state(&self) -> usize {
-        self.capacity
+    fn initial_state(&self) -> Self::State {
+        KnapsackState{ depth: 0, capacity: self.capacity }
     }
     fn initial_value(&self) -> isize {
         0
     }
-    fn transition(&self, state: &usize, _vars: &VarSet, dec: Decision) -> usize {
-        state - (self.weight[dec.variable.id()] * dec.value as usize)
+    fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
+        let mut ret = state.clone();
+        ret.depth  += 1;
+        if dec.value == TAKE_IT { 
+            ret.capacity -= self.weight[dec.variable.id()] 
+        }
+        ret
     }
-    fn transition_cost(&self, _state: &usize, _vars: &VarSet, dec: Decision) -> isize {
+    fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
         self.profit[dec.variable.id()] as isize * dec.value
+    }
+
+    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+        let n = self.nb_variables();
+        next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
     }
 }
 ```
@@ -107,27 +154,58 @@ Optionally, we could also implement a rough upper bound estimator for our
 problem in the relaxation. However, we wont do it in this minimalistic
 example since the framework provides you with a default implementation.
 If you were to override the default implementation you would need to
-implement the `estimate()` method of the `Relaxation` trait.
+implement the `fast_upper_bound()` method of the `Relaxation` trait.
 
 ```rust
-#[derive(Debug, Clone)]
+/// In addition to a dynamic programming (DP) model of the problem you want to solve, 
+/// the branch and bound with MDD algorithm (and thus ddo) requires that you provide
+/// an additional relaxation allowing to control the maximum amount of space used by
+/// the decision diagrams that are compiled. 
+/// 
+/// That relaxation requires two operations: one to merge several nodes into one 
+/// merged node that acts as an over approximation of the other nodes. The second
+/// operation is used to possibly offset some weight that would otherwise be lost 
+/// to the arcs entering the newly created merged node.
+/// 
+/// The role of this very simple structure is simply to provide an implementation
+/// of that relaxation.
+/// 
+/// # Note:
+/// In addition to the aforementioned two operations, the KPRelax structure implements
+/// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
+/// prune some portions of the state-space as the decision diagrams are compiled.
+/// (aka rough upper bound pruning).
 struct KPRelax;
-impl Relaxation<usize> for KPRelax {
-    /// To merge a given selection of states (capacities) we will keep the
-    /// maximum capacity. This is an obvious relaxation as it allows us to
-    /// put more items in the sack.
-    fn merge_states(&self, states: &mut dyn Iterator<Item=&usize>) -> usize {
-        // the selection is guaranteed to have at least one state so using
-        // unwrap after max to get rid of the wrapping 'Option' is perfectly safe.
-        *states.max().unwrap()
+impl Relaxation for KPRelax {
+    type State = KnapsackState;
+
+    fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+        states.max_by_key(|node| node.capacity).copied().unwrap()
     }
-    /// When relaxing (merging) the states, we did not run into the risk of
-    /// possibly decreasing the maximum objective value reachable from the
-    /// components of the merged node. Hence, we dont need to do anything
-    /// when relaxing the edge. Still, if we wanted to, we could chose to
-    /// return an higher value.
-    fn relax_edge(&self, src: &usize, dst: &usize, relaxed: &usize, d: Decision, cost: isize) -> isize {
+
+    fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
         cost
+    }
+}
+```
+
+### State Ranking
+The last ingredient which you need to provide in order to create an efficient solver based
+on ddo, it a state ranking. That is, an heuristic which is used to compare states in order to
+decide which are the most promising states and which are the lesser ones. This way, whenever
+an MDD needs to perform a restriction or relaxation, it can simply keep the most promising
+nodes and discard the others.
+```rust
+/// The last bit of information which we need to provide when implementing a ddo-based
+/// solver is a `StateRanking`. This is an heuristic which is used to select the most
+/// and least promising nodes as a means to only delete/merge the *least* promising nodes
+/// when compiling restricted and relaxed DDs.
+struct KPranking;
+impl StateRanking for KPranking {
+    type State = KnapsackState;
+
+    fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+        a.capacity.cmp(&b.capacity)
     }
 }
 ```
@@ -143,27 +221,50 @@ fn main() {
         profit  : vec![60, 100, 120],
         weight  : vec![10,  20,  30]
     };
-    // 2. Build an MDD for the given problem and relaxation
-    let mdd = mdd_builder(&problem, KPRelax).into_deep();
 
-    // 3. Create a parllel solver on the basis of this MDD (this is how
-    //    you can specify the MDD implementation you wish to use to develop
-    //    the relaxed and restricted MDDs).
-    let mut solver = ParallelSolver::new(mdd);
-    // 4. Maximize your objective function
-    //    The `outcome` object provides the value of the best solution that was 
-    //    found for the problem (if one was found) along with a flag indicating 
-    //    whether or not the solution was proven optimal. Hence an unsatisfiable 
-    //    problem would have `outcome.best_value == None` and `outcome.is_exact`
-    //    true. The `is_exact` flag will only be false if you explicitly decide 
-    //    to stop searching for the optimum with an arbitrary cutoff.
-    let outcome    = solver.maximize();
-    // The best solution (if one exist) is retrieved with.
-    let solution   = solver.best_solution();
-    // You can also retrieve the value of the best solution as shown per the
-    // following line. The value it returns will be the same as the value of
-    // `outcome.best_value`. 
-    let value      = solver.best_value();
+    // 2. Create a relaxation of the problem
+    let relaxation = KPRelax;
+
+    // 3. Create a ranking to discriminate the promising and uninteresting states
+    let heuristic = KPRanking;
+
+    // 4. Define the policy you will want to use regarding the maximum width of the DD
+    let width = FixedWidth(100); // here we mean max 100 nodes per layer
+
+    // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+    let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
+
+    // 5. Create the solver frontier
+    let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+    
+    // 6. Instanciate your solver
+    let mut solver = DefaultSolver::new(
+          &problem, 
+          &relaxation, 
+          &heuristic, 
+          &width, 
+          &cutoff, 
+          &mut frontier);
+
+    // 7. Maximize your objective function
+    // the outcome provides the value of the best solution that was found for
+    // the problem (if one was found) along with a flag indicating whether or
+    // not the solution was proven optimal. Hence an unsatisfiable problem
+    // would have `outcome.best_value == None` and `outcome.is_exact` true.
+    // The `is_exact` flag will only be false if you explicitly decide to stop
+    // searching with an arbitrary cutoff.
+    let outcome = solver.maximize();
+    // The best solution (if one exist) is retrieved with
+    let solution = solver.best_solution();
+
+    // 8. Do whatever you like with the optimal solution.
+    assert_eq!(Some(220), outcome.best_value);
+    println!("Solution");
+    for decision in solution.unwrap().iter() {
+        if decision.value == 1 {
+            println!("{}", decision.variable.id());
+        }
+    }
 }
 ```
 
@@ -174,7 +275,7 @@ more advanced solvers. Namely, it provides an implementation for:
 +   [Maximum Independent Set Problem (MISP)](https://www.wikiwand.com/en/Independent_set_(graph_theory))
 +   [Maximum 2 Satisfiability (MAX2SAT)](https://en.wikipedia.org/wiki/Maximum_satisfiability_problem)
 +   [Maximum Cut Problem (MCP)](https://en.wikipedia.org/wiki/Maximum_cut)
-+   Unbounded Knapsack
++   Binary Knapsack
 
 These are again compiled with cargo with the following command:
 ```cargo build --release --all-targets```. Once the compilation completes, you
