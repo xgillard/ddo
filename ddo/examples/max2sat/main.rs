@@ -11,6 +11,8 @@ mod heuristics;
 mod data;
 mod model;
 mod relax;
+#[cfg(test)]
+mod tests;
 
 /// Solve max2sat instance
 #[derive(Debug, Parser)]

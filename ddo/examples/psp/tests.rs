@@ -29,7 +29,7 @@ mod psp_test_utils {
     pub fn locate(id: &str) -> PathBuf {
         PathBuf::new()
             .join(env!("CARGO_MANIFEST_DIR"))
-            .join("examples/tests/resources/psp/")
+            .join("../resources/psp/")
             .join(id)
     }
 

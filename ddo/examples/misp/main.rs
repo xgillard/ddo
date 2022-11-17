@@ -27,11 +27,14 @@ use clap::Parser;
 use ddo::*;
 use regex::Regex;
 
+#[cfg(test)]
+mod tests;
+
 /// This structure represents an instance of the Maximum Idependent Set Problem. 
 /// It is this structure that implements a simple dynamic programming model for the
 /// MISP. In that model, the state is simply a bitset where each bit represents 
 /// a node that may be kept or left out of the MIS. 
-struct Misp {
+pub struct Misp {
     /// The number of variables in the problem instance
     nb_vars: usize,
     /// For each vertex 'i' of the original graph, the field 'neighbors[i]' contains
@@ -162,7 +165,7 @@ impl Problem for Misp {
 /// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
 /// prune some portions of the state-space as the decision diagrams are compiled.
 /// (aka rough upper bound pruning).
-struct MispRelax<'a>{pb: &'a Misp}
+pub struct MispRelax<'a>{pb: &'a Misp}
 impl Relaxation for MispRelax<'_> {
     type State = BitSet;
 
@@ -195,7 +198,7 @@ impl Relaxation for MispRelax<'_> {
 /// solver is a `StateRanking`. This is an heuristic which is used to select the most
 /// and least promising nodes as a means to only delete/merge the *least* promising nodes
 /// when compiling restricted and relaxed DDs.
-struct MispRanking;
+pub struct MispRanking;
 impl StateRanking for MispRanking {
     type State = BitSet;
 

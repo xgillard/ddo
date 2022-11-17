@@ -113,96 +113,95 @@ fn knappi_2_100_1000_1() {
 }
 
 // =================================================================
-// uncomment these lines for more (large scale) integration tests.
-// these may take a while..
+// these large scale integration tests are ignored but feel free
+// to reactivate them..
 // =================================================================
-// #[test]
-// fn knappi_1_5000_1000_1() {
-//     assert_eq!(solve_id("knapPI_1_5000_1000_1"), 276457);
-// }
-// 
-// #[test]
-// fn knappi_2_2000_1000_1() {
-//     assert_eq!(solve_id("knapPI_2_2000_1000_1"), 18051);
-// }
-// 
-// #[test]
-// fn knappi_3_200_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_200_1000_1"), 2697);
-// }
-// 
-// #[test]
-// fn knappi_1_500_1000_1() {
-//     assert_eq!(solve_id("knapPI_1_500_1000_1"), 28857);
-// }
-// 
-// #[test]
-// fn knappi_1_10000_1000_1() {
-//     assert_eq!(solve_id("knapPI_1_10000_1000_1"), 563647);
-// }
-// 
-// #[test]
-// fn knappi_1_2000_1000_1() {
-//     assert_eq!(solve_id("knapPI_1_2000_1000_1"), 110625);
-// }
-// 
-// #[test]
-// fn knappi_3_1000_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_1000_1000_1"), 14390);
-// }
-// 
-// #[test]
-// fn knappi_2_5000_1000_1() {
-//     assert_eq!(solve_id("knapPI_2_5000_1000_1"), 44356);
-// }
-// 
-// #[test]
-// fn knappi_3_500_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_500_1000_1"), 7117);
-// }
-// 
-// #[test]
-// fn knappi_2_10000_1000_1() {
-//     assert_eq!(solve_id("knapPI_2_10000_1000_1"), 90204);
-// }
-// 
-// #[test]
-// fn knappi_3_2000_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_2000_1000_1"), 28919);
-// }
-// 
-// #[test]
-// fn knappi_3_100_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_100_1000_1"), 2397);
-// }
-// 
-// #[test]
-// fn knappi_1_1000_1000_1() {
-//     assert_eq!(solve_id("knapPI_1_1000_1000_1"), 54503);
-// }
-// 
-// #[test]
-// fn knappi_3_10000_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_10000_1000_1"), 146919);
-// }
-// 
-// #[test]
-// fn knappi_2_200_1000_1() {
-//     assert_eq!(solve_id("knapPI_2_200_1000_1"), 1634);
-// }
-// 
-// #[test]
-// fn knappi_3_5000_1000_1() {
-//     assert_eq!(solve_id("knapPI_3_5000_1000_1"), 72505);
-// }
-// 
-// #[test]
-// fn knappi_2_1000_1000_1() {
-//     assert_eq!(solve_id("knapPI_2_1000_1000_1"), 9052);
-// }
-// 
-// #[test]
-// fn knappi_2_500_1000_1() {
-//     assert_eq!(solve_id("knapPI_2_500_1000_1"), 4566);
-// }
-// 
+#[ignore] #[test]
+fn knappi_1_5000_1000_1() {
+    assert_eq!(solve_id("knapPI_1_5000_1000_1"), 276457);
+}
+
+#[ignore] #[test]
+fn knappi_2_2000_1000_1() {
+    assert_eq!(solve_id("knapPI_2_2000_1000_1"), 18051);
+}
+
+#[ignore] #[test]
+fn knappi_3_200_1000_1() {
+    assert_eq!(solve_id("knapPI_3_200_1000_1"), 2697);
+}
+
+#[ignore] #[test]
+fn knappi_1_500_1000_1() {
+    assert_eq!(solve_id("knapPI_1_500_1000_1"), 28857);
+}
+
+#[ignore] #[test]
+fn knappi_1_10000_1000_1() {
+    assert_eq!(solve_id("knapPI_1_10000_1000_1"), 563647);
+}
+
+#[ignore] #[test]
+fn knappi_1_2000_1000_1() {
+    assert_eq!(solve_id("knapPI_1_2000_1000_1"), 110625);
+}
+
+#[ignore] #[test]
+fn knappi_3_1000_1000_1() {
+    assert_eq!(solve_id("knapPI_3_1000_1000_1"), 14390);
+}
+
+#[ignore] #[test]
+fn knappi_2_5000_1000_1() {
+    assert_eq!(solve_id("knapPI_2_5000_1000_1"), 44356);
+}
+
+#[ignore] #[test]
+fn knappi_3_500_1000_1() {
+    assert_eq!(solve_id("knapPI_3_500_1000_1"), 7117);
+}
+
+#[ignore] #[test]
+fn knappi_2_10000_1000_1() {
+    assert_eq!(solve_id("knapPI_2_10000_1000_1"), 90204);
+}
+
+#[ignore] #[test]
+fn knappi_3_2000_1000_1() {
+    assert_eq!(solve_id("knapPI_3_2000_1000_1"), 28919);
+}
+
+#[ignore] #[test]
+fn knappi_3_100_1000_1() {
+    assert_eq!(solve_id("knapPI_3_100_1000_1"), 2397);
+}
+
+#[ignore] #[test]
+fn knappi_1_1000_1000_1() {
+    assert_eq!(solve_id("knapPI_1_1000_1000_1"), 54503);
+}
+
+#[ignore] #[test]
+fn knappi_3_10000_1000_1() {
+    assert_eq!(solve_id("knapPI_3_10000_1000_1"), 146919);
+}
+
+#[ignore] #[test]
+fn knappi_2_200_1000_1() {
+    assert_eq!(solve_id("knapPI_2_200_1000_1"), 1634);
+}
+
+#[ignore] #[test]
+fn knappi_3_5000_1000_1() {
+    assert_eq!(solve_id("knapPI_3_5000_1000_1"), 72505);
+}
+
+#[ignore] #[test]
+fn knappi_2_1000_1000_1() {
+    assert_eq!(solve_id("knapPI_2_1000_1000_1"), 9052);
+}
+
+#[ignore] #[test]
+fn knappi_2_500_1000_1() {
+    assert_eq!(solve_id("knapPI_2_500_1000_1"), 4566);
+}

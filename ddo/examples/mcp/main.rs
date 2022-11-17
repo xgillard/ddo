@@ -8,6 +8,8 @@ use crate::{graph::Graph, model::{Mcp, McpRanking}, relax::McpRelax};
 mod graph;
 mod model;
 mod relax;
+#[cfg(test)]
+mod tests;
 
 /// Solve max2sat instance
 #[derive(Debug, Parser)]

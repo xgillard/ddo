@@ -275,7 +275,7 @@ more advanced solvers. Namely, it provides an implementation for:
 +   [Maximum Independent Set Problem (MISP)](https://www.wikiwand.com/en/Independent_set_(graph_theory))
 +   [Maximum 2 Satisfiability (MAX2SAT)](https://en.wikipedia.org/wiki/Maximum_satisfiability_problem)
 +   [Maximum Cut Problem (MCP)](https://en.wikipedia.org/wiki/Maximum_cut)
-+   Unbounded Knapsack
++   Binary Knapsack
 
 These are again compiled with cargo with the following command:
 ```cargo build --release --all-targets```. Once the compilation completes, you

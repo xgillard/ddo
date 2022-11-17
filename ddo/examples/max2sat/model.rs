@@ -350,7 +350,6 @@ impl Problem for Max2Sat {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
     use std::path::PathBuf;
 
     use crate::data::read_instance;
@@ -452,7 +451,7 @@ mod tests {
     fn locate(id: &str) -> PathBuf {
         PathBuf::new()
             .join(env!("CARGO_MANIFEST_DIR"))
-            .join("examples/tests/resources/max2sat/")
+            .join("../resources/max2sat/")
             .join(id)
     }
 
