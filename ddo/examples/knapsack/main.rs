@@ -25,12 +25,15 @@ use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Insta
 use clap::Parser;
 use ddo::*;
 
+#[cfg(test)]
+mod tests;
+
 /// In our DP model, we consider a state that simply consists of the remaining 
 /// capacity in the knapsack. Additionally, we also consider the *depth* (number
 /// of assigned variables) as part of the state since it useful when it comes to
 /// determine the next variable to branch on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct KnapsackState {
+pub struct KnapsackState {
     /// the number of variables that have already been decided upon in the complete
     /// problem.
     depth: usize,
@@ -46,7 +49,7 @@ struct KnapsackState {
 /// a maximum (weight) capacity, and a set of items to chose from. Each of these
 /// items having a weight and a profit, the goal is to select the best subset of
 /// the items to place them in the sack so as to maximize the profit.
-struct Knapsack {
+pub struct Knapsack {
     /// The maximum capacity of the sack (when empty)
     capacity: usize,
     /// the profit of each item
@@ -126,7 +129,7 @@ impl Problem for Knapsack {
 /// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
 /// prune some portions of the state-space as the decision diagrams are compiled.
 /// (aka rough upper bound pruning).
-struct KPRelax<'a>{pb: &'a Knapsack}
+pub struct KPRelax<'a>{pub pb: &'a Knapsack}
 impl Relaxation for KPRelax<'_> {
     type State = KnapsackState;
 
@@ -153,7 +156,7 @@ impl Relaxation for KPRelax<'_> {
 /// solver is a `StateRanking`. This is an heuristic which is used to select the most
 /// and least promising nodes as a means to only delete/merge the *least* promising nodes
 /// when compiling restricted and relaxed DDs.
-struct KPranking;
+pub struct KPranking;
 impl StateRanking for KPranking {
     type State = KnapsackState;
 
@@ -195,7 +198,7 @@ struct Args {
 /// or parse int errors (which are actually a variant of the format errror since it tells 
 /// you that the parser expected an integer number but got ... something else).
 #[derive(Debug, thiserror::Error)]
-enum Error {
+pub enum Error {
     /// There was an io related error
     #[error("io error {0}")]
     Io(#[from] std::io::Error),
@@ -209,7 +212,7 @@ enum Error {
 
 /// This funciton is used to read a knapsack instance from file. It returns either a
 /// knapsack instance if everything went on well or an error describing the problem.
-fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
+pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
     let f = File::open(fname)?;
     let f = BufReader::new(f);
     
@@ -222,6 +225,9 @@ fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
 
     for line in f.lines() {
         let line = line?;
+        if line.starts_with('c') {
+            continue;
+        }
         if is_first {
             is_first = false;
             let mut ab = line.split(" ");
