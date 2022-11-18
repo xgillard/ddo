@@ -20,7 +20,7 @@
 use ddo::{Problem, Variable, Decision};
 use smallbitset::Set32;
 
-use crate::model::Psp;
+use crate::model::{Psp, IDLE};
 
 /// 
 pub fn wagner_whithin(psp: &Psp) -> Vec<usize> {
@@ -32,14 +32,17 @@ pub fn wagner_whithin(psp: &Psp) -> Vec<usize> {
         let x = state.prev_demands.iter().copied().enumerate()
             .filter(|(_, x)| *x >= time as isize)
             .max_by_key(|(i, _)| psp.stocking[*i])
-            .map(|(i, _)| i)
-            .unwrap();
-        
-        for k in time .. state.prev_demands[x] as usize {
-            ww[k] += psp.stocking[x];
-        }
+            .map(|(i, _)| i);
 
-        state = psp.transition(&state, Decision{variable: Variable(time), value: x as isize});
+        if let Some(x) = x {
+            for k in time .. state.prev_demands[x] as usize {
+                ww[k] += psp.stocking[x];
+            }
+    
+            state = psp.transition(&state, Decision{variable: Variable(time), value: x as isize});
+        } else {
+            state = psp.transition(&state, Decision{variable: Variable(time), value: IDLE});
+        }
     }
 
     // cumulative sum

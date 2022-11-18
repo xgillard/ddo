@@ -32,7 +32,7 @@ use crate::ub_utils::{all_mst, wagner_whithin};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PspState {
     pub time: usize,
-    /// The item that was produced at time t-1 
+    /// The item that was produced at time t+1 
     /// (a value of -1 means that we don't know the item that is being produced next)
     pub next: isize,
     /// The time at which the previous demand for each item had been filled
@@ -50,6 +50,7 @@ pub struct Psp {
     pub stocking: Vec<usize>,
     pub changeover: Vec<Vec<usize>>,
     pub prev_demands: Vec<Vec<isize>>,
+    pub rem_demands: Vec<Vec<isize>>,
 }
 
 impl Problem for Psp {
@@ -116,21 +117,25 @@ impl Problem for Psp {
     }
 
     fn for_each_in_domain(&self, variable: ddo::Variable, state: &Self::State, f: &mut dyn ddo::DecisionCallback) {
-        let mut count = 0;
-        for (i, prev_d) in state.prev_demands.iter().copied().enumerate() {
-            if prev_d >= variable.id() as isize {
-                f.apply(Decision{variable, value: i as isize});
-                count += 1;
-            }
+        let t = variable.id() as isize;
+        let dom = (0..self.n_items).filter(|i| state.prev_demands[*i] >= t).collect::<Vec<usize>>();
+        let rem_demands = dom.iter().map(|i| self.rem_demands[*i][state.prev_demands[*i] as usize]).sum::<isize>();
+
+        if rem_demands > t + 1 {
+            return;
         }
-        if count == 0 {
-            // and try to remain idle as well
-            f.apply(Decision{variable, value: IDLE});
+
+        for i in dom.iter() {
+            f.apply(Decision {variable, value: *i as isize});
+        }
+
+        if rem_demands < t + 1 {
+            f.apply(Decision {variable, value: IDLE});
         }
     }
 }
 
-/// This strucute implements the PSP relaxation
+/// This structure implements the PSP relaxation
 pub struct PspRelax<'a>{
     pb: &'a Psp,
 

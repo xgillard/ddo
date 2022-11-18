@@ -22,7 +22,7 @@ use std::{num::ParseIntError, path::Path, fs::File, io::{BufReader, BufRead}};
 use crate::model::Psp;
 
 /// This enumeration simply groups the kind of errors that might occur when parsing a
-/// misp instance from file. There can be io errors (file unavailable ?), format error
+/// psp instance from file. There can be io errors (file unavailable ?), format error
 /// (e.g. the file is not an instance but contains the text of your next paper), 
 /// or parse int errors (which are actually a variant of the format errror since it tells 
 /// you that the parser expected an integer number but got ... something else).
@@ -39,8 +39,8 @@ pub enum Error {
     Format,
 }
 
-/// This funciton is used to read a misp instance from file. It returns either a
-/// misp instance if everything went on well or an error describing the problem.
+/// This function is used to read a psp instance from file. It returns either a
+/// psp instance if everything went on well or an error describing the problem.
 pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Psp, Error> {
     let f = File::open(fname)?;
     let f = BufReader::new(f);
@@ -101,12 +101,24 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Psp, Error> {
             }
         }
     }
+
+    let mut rem_demands = vec![ vec![0; nb_periods] ; nb_items];
+    for t in 0..nb_periods {
+        for i in 0..nb_items {
+            if t == 0 {
+                rem_demands[i][t] = demands[i][t] as isize;
+            } else {
+                rem_demands[i][t] = rem_demands[i][t-1] + demands[i][t] as isize;
+            }
+        }
+    }
     
     Ok(Psp { 
         n_items: nb_items, 
         horizon: nb_periods, 
         stocking: stocking_cost, 
         changeover: changeover_cost, 
-        prev_demands: prev_demands 
+        prev_demands: prev_demands,
+        rem_demands: rem_demands 
     })
 }
