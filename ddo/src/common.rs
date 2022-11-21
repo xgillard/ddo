@@ -85,6 +85,18 @@ pub struct SubProblem<T> {
 }
 
 // ----------------------------------------------------------------------------
+// --- THRESHOLD --------------------------------------------------------------
+// ----------------------------------------------------------------------------
+/// A threshold is a value that can be stored during the execution of a branch
+/// and bound algorithm. It is associated with a single exact state and is used
+/// to determine whether a new node with the same state is worth exploring.
+#[derive(Debug)]
+pub struct Threshold {
+    pub theta: isize,
+    pub explored: bool,
+}
+
+// ----------------------------------------------------------------------------
 // --- Results ----------------------------------------------------------------
 // ----------------------------------------------------------------------------
 /// A reason explaining why the mdd stopped developing

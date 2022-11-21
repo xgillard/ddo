@@ -17,7 +17,9 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff};
+use std::sync::Arc;
+
+use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier};
 
 /// What type of cutset are we using for relaxed DDs ?
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +59,8 @@ pub struct CompilationInput<'a, State> {
     pub residual: SubProblem<State>,
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
+    /// Data structure containing info about past compilations used to prune the search
+    pub barrier: Arc<&'a mut (dyn Barrier + Send + Sync)>,
 }
 
 /// This trait describes the operations that can be expected from an abstract

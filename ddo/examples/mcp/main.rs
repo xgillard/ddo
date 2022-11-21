@@ -35,6 +35,7 @@ fn main() {
     let width = max_width(&problem, width);
     let cutoff = cutoff(timeout);
     let mut fringe = NoDupFringe::new(MaxUB::new(&rank));
+    let mut barrier = EmptyBarrier{};
 
     let mut solver = DefaultSolver::new(
         &problem, 
@@ -42,7 +43,9 @@ fn main() {
         &rank, 
         width.as_ref(), 
         cutoff.as_ref(), 
-        &mut fringe);
+        &mut fringe,
+        &mut barrier,
+    );
 
         let start = Instant::now();
         let Completion{ is_exact, best_value } = solver.maximize();

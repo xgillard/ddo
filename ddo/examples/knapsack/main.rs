@@ -267,6 +267,7 @@ fn main() {
     let width = max_width(problem.nb_variables(), args.width);
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
+    let mut barrier = EmptyBarrier{};
 
     let mut solver = DefaultSolver::new(
         &problem, 
@@ -274,7 +275,9 @@ fn main() {
         &heuristic, 
         width.as_ref(), 
         &cutoff, 
-        &mut fringe);
+        &mut fringe,
+        &mut barrier,
+    );
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();

@@ -24,16 +24,8 @@
 //! `Relaxation` are defined. These are the two abstractions that one *must*
 //! implement in order to be able to use our library.
 
-mod dp;
-mod heuristics;
-mod solver;
-mod fringe;
-mod mdd;
-mod barrier;
+mod empty;
+mod simple;
 
-pub use dp::*;
-pub use heuristics::*;
-pub use solver::*;
-pub use fringe::*;
-pub use mdd::*;
-pub use barrier::*;
+pub use empty::*;
+pub use simple::*;

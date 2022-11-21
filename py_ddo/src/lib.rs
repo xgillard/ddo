@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType, EmptyBarrier};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -61,6 +61,7 @@ fn maximize(
         let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
         let mut fringe = fringe(dedup, &ranking);
+        let mut barrier = EmptyBarrier{};
 
         let mut solver = SequentialSolver::<PyState, DefaultMDD<PyState>>::custom(
             &problem, 
@@ -70,6 +71,7 @@ fn maximize(
             cutset,
             cutoff.as_ref(), 
             fringe.as_mut(),
+            &mut barrier,
         );
 
         let start = Instant::now();

@@ -46,6 +46,7 @@ mod psp_test_utils {
         let cutset = CutsetType::LastExactLayer;
         let cutoff = NoCutoff;
         let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
+        let mut barrier = EmptyBarrier{};
 
         // This solver compile DD that allow the definition of long arcs spanning over several layers.
         let mut solver = DefaultSolver::<PspState, DefaultMDD<PspState>>::custom(
@@ -56,6 +57,7 @@ mod psp_test_utils {
             cutset,
             &cutoff, 
             &mut fringe,
+            &mut barrier,
             1,
         );
 

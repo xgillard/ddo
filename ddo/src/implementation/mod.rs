@@ -23,9 +23,11 @@
 mod heuristics;
 mod fringe;
 mod mdd;
+mod barrier;
 mod solver;
 
 pub use heuristics::*;
 pub use fringe::*;
 pub use mdd::*;
+pub use barrier::*;
 pub use solver::*;

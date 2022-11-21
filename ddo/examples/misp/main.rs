@@ -349,6 +349,7 @@ fn main() {
     let cutset = CutsetType::LastExactLayer;
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
+    let mut barrier = EmptyBarrier{};
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
     let mut solver = DefaultSolver::<BitSet, DefaultMDD<BitSet>>::custom(
@@ -359,6 +360,7 @@ fn main() {
         cutset,
         cutoff.as_ref(), 
         &mut fringe,
+        &mut barrier,
         args.threads,
     );
 

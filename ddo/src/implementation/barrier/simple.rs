@@ -24,16 +24,12 @@
 //! `Relaxation` are defined. These are the two abstractions that one *must*
 //! implement in order to be able to use our library.
 
-mod dp;
-mod heuristics;
-mod solver;
-mod fringe;
-mod mdd;
-mod barrier;
+use crate::*;
 
-pub use dp::*;
-pub use heuristics::*;
-pub use solver::*;
-pub use fringe::*;
-pub use mdd::*;
-pub use barrier::*;
+pub struct SimpleBarrier {
+
+}
+
+impl Barrier for SimpleBarrier {
+    
+}

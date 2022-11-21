@@ -591,7 +591,7 @@ mod test_default_mdd {
 
     use rustc_hash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, CutsetType};
+    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, CutsetType, EmptyBarrier};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -602,6 +602,7 @@ mod test_default_mdd {
 
     #[test]
     fn root_remembers_the_pa_from_the_fringe_node() {
+        let mut barrier = EmptyBarrier{};
         let mut input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -615,7 +616,8 @@ mod test_default_mdd {
                 value: 42, 
                 path:  vec![Decision{variable: Variable(0), value: 42}], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
 
         let mut mdd = VectorBased::new();
@@ -634,6 +636,7 @@ mod test_default_mdd {
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
     #[test]
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -647,7 +650,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
 
@@ -665,6 +669,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_drops_the_less_interesting_nodes() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -678,7 +683,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
 
@@ -696,6 +702,7 @@ mod test_default_mdd {
 
     #[test]
     fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -709,7 +716,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -721,6 +729,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -734,7 +743,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -746,6 +756,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -759,7 +770,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -777,6 +789,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -790,7 +803,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -800,6 +814,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -813,7 +828,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -822,6 +838,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -835,7 +852,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -845,6 +863,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -858,7 +877,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -877,6 +897,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -890,7 +911,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -903,6 +925,7 @@ mod test_default_mdd {
 
     #[test]
     fn an_exact_mdd_must_be_exact() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -916,7 +939,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -927,6 +951,7 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -940,7 +965,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -951,6 +977,7 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -964,7 +991,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -974,6 +1002,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -987,7 +1016,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -997,6 +1027,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -1010,7 +1041,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1020,6 +1052,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_solution() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1033,7 +1066,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1042,6 +1076,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_best_value() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1055,7 +1090,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1064,6 +1100,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1077,7 +1114,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1086,6 +1124,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyInfeasibleProblem,
@@ -1099,7 +1138,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1108,6 +1148,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyInfeasibleProblem,
@@ -1121,7 +1162,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1236,6 +1278,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_computes_local_bounds() {
+        let mut barrier = EmptyBarrier{};
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &LocBoundsExamplePb,
@@ -1249,7 +1292,8 @@ mod test_default_mdd {
                 value: 0, 
                 path:  vec![], 
                 ub:    isize::MAX
-            }
+            },
+            barrier: Arc::new(&mut barrier),
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
