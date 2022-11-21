@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Frontier, NoDupFrontier, StateRanking, MaxUB, SimpleFrontier, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Frontier, NoDupFrontier, StateRanking, MaxUB, SimpleFrontier, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -48,6 +48,7 @@ fn maximize(
     pb      : PyObject, 
     relax   : PyObject,
     ranking : PyObject,
+    lel     : bool,
     dedup   : bool,
     width   : Option<usize>,
     timeout : Option<u64>,
@@ -57,6 +58,7 @@ fn maximize(
         let relax = PyRelax {gil, obj: relax};
         let ranking = PyRanking {gil, obj: ranking};
         let max_width = max_width(problem.nb_variables(), width);
+        let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
         let mut fringe = frontier(dedup, &ranking);
 
@@ -65,8 +67,9 @@ fn maximize(
             &relax, 
             &ranking, 
             max_width.as_ref(), 
+            cutset,
             cutoff.as_ref(), 
-            fringe.as_mut()
+            fringe.as_mut(),
         );
 
         let start = Instant::now();
@@ -112,6 +115,14 @@ fn max_width<'a>(n: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<PyState<'
         Box::new(FixedWidth(w))
     } else {
         Box::new(NbUnassignedWitdh(n))
+    }
+}
+
+fn cutset(lel: bool) -> CutsetType {
+    if lel {
+        CutsetType::LastExactLayer
+    } else {
+        CutsetType::Frontier
     }
 }
 

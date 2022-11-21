@@ -4,7 +4,7 @@ use std::{collections::hash_map::Entry, hash::Hash, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
-use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason};
+use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason, CutsetType};
 
 use super::node_flags::NodeFlags;
 
@@ -75,11 +75,12 @@ struct Edge {
 /// problem root to the root of this decision diagram (explores a sub problem). 
 /// The prev_l comprises information about the nodes that are currently being
 /// expanded, next_l stores the information about the nodes from the next layer 
-/// and lel simply stores a last exact layer cutset.
-/// 
-/// # Exact Cutset
-/// The exact cutset which is used in this implementation is the 
-/// Last Exact Layer cutset (LEL).
+/// and cutset stores an exact cutset of the DD.
+/// Depending on the type of DD compiled, different cutset types will be used:
+/// - Exact: no cutset is needed since the DD is exact
+/// - Restricted: the last exact layer is used as cutset
+/// - Relaxed: either the last exact layer of the frontier cutset can be chosen
+///            within the CompilationInput
 #[derive(Debug, Clone)]
 pub struct VectorBased<T>
 where
@@ -106,8 +107,8 @@ where
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
     next_l: FxHashMap<Arc<T>, NodeId>,
-    /// The last exact layer of the decision diagram
-    lel: Option<Vec<NodeId>>,
+    /// The cutset of the decision diagram
+    cutset: Option<Vec<NodeId>>,
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
     best_n: Option<NodeId>,
@@ -164,7 +165,7 @@ where
             edges: vec![],
             prev_l: Default::default(),
             next_l: Default::default(),
-            lel: None,
+            cutset: None,
             best_n: None,
             exact: true,
         }
@@ -174,13 +175,13 @@ where
         self.nodes.clear();
         self.edges.clear();
         self.next_l.clear();
-        self.lel = None;
+        self.cutset = None;
         self.exact = true;
     }
 
     fn _is_exact(&self, comp_type: CompilationType) -> bool {
-        self.lel.is_none()
-            || (comp_type == CompilationType::Relaxed && self.has_exact_best_path(self.best_n))
+        self.cutset.is_none()
+            || (matches!(comp_type, CompilationType::Relaxed(_)) && self.has_exact_best_path(self.best_n))
     }
 
     fn has_exact_best_path(&self, node: Option<NodeId>) -> bool {
@@ -230,8 +231,8 @@ where
         F: FnMut(SubProblem<T>),
     {
         if let Some(best_value) = self.best_value() {
-            if let Some(lel) = self.lel.as_mut() {
-                for id in lel.drain(..) {
+            if let Some(cutset) = self.cutset.as_mut() {
+                for id in cutset.drain(..) {
                     let node = &self.nodes[id.0];
 
                     if node.flags.is_marked() {
@@ -309,17 +310,19 @@ where
                         self.restrict(input, &mut curr_l)
                     }
                 }
-                CompilationType::Relaxed => {
+                CompilationType::Relaxed(cutset_type) => {
                     if curr_l.len() > input.max_width && depth > 1 {
-                        let was_lel = self.maybe_save_lel();
-                        //
-                        if was_lel {
-                            for id in curr_l.iter() {
-                                let rub = input.relaxation.fast_upper_bound(self.nodes[id.0].state.as_ref());
-                                self.nodes[id.0].rub = rub;
+                        if cutset_type == CutsetType::LastExactLayer {
+                            let was_lel = self.maybe_save_lel();
+                            //
+                            if was_lel {
+                                for id in curr_l.iter() {
+                                    let rub = input.relaxation.fast_upper_bound(self.nodes[id.0].state.as_ref());
+                                    self.nodes[id.0].rub = rub;
+                                }
                             }
+                            //
                         }
-                        //
                         self.relax(input, &mut curr_l)
                     }
                 }
@@ -348,21 +351,21 @@ where
             .max_by_key(|id| self.nodes[id.0].value);
         self.exact = self._is_exact(input.comp_type);
         //
-        if matches!(input.comp_type, CompilationType::Relaxed) {
-            self.compute_local_bounds();
+        if matches!(input.comp_type, CompilationType::Relaxed(_)) {
+            self.compute_local_bounds(input);
         }
 
         Ok(Completion { is_exact: self.is_exact(), best_value: self.best_value() })
     }
 
     fn maybe_save_lel(&mut self) -> bool {
-        if self.lel.is_none() {
+        if self.cutset.is_none() {
             let mut lel = vec![];
             for id in self.prev_l.iter() {
                 lel.push(*id);
                 self.nodes[id.0].flags.set_cutset(true);
             }
-            self.lel = Some(lel);
+            self.cutset = Some(lel);
             true
         } else {
             false
@@ -521,7 +524,7 @@ where
         }
     }
 
-    fn compute_local_bounds(&mut self) {
+    fn compute_local_bounds(&mut self, input: &CompilationInput<T>) {
         if !self.exact {
             // if it's exact, there is nothing to be done
             let mut visit = vec![];
@@ -556,6 +559,15 @@ where
                             }
                         }
 
+                        if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier) && self.nodes[id.0].flags.is_marked(){
+                            if !self.nodes[id.0].flags.is_exact() && self.nodes[edge.from.0].flags.is_exact() // eligible for frontier cutset
+                                    && !self.nodes[edge.from.0].flags.is_cutset() {
+                                self.nodes[edge.from.0].flags.set_cutset(true);
+                                let fc = self.cutset.get_or_insert(vec![]);
+                                fc.push(edge.from);
+                            }
+                        }
+
                         inbound = edge.next;
                     }
                 }
@@ -579,7 +591,7 @@ mod test_default_mdd {
 
     use rustc_hash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback};
+    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, CutsetType};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -610,7 +622,7 @@ mod test_default_mdd {
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
-        input.comp_type = CompilationType::Relaxed;
+        input.comp_type = CompilationType::Relaxed(CutsetType::LastExactLayer);
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
@@ -735,7 +747,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -811,7 +823,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -834,7 +846,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -866,7 +878,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -916,7 +928,7 @@ mod test_default_mdd {
     #[test]
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -940,7 +952,7 @@ mod test_default_mdd {
     #[test]
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -986,7 +998,7 @@ mod test_default_mdd {
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -1075,7 +1087,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyInfeasibleProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -1225,7 +1237,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_computes_local_bounds() {
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &LocBoundsExamplePb,
             relaxation: &LocBoundExampleRelax,
             ranking:    &CmpChar,

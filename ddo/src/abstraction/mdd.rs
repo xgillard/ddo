@@ -19,13 +19,22 @@
 
 use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff};
 
+/// What type of cutset are we using for relaxed DDs ?
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CutsetType {
+    /// enqueue the last layer with only exact nodes
+    LastExactLayer,
+    /// enqueue all exact nodes that have at least a relaxed child node
+    Frontier,
+}
+
 /// How are we to compile the decision diagram ? 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompilationType {
     /// If you want to use a pure DP resolution of the problem
     Exact,
     /// If you want to compile a restricted DD which yields a lower bound on the objective
-    Relaxed,
+    Relaxed(CutsetType),
     /// If you want to compile a relaxed DD which yields an upper bound on the objective
     Restricted,
 }

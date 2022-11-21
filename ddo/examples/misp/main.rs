@@ -337,7 +337,7 @@ fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {
 }
 
 /// This is your executable's entry point. It is the place where all the pieces are put together
-/// to create a fast an effective solver for the knapsack problem.
+/// to create a fast an effective solver for the misp problem.
 fn main() {
     let args = Args::parse();
     let fname = &args.fname;
@@ -346,6 +346,7 @@ fn main() {
     let ranking = MispRanking;
 
     let width = max_width(&problem, args.width);
+    let cutset = CutsetType::LastExactLayer;
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFrontier::new(MaxUB::new(&ranking));
 
@@ -354,10 +355,12 @@ fn main() {
         &problem, 
         &relaxation, 
         &ranking, 
-        width.as_ref(), 
+        width.as_ref(),
+        cutset,
         cutoff.as_ref(), 
         &mut fringe,
-        args.threads);
+        args.threads,
+    );
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();

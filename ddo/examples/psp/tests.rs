@@ -43,6 +43,7 @@ mod psp_test_utils {
         let ranking = PspRanking;
 
         let width = FixedWidth(1000);
+        let cutset = CutsetType::LastExactLayer;
         let cutoff = NoCutoff;
         let mut fringe = NoDupFrontier::new(MaxUB::new(&ranking));
 
@@ -52,9 +53,11 @@ mod psp_test_utils {
             &relaxation, 
             &ranking, 
             &width, 
+            cutset,
             &cutoff, 
             &mut fringe,
-            1);
+            1,
+        );
 
         let Completion { best_value , ..} = solver.maximize();
         best_value.map(|x| -x).unwrap_or(-1)

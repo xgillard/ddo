@@ -26,7 +26,7 @@ use std::{marker::PhantomData, sync::Arc, hash::Hash};
 
 use parking_lot::{Condvar, Mutex};
 
-use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason};
+use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType};
 
 /// The shared data that may only be manipulated within critical sections
 struct Critical<'a, State> {
@@ -87,6 +87,9 @@ struct Shared<'a, State> {
     /// The maximum width heuristic used to enforce a given maximum memory
     /// usage when compiling mdds
     width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
+    /// This is a configuration parameter that decides which type of exact cutset
+    /// will be derived from the relaxed DDs compiled
+    cutset_type: CutsetType,
     /// A cutoff heuristic meant to decide when to stop the resolution of 
     /// a given problem.
     cutoff: &'a (dyn Cutoff + Send + Sync),
@@ -272,7 +275,7 @@ where State: Eq + Hash + Clone
         cutoff: &'a (dyn Cutoff + Send + Sync), 
         fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
     ) -> Self {
-        Self::custom(problem, relaxation, ranking, width, cutoff, fringe, num_cpus::get())
+        Self::custom(problem, relaxation, ranking, width, CutsetType::LastExactLayer, cutoff, fringe, num_cpus::get())
     }
 }
 
@@ -287,6 +290,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
         ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
+        cutset_type: CutsetType,
         cutoff: &'a (dyn Cutoff + Send + Sync),
         fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
         nb_threads: usize,
@@ -298,6 +302,7 @@ where
                 ranking,
                 width_heu,
                 cutoff,
+                cutset_type,
                 //
                 monitor: Condvar::new(),
                 critical: Mutex::new(Critical {
@@ -377,7 +382,7 @@ where
 
         // 2. RELAXATION
         let best_lb = Self::best_lb(shared);
-        compilation.comp_type = CompilationType::Relaxed;
+        compilation.comp_type = CompilationType::Relaxed(shared.cutset_type);
         compilation.best_lb = best_lb;
 
         let Completion{is_exact, ..} = mdd.compile(&compilation)?;
@@ -583,15 +588,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         assert_eq!(isize::min_value(), solver.best_lower_bound());
@@ -607,15 +614,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         assert_eq!(isize::max_value(), solver.best_upper_bound());
@@ -631,15 +640,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         let _ = solver.maximize();
@@ -656,15 +667,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         let _ = solver.maximize();
@@ -682,15 +695,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
         assert!(solver.best_solution().is_none());
     }
@@ -705,15 +720,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         assert!(solver.best_value().is_none());
@@ -757,15 +774,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         assert_eq!(isize::min_value(), solver.best_lower_bound());
@@ -781,22 +800,24 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         assert_eq!(isize::max_value(), solver.best_upper_bound());
     }
 
     #[test]
-    fn maximizes_yields_the_optimum() {
+    fn maximizes_yields_the_optimum_1a() {
         let problem = Knapsack {
             capacity: 50,
             profit  : vec![60, 100, 120],
@@ -806,15 +827,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         let maximized = solver.maximize();
@@ -833,11 +856,11 @@ mod test_solver {
     }
 
     #[test]
-    fn maximizes_yields_the_optimum_2() {
+    fn maximizes_yields_the_optimum_1b() {
         let problem = Knapsack {
             capacity: 50,
-            profit  : vec![60, 210, 12, 5, 100, 120, 110],
-            weight  : vec![10,  45, 20, 4,  20,  30,  50]
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
         };
         let relax = KPRelax {pb: &&problem};
         let ranking = KPRanking;
@@ -849,9 +872,49 @@ mod test_solver {
             &relax,
             &ranking,
             &width,
+            CutsetType::Frontier,
             &cutoff,
             &mut fringe,
-            1
+            1,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision{variable: Variable(0), value: 0},
+            Decision{variable: Variable(1), value: 1},
+            Decision{variable: Variable(2), value: 1},
+        ]);
+    }
+
+    #[test]
+    fn maximizes_yields_the_optimum_2a() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 210, 12, 5, 100, 120, 110],
+            weight  : vec![10,  45, 20, 4,  20,  30,  50]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = DD::custom(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            cutset,
+            &cutoff,
+            &mut fringe,
+            1,
         );
 
         let maximized = solver.maximize();
@@ -872,12 +935,13 @@ mod test_solver {
             Decision { variable: Variable(6), value: 0 }
         ]);
     }
+
     #[test]
-    fn set_primal_overwrites_best_value_and_sol_if_it_improves() {
+    fn maximizes_yields_the_optimum_2b() {
         let problem = Knapsack {
             capacity: 50,
-            profit  : vec![60, 100, 120],
-            weight  : vec![10,  20,  30]
+            profit  : vec![60, 210, 12, 5, 100, 120, 110],
+            weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
         let relax = KPRelax {pb: &&problem};
         let ranking = KPRanking;
@@ -889,9 +953,53 @@ mod test_solver {
             &relax,
             &ranking,
             &width,
+            CutsetType::Frontier,
             &cutoff,
             &mut fringe,
-            1
+            1,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision { variable: Variable(0), value: 0 },
+            Decision { variable: Variable(1), value: 0 },
+            Decision { variable: Variable(2), value: 0 },
+            Decision { variable: Variable(3), value: 0 },
+            Decision { variable: Variable(4), value: 1 },
+            Decision { variable: Variable(5), value: 1 },
+            Decision { variable: Variable(6), value: 0 }
+        ]);
+    }
+
+    #[test]
+    fn set_primal_overwrites_best_value_and_sol_if_it_improves() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = DD::custom(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            cutset,
+            &cutoff,
+            &mut fringe,
+            1,
         );
 
         let d1  = Decision{variable: Variable(0), value: 10};
@@ -929,15 +1037,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         assert_eq!(1.0, solver.gap());
@@ -953,15 +1063,17 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
             &mut fringe,
-            1
+            1,
         );
 
         let Completion{is_exact, best_value} = solver.maximize();

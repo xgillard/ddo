@@ -92,6 +92,7 @@ fn main() {
     let ranking = PspRanking;
 
     let width = max_width(&problem, args.width);
+    let cutset = CutsetType::LastExactLayer;
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFrontier::new(MaxUB::new(&ranking));
 
@@ -101,9 +102,11 @@ fn main() {
         &relaxation, 
         &ranking, 
         width.as_ref(), 
+        cutset,
         cutoff.as_ref(), 
         &mut fringe,
-        args.threads);
+        args.threads,
+    );
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();

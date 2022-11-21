@@ -28,7 +28,7 @@
 use std::clone::Clone;
 use std::{sync::Arc, hash::Hash};
 
-use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason};
+use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType};
 
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -186,6 +186,9 @@ where D: DecisionDiagram<State = State> + Default,
     /// The maximum width heuristic used to enforce a given maximum memory
     /// usage when compiling mdds
     width_heu: &'a (dyn WidthHeuristic<State>),
+    /// This is a configuration parameter that decides which type of exact cutset
+    /// will be derived from the relaxed DDs compiled
+    cutset_type: CutsetType,
     /// A cutoff heuristic meant to decide when to stop the resolution of 
     /// a given problem.
     cutoff: &'a (dyn Cutoff),
@@ -232,7 +235,7 @@ where State: Eq + Hash + Clone
         cutoff: &'a (dyn Cutoff), 
         fringe: &'a mut (dyn Frontier<State = State>),
     ) -> Self {
-        Self::custom(problem, relaxation, ranking, width, cutoff, fringe)
+        Self::custom(problem, relaxation, ranking, width, CutsetType::LastExactLayer, cutoff, fringe)
     }
 }
 
@@ -247,6 +250,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width_heu: &'a (dyn WidthHeuristic<State>),
+        cutset_type: CutsetType,
         cutoff: &'a (dyn Cutoff),
         fringe: &'a mut (dyn Frontier<State = State>),
     ) -> Self {
@@ -256,6 +260,7 @@ where
             ranking,
             width_heu,
             cutoff,
+            cutset_type,
             //
             best_sol: None,
             best_lb: isize::MIN,
@@ -321,7 +326,7 @@ where
 
         // 2. RELAXATION
         let best_lb = self.best_lb;
-        compilation.comp_type = CompilationType::Relaxed;
+        compilation.comp_type = CompilationType::Relaxed(self.cutset_type);
         compilation.best_lb = best_lb;
 
         let Completion{is_exact, ..} = self.mdd.compile(&compilation)?;
@@ -463,6 +468,8 @@ where
 #[cfg(test)]
 mod test_solver {
     use crate::*;
+
+    type DD<'a> = SequentialSolver<'a, KnapsackState, DefaultMDD<KnapsackState>>;
     
     #[test]
     fn by_default_best_lb_is_min_infinity() {
@@ -652,7 +659,45 @@ mod test_solver {
     }
 
     #[test]
-    fn maximizes_yields_the_optimum() {
+    fn maximizes_yields_the_optimum_1a() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
+        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut solver = DD::custom(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            cutset,
+            &cutoff,
+            &mut fringe,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision{variable: Variable(0), value: 0},
+            Decision{variable: Variable(1), value: 1},
+            Decision{variable: Variable(2), value: 1},
+        ]);
+    }
+
+    #[test]
+    fn maximizes_yields_the_optimum_1b() {
         let problem = Knapsack {
             capacity: 50,
             profit  : vec![60, 100, 120],
@@ -663,13 +708,14 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = SequentialSolver::new(
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            CutsetType::Frontier,
             &cutoff,
-            &mut fringe
+            &mut fringe,
         );
 
         let maximized = solver.maximize();
