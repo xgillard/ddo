@@ -1,6 +1,6 @@
 //! This is an adaptation of the vector based architecture which implements all
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
-use std::{collections::hash_map::Entry, hash::Hash, ops::Deref, sync::Arc};
+use std::{collections::hash_map::Entry, hash::Hash, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
@@ -19,8 +19,10 @@ struct NodeId(usize);
 struct EdgeId(usize);
 
 /// Represents an effective node from the decision diagram
-#[derive(Debug, Clone, Copy)]
-struct Node {
+#[derive(Debug, Clone)]
+struct Node<T> {
+    /// The state associated to this node
+    state: Arc<T>,
     /// The length of the longest path between the problem root and this
     /// specific node
     value: isize,
@@ -89,23 +91,23 @@ where
     /// All the nodes composing this decision diagram. The vector comprises 
     /// nodes from all layers in the DD. A nice property is that all nodes
     /// belonging to one same layer form a sequence in the ‘nodes‘ vector.
-    nodes: Vec<Node>,
+    nodes: Vec<Node<T>>,
     /// This vector stores the information about all edges connecting the nodes 
     /// of the decision diagram.
     edges: Vec<Edge>,
-    /// Maintains the association nodeid−>state for the nodes of the layer which 
-    /// is currently being expanded. This association is only used during the
-    /// unrolling of transition relation, and when merging nodes of a relaxed DD.
-    prev_l: FxHashMap<NodeId, T>,
+    /// Contains the nodes of the layer which is currently being expanded.
+    /// This collection is only used during the unrolling of transition relation,
+    /// and when merging nodes of a relaxed DD.
+    prev_l: Vec<NodeId>,
     /// The nodes from the next layer; those are the result of an application 
     /// of the transition function to a node in ‘prev_l‘.
     /// Note: next_l in itself is indexed on the state associated with nodes.
     /// The rationale being that two transitions to the same state in the same
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
-    next_l: FxHashMap<T, NodeId>,
+    next_l: FxHashMap<Arc<T>, NodeId>,
     /// The last exact layer of the decision diagram
-    lel: Option<Vec<(T, NodeId)>>,
+    lel: Option<Vec<NodeId>>,
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
     best_n: Option<NodeId>,
@@ -210,7 +212,7 @@ where
     fn _best_path_partial_borrow(
         id: NodeId,
         root_pa: &[Decision],
-        nodes: &[Node],
+        nodes: &[Node<T>],
         edges: &[Edge],
     ) -> Vec<Decision> {
         let mut sol = root_pa.to_owned();
@@ -229,7 +231,7 @@ where
     {
         if let Some(best_value) = self.best_value() {
             if let Some(lel) = self.lel.as_mut() {
-                for (state, id) in lel.drain(..) {
+                for id in lel.drain(..) {
                     let node = &self.nodes[id.0];
 
                     if node.flags.is_marked() {
@@ -238,8 +240,8 @@ where
                         let ub = rub.min(locb).min(best_value);
 
                         func(SubProblem {
-                            state: Arc::new(state),
-                            value: self.nodes[id.0].value,
+                            state: node.state.clone(),
+                            value: node.value,
                             path: Self::_best_path_partial_borrow(
                                 id,
                                 &self.root_pa,
@@ -261,9 +263,10 @@ where
         let mut depth = 0;
         let mut curr_l = vec![];
         
-        let root_s = input.residual.state.deref().clone();
+        let root_s = input.residual.state.clone();
         let root_v = input.residual.value;
         let root_n = Node {
+            state: root_s.clone(),
             value: root_v,
             best: None,
             inbound: None,
@@ -281,17 +284,17 @@ where
         self.nodes.push(root_n);
         self.next_l.insert(root_s, NodeId(0));
 
-        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys()) {
+        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|s| s.as_ref())) {
             // Did the cutoff kick in ?
             if input.cutoff.must_stop() {
                 return Err(Reason::CutoffOccurred);
             }
             self.prev_l.clear();
-            for (state, id) in curr_l.drain(..) {
-                self.prev_l.insert(id, state);
+            for id in curr_l.drain(..) {
+                self.prev_l.push(id);
             }
-            for (state, id) in self.next_l.drain() {
-                curr_l.push((state, id));
+            for (_, id) in self.next_l.drain() {
+                curr_l.push(id);
             }
 
             if curr_l.is_empty() {
@@ -311,8 +314,8 @@ where
                         let was_lel = self.maybe_save_lel();
                         //
                         if was_lel {
-                            for (s, id) in curr_l.iter() {
-                                let rub = input.relaxation.fast_upper_bound(s);
+                            for id in curr_l.iter() {
+                                let rub = input.relaxation.fast_upper_bound(self.nodes[id.0].state.as_ref());
                                 self.nodes[id.0].rub = rub;
                             }
                         }
@@ -322,13 +325,14 @@ where
                 }
             }
 
-            for (state, node_id) in curr_l.iter() {
-                let rub = input.relaxation.fast_upper_bound(state);
+            for node_id in curr_l.iter() {
+                let state = self.nodes[node_id.0].state.clone();
+                let rub = input.relaxation.fast_upper_bound(state.as_ref());
                 self.nodes[node_id.0].rub = rub;
                 let ub = rub.saturating_add(self.nodes[node_id.0].value);
                 if ub > input.best_lb {
-                    input.problem.for_each_in_domain(var, state, &mut |decision| {
-                        self.branch_on(state, *node_id, decision, input.problem)
+                    input.problem.for_each_in_domain(var, state.as_ref(), &mut |decision| {
+                        self.branch_on(*node_id, decision, input.problem)
                     })
                 }
             }
@@ -354,8 +358,8 @@ where
     fn maybe_save_lel(&mut self) -> bool {
         if self.lel.is_none() {
             let mut lel = vec![];
-            for (id, state) in self.prev_l.iter() {
-                lel.push((state.clone(), *id));
+            for id in self.prev_l.iter() {
+                lel.push(*id);
                 self.nodes[id.0].flags.set_cutset(true);
             }
             self.lel = Some(lel);
@@ -367,15 +371,15 @@ where
 
     fn branch_on(
         &mut self,
-        state: &T,
         from_id: NodeId,
         decision: Decision,
         problem: &dyn Problem<State = T>,
     ) {
-        let next_state = problem.transition(state, decision);
+        let state = self.nodes[from_id.0].state.as_ref();
+        let next_state = Arc::new(problem.transition(state, decision));
         let cost = problem.transition_cost(state, decision);
 
-        match self.next_l.entry(next_state) {
+        match self.next_l.entry(next_state.clone()) {
             Entry::Vacant(e) => {
                 let node_id = NodeId(self.nodes.len());
                 let edge_id = EdgeId(self.edges.len());
@@ -389,6 +393,7 @@ where
                     next: None,
                 });
                 self.nodes.push(Node {
+                    state: next_state,
                     //my_id  : node_id,
                     value: self.nodes[from_id.0].value.saturating_add(cost),
                     best: Some(edge_id),
@@ -431,35 +436,36 @@ where
         }
     }
 
-    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            self.nodes[a.1 .0]
+            self.nodes[a.0]
                 .value
-                .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+                .cmp(&self.nodes[b.0].value)
+                .then_with(|| input.ranking.compare(self.nodes[a.0].state.as_ref(), self.nodes[b.0].state.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
         curr_l.truncate(input.max_width);
     }
 
-    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            self.nodes[a.1 .0]
+            self.nodes[a.0]
                 .value
-                .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+                .cmp(&self.nodes[b.0].value)
+                .then_with(|| input.ranking.compare(self.nodes[a.0].state.as_ref(), self.nodes[b.0].state.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
 
         //--
         let (keep, merge) = curr_l.split_at_mut(input.max_width - 1);
-        let merged = input.relaxation.merge(&mut merge.iter().map(|(k, _v)| k));
+        let merged = Arc::new(input.relaxation.merge(&mut merge.iter().map(|node_id| self.nodes[node_id.0].state.as_ref())));
 
-        let recycled = keep.iter().find(|(k, _v)| k.eq(&merged)).map(|(_k, v)| *v);
+        let recycled = keep.iter().find(|node_id| self.nodes[node_id.0].state.eq(&merged)).map(|node_id| *node_id);
 
         let merged_id = recycled.unwrap_or_else(|| {
             let node_id = NodeId(self.nodes.len());
             self.nodes.push(Node {
+                state: merged.clone(),
                 //my_id  : node_id,
                 value: isize::MIN,
                 best: None,    // yet
@@ -475,15 +481,15 @@ where
 
         self.nodes[merged_id.0].flags.set_relaxed(true);
 
-        for (drop_k, drop_v) in merge {
-            let mut edge_id = self.nodes[drop_v.0].inbound;
+        for drop_id in merge {
+            let mut edge_id = self.nodes[drop_id.0].inbound;
             while let Some(eid) = edge_id {
                 let edge = self.edges[eid.0];
-                let src = &self.prev_l[&edge.from];
+                let src = self.nodes[edge.from.0].state.as_ref();
 
                 let rcost = input
                     .relaxation
-                    .relax(src, drop_k, &merged, edge.decision, edge.cost);
+                    .relax(src, self.nodes[drop_id.0].state.as_ref(), &merged, edge.decision, edge.cost);
 
                 let new_eid = EdgeId(self.edges.len());
                 let new_edge = Edge {
@@ -511,7 +517,7 @@ where
             curr_l.truncate(input.max_width);
         } else {
             curr_l.truncate(input.max_width - 1);
-            curr_l.push((merged, merged_id));
+            curr_l.push(merged_id);
         }
     }
 
