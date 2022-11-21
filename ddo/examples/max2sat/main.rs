@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use clap::Parser;
-use ddo::{TimeBudget, NoCutoff, Cutoff, FixedWidth, DefaultSolver, NoDupFrontier, MaxUB, Solver, Completion, WidthHeuristic, NbUnassignedWitdh, Problem, Decision, Variable};
+use ddo::{TimeBudget, NoCutoff, Cutoff, FixedWidth, DefaultSolver, NoDupFringe, MaxUB, Solver, Completion, WidthHeuristic, NbUnassignedWitdh, Problem, Decision, Variable};
 use model::{f, t};
 
 use crate::{heuristics::Max2SatRanking, model::{Max2Sat, v}, relax::Max2SatRelax, data::read_instance};
@@ -36,7 +36,7 @@ fn main() {
     let rank = Max2SatRanking;
     let width = max_width(&problem, width);
     let cutoff = cutoff(timeout);
-    let mut fringe = NoDupFrontier::new(MaxUB::new(&Max2SatRanking));
+    let mut fringe = NoDupFringe::new(MaxUB::new(&Max2SatRanking));
 
     let mut solver = DefaultSolver::new(
         &problem, 

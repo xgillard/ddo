@@ -26,7 +26,7 @@ use std::{marker::PhantomData, sync::Arc, hash::Hash};
 
 use parking_lot::{Condvar, Mutex};
 
-use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType};
 
 /// The shared data that may only be manipulated within critical sections
 struct Critical<'a, State> {
@@ -40,7 +40,7 @@ struct Critical<'a, State> {
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
+    fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
     /// This is the number of nodes that are currently being explored.
     ///
     /// # Note
@@ -217,8 +217,8 @@ enum WorkLoad<T> {
 /// // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 /// 
-/// // 5. Create the solver frontier
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// // 5. Create the solver fronfringetier
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 ///  
 /// // 6. Instanciate your solver
 /// let mut solver = DefaultSolver::new(
@@ -227,7 +227,7 @@ enum WorkLoad<T> {
 ///       &heuristic, 
 ///       &width, 
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// 
 /// // 7. Maximize your objective function
 /// // the outcome provides the value of the best solution that was found for
@@ -273,7 +273,7 @@ where State: Eq + Hash + Clone
         ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width: &'a (dyn WidthHeuristic<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync), 
-        fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
+        fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, CutsetType::LastExactLayer, cutoff, fringe, num_cpus::get())
     }
@@ -292,7 +292,7 @@ where
         width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
         cutset_type: CutsetType,
         cutoff: &'a (dyn Cutoff + Send + Sync),
-        fringe: &'a mut (dyn Frontier<State = State> + Send + Sync),
+        fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
         nb_threads: usize,
     ) -> Self {
         ParallelSolver {
@@ -589,7 +589,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -615,7 +615,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -641,7 +641,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -668,7 +668,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -696,7 +696,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -721,7 +721,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -749,7 +749,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -775,7 +775,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -801,7 +801,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -828,7 +828,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -866,7 +866,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -905,7 +905,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -947,7 +947,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -990,7 +990,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -1038,7 +1038,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
             &problem,
             &relax,
@@ -1064,7 +1064,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,

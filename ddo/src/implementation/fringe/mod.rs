@@ -17,29 +17,10 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::SubProblem;
+//! This module provides several alternative implementation of the solver fringe.
 
+mod simple;
+mod no_duplicate;
 
-/// This trait abstracts away the implementation details of the solver frontier
-/// (a.k.a. solver fringe). That is, a Frontier represents the global priority
-/// queue which stores all the nodes remaining to explore.
-pub trait Frontier {
-    type State;
-
-    /// This is how you push a node onto the frontier.
-    fn push(&mut self, node: SubProblem<Self::State>);
-    /// This method yields the most promising node from the frontier.
-    /// # Note:
-    /// The solvers rely on the assumption that a frontier will pop nodes in
-    /// descending upper bound order. Hence, it is a requirement for any fringe
-    /// implementation to enforce that requirement.
-    fn pop(&mut self) -> Option<SubProblem<Self::State>>;
-    /// This method clears the frontier: it removes all nodes from the queue.
-    fn clear(&mut self);
-    /// Yields the length of the queue.
-    fn len(&self) -> usize;
-    /// Returns true iff the finge is empty (len == 0)
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-}
+pub use simple::*;
+pub use no_duplicate::*;

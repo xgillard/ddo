@@ -17,10 +17,29 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module provides several alternative implementation of the solver frontier.
+use crate::SubProblem;
 
-mod simple;
-mod no_duplicate;
 
-pub use simple::*;
-pub use no_duplicate::*;
+/// This trait abstracts away the implementation details of the solver fringe.
+/// That is, a Fringe represents the global priority queue which stores all 
+/// the nodes remaining to explore.
+pub trait Fringe {
+    type State;
+
+    /// This is how you push a node onto the fringe.
+    fn push(&mut self, node: SubProblem<Self::State>);
+    /// This method yields the most promising node from the fringe.
+    /// # Note:
+    /// The solvers rely on the assumption that a fringe will pop nodes in
+    /// descending upper bound order. Hence, it is a requirement for any fringe
+    /// implementation to enforce that requirement.
+    fn pop(&mut self) -> Option<SubProblem<Self::State>>;
+    /// This method clears the fringe: it removes all nodes from the queue.
+    fn clear(&mut self);
+    /// Yields the length of the queue.
+    fn len(&self) -> usize;
+    /// Returns true iff the fringe is empty (len == 0)
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}

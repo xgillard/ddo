@@ -28,7 +28,7 @@
 use std::clone::Clone;
 use std::{sync::Arc, hash::Hash};
 
-use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType};
 
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -141,8 +141,8 @@ enum WorkLoad<T> {
 /// // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 /// 
-/// // 5. Create the solver frontier
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// // 5. Create the solver fringe
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 ///  
 /// // 6. Instanciate your solver
 /// let mut solver = DefaultSolver::new(
@@ -151,7 +151,7 @@ enum WorkLoad<T> {
 ///       &heuristic, 
 ///       &width, 
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// 
 /// // 7. Maximize your objective function
 /// // the outcome provides the value of the best solution that was found for
@@ -203,7 +203,7 @@ where D: DecisionDiagram<State = State> + Default,
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Frontier<State = State>),
+    fringe: &'a mut (dyn Fringe<State = State>),
     /// This is a counter that tracks the number of nodes that have effectively
     /// been explored. That is, the number of nodes that have been popped from
     /// the fringe, and for which a restricted and relaxed mdd have been developed.
@@ -233,7 +233,7 @@ where State: Eq + Hash + Clone
         ranking: &'a (dyn StateRanking<State = State>),
         width: &'a (dyn WidthHeuristic<State>),
         cutoff: &'a (dyn Cutoff), 
-        fringe: &'a mut (dyn Frontier<State = State>),
+        fringe: &'a mut (dyn Fringe<State = State>),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, CutsetType::LastExactLayer, cutoff, fringe)
     }
@@ -252,7 +252,7 @@ where
         width_heu: &'a (dyn WidthHeuristic<State>),
         cutset_type: CutsetType,
         cutoff: &'a (dyn Cutoff),
-        fringe: &'a mut (dyn Frontier<State = State>),
+        fringe: &'a mut (dyn Fringe<State = State>),
     ) -> Self {
         SequentialSolver {
             problem,
@@ -482,7 +482,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -505,7 +505,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -528,7 +528,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -552,7 +552,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -577,7 +577,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -599,7 +599,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -622,7 +622,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -645,7 +645,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -670,7 +670,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -707,7 +707,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -744,7 +744,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -783,7 +783,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -828,7 +828,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SequentialSolver::new(
             &problem,
             &relax,
@@ -851,7 +851,7 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,

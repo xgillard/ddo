@@ -601,7 +601,7 @@ mod test_default_mdd {
     }
 
     #[test]
-    fn root_remembers_the_pa_from_the_frontier_node() {
+    fn root_remembers_the_pa_from_the_fringe_node() {
         let mut input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,

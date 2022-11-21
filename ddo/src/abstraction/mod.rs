@@ -27,11 +27,11 @@
 mod dp;
 mod heuristics;
 mod solver;
-mod frontier;
+mod fringe;
 mod mdd;
 
 pub use dp::*;
 pub use heuristics::*;
 pub use solver::*;
-pub use frontier::*;
+pub use fringe::*;
 pub use mdd::*;

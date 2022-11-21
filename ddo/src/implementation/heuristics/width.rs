@@ -129,7 +129,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// # let relaxation = KPRelax{pb: &problem};
 /// # let heuristic = KPRanking;
 /// # let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// # let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// # let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -137,7 +137,7 @@ use crate::{WidthHeuristic, SubProblem};
 ///       &heuristic, 
 ///       &FixedWidth(100), // all DDs will be compiled with a maximum width of 100 nodes 
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct FixedWidth(pub usize);
@@ -331,7 +331,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -339,7 +339,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 ///       &heuristic, 
 ///       &NbUnassignedWitdh(problem.nb_variables()),
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Default, Debug, Copy, Clone)]
 pub struct NbUnassignedWitdh(pub usize);
@@ -541,7 +541,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -549,7 +549,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 ///       &heuristic, 
 ///       &Times(5, NbUnassignedWitdh(problem.nb_variables())),
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct Times<X>(pub usize, pub X);
@@ -751,7 +751,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -759,7 +759,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 ///       &heuristic, 
 ///       &DivBy(2, NbUnassignedWitdh(problem.nb_variables())),
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct DivBy<X>(pub usize, pub X);

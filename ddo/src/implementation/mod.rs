@@ -21,11 +21,11 @@
 //! abstractions of the library (those are described in `ddo::abstraction::*`).
 
 mod heuristics;
-mod frontier;
+mod fringe;
 mod mdd;
 mod solver;
 
 pub use heuristics::*;
-pub use frontier::*;
+pub use fringe::*;
 pub use mdd::*;
 pub use solver::*;

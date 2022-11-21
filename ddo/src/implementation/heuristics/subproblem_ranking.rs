@@ -18,14 +18,14 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This module provides the implementation of subproblem rankings that are used to
-//! set the ordering of the solver frontier.
+//! set the ordering of the solver fringe.
 
 use std::cmp::Ordering;
 
 use crate::{StateRanking, SubProblemRanking, SubProblem};
 
 /// The MaxUB (maximum upper bound) strategy is one that always selects the node
-/// having the highest upper bound in the frontier. In case of equalities, the
+/// having the highest upper bound in the fringe. In case of equalities, the
 /// ties are broken using the length of the longest path and eventually a state 
 /// ranking.
 /// 
@@ -57,7 +57,7 @@ use crate::{StateRanking, SubProblemRanking, SubProblem};
 /// let f = SubProblem {state: Arc::new('f'), value: 19, ub: 100, path: vec![]};
 ///
 /// let ranking = MaxUB::new(&CharRanking);
-/// let mut priority_q = SimpleFrontier::new(ranking);
+/// let mut priority_q = SimpleFringe::new(ranking);
 /// priority_q.push(a);
 /// priority_q.push(b);
 /// priority_q.push(c);

@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Frontier, NoDupFrontier, StateRanking, MaxUB, SimpleFrontier, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -60,7 +60,7 @@ fn maximize(
         let max_width = max_width(problem.nb_variables(), width);
         let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
-        let mut fringe = frontier(dedup, &ranking);
+        let mut fringe = fringe(dedup, &ranking);
 
         let mut solver = SequentialSolver::<PyState, DefaultMDD<PyState>>::custom(
             &problem, 
@@ -102,11 +102,11 @@ fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff> {
     }
 }
 
-fn frontier<'a>(dedup: bool, ranking: &'a PyRanking<'a>) -> Box<dyn Frontier<State = PyState<'a>> + 'a> {
+fn fringe<'a>(dedup: bool, ranking: &'a PyRanking<'a>) -> Box<dyn Fringe<State = PyState<'a>> + 'a> {
     if dedup {
-        Box::new(NoDupFrontier::new(MaxUB::new(ranking)))
+        Box::new(NoDupFringe::new(MaxUB::new(ranking)))
     } else {
-        Box::new(SimpleFrontier::new(MaxUB::new(ranking)))
+        Box::new(SimpleFringe::new(MaxUB::new(ranking)))
     }
 }
 

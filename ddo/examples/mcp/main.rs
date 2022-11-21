@@ -34,7 +34,7 @@ fn main() {
     let rank = McpRanking;
     let width = max_width(&problem, width);
     let cutoff = cutoff(timeout);
-    let mut fringe = NoDupFrontier::new(MaxUB::new(&rank));
+    let mut fringe = NoDupFringe::new(MaxUB::new(&rank));
 
     let mut solver = DefaultSolver::new(
         &problem, 

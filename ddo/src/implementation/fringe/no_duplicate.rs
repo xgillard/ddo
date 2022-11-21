@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module provides the implementation of a solver frontier that forbids the
+//! This module provides the implementation of a solver fringe that forbids the
 //! co-occurence of two subproblems having the same root state.
 
 use std::{hash::Hash, sync::Arc};
@@ -49,7 +49,7 @@ enum Action {
 /// items remain ordered in the priority queue while guaranteeing that a
 /// given state will only ever be present *ONCE* in the priority queue (the
 /// node with the longest path to state is the only kept copy).
-pub struct NoDupFrontier<O>
+pub struct NoDupFringe<O>
 where
     O: SubProblemRanking,
     O::State: Eq + Hash + Clone,
@@ -68,7 +68,7 @@ where
     recycle_bin: Vec<NodeId>,
 }
 
-impl<O> Frontier for NoDupFrontier<O>
+impl<O> Fringe for NoDupFringe<O>
 where
     O: SubProblemRanking,
     O::State: Eq + Hash + Clone,
@@ -180,7 +180,7 @@ where
     }
 }
 
-impl<O> NoDupFrontier<O>
+impl<O> NoDupFringe<O>
 where
     O: SubProblemRanking,
     O::State: Eq + Hash + Clone,
@@ -325,90 +325,90 @@ where
 
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
-mod test_no_dup_frontier {
+mod test_no_dup_fringe {
     use crate::*;
     use std::{sync::Arc, cmp::Ordering};
 
     // by default, it is empty
     #[test]
     fn by_default_it_is_empty() {
-        assert!(empty_frontier().is_empty())
+        assert!(empty_fringe().is_empty())
     }
 
     // when the size is zero, then it is empty
     #[test]
     fn when_the_size_is_zero_then_it_is_empty() {
-        let frontier = empty_frontier();
-        assert_eq!(frontier.len(), 0);
-        assert!(frontier.is_empty());
+        let fringe = empty_fringe();
+        assert_eq!(fringe.len(), 0);
+        assert!(fringe.is_empty());
     }
 
     // when the size is greater than zero, it it not empty
     #[test]
     fn when_the_size_is_greater_than_zero_it_is_not_empty() {
-        let frontier = non_empty_frontier();
-        assert_eq!(frontier.len(), 1);
-        assert!(!frontier.is_empty());
+        let fringe = non_empty_fringe();
+        assert_eq!(fringe.len(), 1);
+        assert!(!fringe.is_empty());
     }
 
-    // when I push a non existing node onto the frontier then the length increases
+    // when I push a non existing node onto the fringe then the length increases
     #[test]
-    fn when_i_push_a_non_existing_node_onto_the_frontier_then_the_length_increases() {
-        let mut frontier = empty_frontier();
-        frontier.push(SubProblem {
+    fn when_i_push_a_non_existing_node_onto_the_fringe_then_the_length_increases() {
+        let mut fringe = empty_fringe();
+        fringe.push(SubProblem {
             state: Arc::new(42),
             value: 0,
             path : vec![],
             ub   : 0
         });
-        assert_eq!(frontier.len(), 1);
-        frontier.push(SubProblem{
+        assert_eq!(fringe.len(), 1);
+        fringe.push(SubProblem{
             state: Arc::new(43),
             value: 0,
             path : vec![],
             ub: 0
         });
-        assert_eq!(frontier.len(), 2);
+        assert_eq!(fringe.len(), 2);
     }
-    // when I push an existing node onto the frontier then the length wont increases
+    // when I push an existing node onto the fringe then the length wont increases
     #[test]
-    fn when_i_push_an_existing_node_onto_the_frontier_then_the_length_does_not_increases() {
-        let mut frontier = empty_frontier();
-        frontier.push(SubProblem {
+    fn when_i_push_an_existing_node_onto_the_fringe_then_the_length_does_not_increases() {
+        let mut fringe = empty_fringe();
+        fringe.push(SubProblem {
             state: Arc::new(42),
             value: 0,
             path : vec![],
             ub   : 0
         });
-        assert_eq!(frontier.len(), 1);
-        frontier.push(SubProblem {
+        assert_eq!(fringe.len(), 1);
+        fringe.push(SubProblem {
             state: Arc::new(42),
             value: 12,
             path : vec![],
             ub   : 5
         });
-        assert_eq!(frontier.len(), 1);
+        assert_eq!(fringe.len(), 1);
     }
-    // when I pop a node off the frontier then the length decreases
+    // when I pop a node off the fringe then the length decreases
     #[test]
-    fn when_i_pop_a_node_off_the_frontier_then_the_length_decreases() {
-        let mut frontier = non_empty_frontier();
-        assert_eq!(frontier.len(), 1);
-        frontier.pop();
-        assert_eq!(frontier.len(), 0);
+    fn when_i_pop_a_node_off_the_fringe_then_the_length_decreases() {
+        let mut fringe = non_empty_fringe();
+        assert_eq!(fringe.len(), 1);
+        fringe.pop();
+        assert_eq!(fringe.len(), 0);
     }
 
-    // when I try to pop a node off an empty frontier, I get none
+    // when I try to pop a node off an empty fringe, I get none
     #[test]
-    fn when_i_try_to_pop_a_node_off_an_empty_frontier_i_get_none() {
-        let mut frontier = empty_frontier();
-        assert_eq!(frontier.pop(), None);
+    fn when_i_try_to_pop_a_node_off_an_empty_fringe_i_get_none() {
+        let mut fringe = empty_fringe();
+        assert_eq!(fringe.pop(), None);
     }
 
     // when I pop a node, it is always the one with the largest ub (then value)
     #[test]
     fn when_i_pop_a_node_it_is_always_the_one_with_the_largest_ub_then_lp() {
-        let mut frontier = empty_frontier();
+        let mut fringe = empty_fringe();
         let a = SubProblem {
             state: Arc::new(1),
             value: 1,
@@ -446,25 +446,25 @@ mod test_no_dup_frontier {
             ub: 5
         };
 
-        frontier.push(a.clone());
-        frontier.push(f.clone());
-        frontier.push(b.clone());
-        frontier.push(d.clone());
-        frontier.push(c.clone());
-        frontier.push(e);
+        fringe.push(a.clone());
+        fringe.push(f.clone());
+        fringe.push(b.clone());
+        fringe.push(d.clone());
+        fringe.push(c.clone());
+        fringe.push(e);
 
-        assert_eq!(frontier.pop(), Some(f));
-        //assert_eq!(frontier.pop(), Some(e)); // node 'e' will never show up
-        assert_eq!(frontier.pop(), Some(d));
-        assert_eq!(frontier.pop(), Some(c));
-        assert_eq!(frontier.pop(), Some(b));
-        assert_eq!(frontier.pop(), Some(a));
+        assert_eq!(fringe.pop(), Some(f));
+        //assert_eq!(fringe.pop(), Some(e)); // node 'e' will never show up
+        assert_eq!(fringe.pop(), Some(d));
+        assert_eq!(fringe.pop(), Some(c));
+        assert_eq!(fringe.pop(), Some(b));
+        assert_eq!(fringe.pop(), Some(a));
     }
 
-    // when I pop a node off the frontier, for which multiple copies have been added
+    // when I pop a node off the fringe, for which multiple copies have been added
     // I retrieve the one with the longest path
     #[test]
-    fn when_i_pop_a_node_off_the_frontier_for_which_multiple_copies_have_been_added_then_i_retrieve_the_one_with_longest_path(){
+    fn when_i_pop_a_node_off_the_fringe_for_which_multiple_copies_have_been_added_then_i_retrieve_the_one_with_longest_path(){
         let pe = vec![
             Decision {variable: Variable(0), value: 4},
         ];
@@ -486,28 +486,28 @@ mod test_no_dup_frontier {
             ub: 5
         };
 
-        let mut frontier = empty_frontier();
-        frontier.push(ne);
-        frontier.push(nf.clone());
+        let mut fringe = empty_fringe();
+        fringe.push(ne);
+        fringe.push(nf.clone());
 
-        assert_eq!(frontier.pop(), Some(nf));
+        assert_eq!(fringe.pop(), Some(nf));
     }
 
-    // when I clear an empty frontier, it remains empty
+    // when I clear an empty fringe, it remains empty
     #[test]
-    fn when_i_clear_an_empty_frontier_it_remains_empty() {
-        let mut frontier = empty_frontier();
-        assert!(frontier.is_empty());
-        frontier.clear();
-        assert!(frontier.is_empty());
+    fn when_i_clear_an_empty_fringe_it_remains_empty() {
+        let mut fringe = empty_fringe();
+        assert!(fringe.is_empty());
+        fringe.clear();
+        assert!(fringe.is_empty());
     }
-    // when I clear a non empty frontier it becomes empty
+    // when I clear a non empty fringe it becomes empty
     #[test]
-    fn when_i_clear_a_non_empty_frontier_it_becomes_empty() {
-        let mut frontier = non_empty_frontier();
-        assert!(!frontier.is_empty());
-        frontier.clear();
-        assert!(frontier.is_empty());
+    fn when_i_clear_a_non_empty_fringe_it_becomes_empty() {
+        let mut fringe = non_empty_fringe();
+        assert!(!fringe.is_empty());
+        fringe.clear();
+        assert!(fringe.is_empty());
     }
 
 
@@ -523,18 +523,18 @@ mod test_no_dup_frontier {
     }
 
         
-    fn empty_frontier() -> NoDupFrontier<MaxUB<'static, UsizeRanking>> {
-        NoDupFrontier::new(MaxUB::new(&UsizeRanking))
+    fn empty_fringe() -> NoDupFringe<MaxUB<'static, UsizeRanking>> {
+        NoDupFringe::new(MaxUB::new(&UsizeRanking))
     }
-    fn non_empty_frontier() -> NoDupFrontier<MaxUB<'static, UsizeRanking>> {
-        let mut frontier = empty_frontier();
-        frontier.push(SubProblem{
+    fn non_empty_fringe() -> NoDupFringe<MaxUB<'static, UsizeRanking>> {
+        let mut fringe = empty_fringe();
+        fringe.push(SubProblem{
             state: Arc::new(42),
             path: vec![],
             value: 0,
             ub: 0
         });
-        frontier
+        fringe
     }
 
     // 
@@ -549,7 +549,7 @@ mod test_no_dup_frontier {
             fnode(5, 10, 104),
         ];
 
-        let mut heap = empty_frontier();
+        let mut heap = empty_fringe();
         push_all(&mut heap, &nodes);
         assert_eq!(5,     heap.len());
         assert_eq!(false, heap.is_empty());
@@ -570,7 +570,7 @@ mod test_no_dup_frontier {
             fnode(5, 10, 104),
         ];
 
-        let mut heap = empty_frontier();
+        let mut heap = empty_fringe();
         push_all(&mut heap, &nodes);
         push_all(&mut heap, &nodes);
         push_all(&mut heap, &nodes);
@@ -611,7 +611,7 @@ mod test_no_dup_frontier {
             fnode(5, 20,  96),
         ];
 
-        let mut heap = empty_frontier();
+        let mut heap = empty_fringe();
         push_all(&mut heap, &nodes_1);
         push_all(&mut heap, &nodes_2);
         push_all(&mut heap, &nodes_3);
@@ -626,12 +626,12 @@ mod test_no_dup_frontier {
         assert_eq!(true, heap.is_empty());
     }
 
-    fn push_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFrontier<T>, nodes: &[SubProblem<usize>]) {
+    fn push_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFringe<T>, nodes: &[SubProblem<usize>]) {
         for n in nodes.iter() {
             heap.push(n.clone());
         }
     }
-    fn pop_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFrontier<T>) -> Vec<usize> {
+    fn pop_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFringe<T>) -> Vec<usize> {
         let mut popped = vec![];
         while let Some(n) = heap.pop() {
             popped.push(*n.state)
