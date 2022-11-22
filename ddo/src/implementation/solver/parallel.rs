@@ -54,6 +54,12 @@ struct Critical<'a, State> {
     /// been explored. That is, the number of nodes that have been popped from
     /// the fringe, and for which a restricted and relaxed mdd have been developed.
     explored: usize,
+    /// This is a counter of the number of nodes in the fringe, for each level of the model
+    open_by_layer: Vec<usize>,
+    /// This is a counter of the number of nodes in ongoing expansion, for each level of the model
+    ongoing_by_layer: Vec<usize>,
+    /// This is the index of the first level above which there are no nodes in the fringe
+    first_active_layer: usize,
     /// This is the value of the best known lower bound.
     best_lb: isize,
     /// This is the value of the best known lower bound.
@@ -95,7 +101,7 @@ struct Shared<'a, State> {
     cutoff: &'a (dyn Cutoff + Send + Sync),
 
     /// Data structure containing info about past compilations used to prune the search
-    barrier: Arc<&'a mut (dyn Barrier + Send + Sync)>,
+    barrier: &'a (dyn Barrier<State = State> + Send + Sync),
 
     /// This is the shared state data which can only be accessed within critical
     /// sections. Therefore, it is protected by a mutex which prevents concurrent
@@ -277,7 +283,7 @@ where State: Eq + Hash + Clone
         width: &'a (dyn WidthHeuristic<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync), 
         fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
-        barrier: &'a mut (dyn Barrier + Send + Sync),
+        barrier: &'a (dyn Barrier<State = State> + Send + Sync),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, CutsetType::LastExactLayer, cutoff, fringe, barrier, num_cpus::get())
     }
@@ -297,7 +303,7 @@ where
         cutset_type: CutsetType,
         cutoff: &'a (dyn Cutoff + Send + Sync),
         fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
-        barrier: &'a mut (dyn Barrier + Send + Sync),
+        barrier: &'a (dyn Barrier<State = State> + Send + Sync),
         nb_threads: usize,
     ) -> Self {
         ParallelSolver {
@@ -307,7 +313,7 @@ where
                 ranking,
                 width_heu,
                 cutoff,
-                barrier: Arc::new(barrier),
+                barrier,
                 cutset_type,
                 //
                 monitor: Condvar::new(),
@@ -319,6 +325,9 @@ where
                     fringe,
                     ongoing: 0,
                     explored: 0,
+                    open_by_layer: vec![0; problem.nb_variables() + 1],
+                    ongoing_by_layer: vec![0; problem.nb_variables() + 1],
+                    first_active_layer: 0,
                     abort_proof: None,
                 }),
             },
@@ -337,7 +346,9 @@ where
     /// can pick it up and the processing can be bootstrapped.
     fn initialize(&self) {
         let root = self.root_node();
-        self.shared.critical.lock().fringe.push(root);
+        let mut critical = self.shared.critical.lock();
+        critical.fringe.push(root);
+        critical.open_by_layer[0] += 1;
     }
 
     fn root_node(&self) -> SubProblem<State> {
@@ -347,6 +358,7 @@ where
             value: shared.problem.initial_value(),
             path: vec![],
             ub: isize::MAX,
+            depth: 0,
         }
     }
 
@@ -378,7 +390,7 @@ where
             residual: node,
             //
             best_lb,
-            barrier: shared.barrier.clone(),
+            barrier: shared.barrier,
         };
 
         let Completion{is_exact, ..} = mdd.compile(&compilation)?;
@@ -422,19 +434,23 @@ where
     fn enqueue_cutset(mdd: &mut D, shared: &Shared<'a, State>, ub: isize) {
         let mut critical = shared.critical.lock();
         let best_lb = critical.best_lb;
-        let fringe = &mut critical.fringe;
         mdd.drain_cutset(|mut cutset_node| {
             cutset_node.ub = ub.min(cutset_node.ub);
             if cutset_node.ub > best_lb {
-                fringe.push(cutset_node);
+                let depth = cutset_node.depth;
+                let before = critical.fringe.len();
+                critical.fringe.push(cutset_node);
+                let after = critical.fringe.len();
+                critical.open_by_layer[depth] += after - before;
             }
         });
     }
     /// Acknowledges that a thread finished processing its node.
-    fn notify_node_finished(shared: &Shared<'a, State>, thread_id: usize) {
+    fn notify_node_finished(shared: &Shared<'a, State>, thread_id: usize, depth: usize) {
         let mut critical = shared.critical.lock();
         critical.ongoing -= 1;
         critical.upper_bounds[thread_id] = isize::MAX;
+        critical.ongoing_by_layer[depth] -= 1;
         shared.monitor.notify_all();
     }
 
@@ -447,6 +463,7 @@ where
             critical.best_ub = current_ub.max(critical.best_ub);
         }
         critical.fringe.clear();
+        shared.barrier.clear();
     }
 
     /// Consults the shared state to fetch a workload. Depending on the current
@@ -461,6 +478,13 @@ where
     fn get_workload(shared: &Shared<'a, State>, thread_id: usize) -> WorkLoad<State>
     {
         let mut critical = shared.critical.lock();
+
+        // Can we clean up the barrier?
+        while critical.first_active_layer < shared.problem.nb_variables() &&
+                critical.open_by_layer[critical.first_active_layer] + critical.ongoing_by_layer[critical.first_active_layer] == 0 {
+            shared.barrier.clear_layer(critical.first_active_layer);
+            critical.first_active_layer += 1;
+        }
 
         // Are we done ?
         if critical.ongoing == 0 && critical.fringe.is_empty() {
@@ -478,17 +502,36 @@ where
             shared.monitor.wait(&mut critical);
             return WorkLoad::Starvation;
         }
-        // Nothing relevant ? =>  Wait for someone to post jobs
-        let nn = critical.fringe.pop().unwrap();
-        if nn.ub <= critical.best_lb {
-            critical.fringe.clear();
-            return WorkLoad::Starvation;
+
+        let mut nn = critical.fringe.pop().unwrap();
+        loop {
+            // Nothing relevant ? =>  Wait for someone to post jobs
+            if nn.ub <= critical.best_lb {
+                critical.fringe.clear();
+                critical.open_by_layer.iter_mut().for_each(|o| *o = 0);
+                return WorkLoad::Starvation;
+            }
+            
+            if shared.barrier.must_explore(&nn) {
+                shared.barrier.update_threshold(nn.state.clone(), nn.depth, nn.value, true);
+                break;
+            } else {
+                critical.open_by_layer[nn.depth] -= 1;
+
+                if critical.fringe.is_empty() {
+                    return WorkLoad::Starvation;
+                }
+    
+                nn = critical.fringe.pop().unwrap();
+            }
         }
 
         // Consume the current node and process it
         critical.ongoing += 1;
         critical.explored += 1;
         critical.upper_bounds[thread_id] = nn.ub;
+        critical.open_by_layer[nn.depth] -= 1;
+        critical.ongoing_by_layer[nn.depth] += 1;
 
         WorkLoad::WorkItem { node: nn }
     }
@@ -518,13 +561,14 @@ where
                             WorkLoad::Starvation => continue,
                             WorkLoad::WorkItem { node } => {
                                 let ub = node.ub;
+                                let depth = node.depth;
                                 let outcome = Self::process_one_node(&mut mdd, shared, node);
                                 if let Err(reason) = outcome {
                                     Self::abort_search(shared, reason, ub);
-                                    Self::notify_node_finished(shared, i); 
+                                    Self::notify_node_finished(shared, i, depth); 
                                     break;
                                 } else {
-                                    Self::notify_node_finished(shared, i);
+                                    Self::notify_node_finished(shared, i, depth);
                                 }
                             }
                         }
@@ -597,7 +641,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -606,7 +650,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -625,7 +669,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -634,7 +678,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -653,7 +697,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -662,7 +706,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -682,7 +726,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -691,7 +735,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -712,7 +756,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -721,7 +765,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
         assert!(solver.best_solution().is_none());
@@ -739,7 +783,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -748,7 +792,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -795,7 +839,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -804,7 +848,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -823,7 +867,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -832,7 +876,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -852,7 +896,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -861,7 +905,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -892,7 +936,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -901,7 +945,7 @@ mod test_solver {
             CutsetType::Frontier,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -933,7 +977,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -942,7 +986,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -977,7 +1021,7 @@ mod test_solver {
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -986,7 +1030,7 @@ mod test_solver {
             CutsetType::Frontier,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -1022,7 +1066,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -1031,7 +1075,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -1072,7 +1116,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let solver = DD::custom(
             &problem,
             &relax,
@@ -1081,7 +1125,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 
@@ -1100,7 +1144,7 @@ mod test_solver {
         let width = NbUnassignedWitdh(problem.nb_variables());
         let cutset = CutsetType::LastExactLayer;
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut solver = DD::custom(
             &problem,
             &relax,
@@ -1109,7 +1153,7 @@ mod test_solver {
             cutset,
             &cutoff,
             &mut fringe,
-            &mut barrier,
+            &barrier,
             1,
         );
 

@@ -785,7 +785,8 @@ mod test_nbunassigned {
             state: Arc::new('a'),
             value: 10,
             ub   : 100,
-            path : vec![Decision{variable: Variable(0), value: 4}]
+            path : vec![Decision{variable: Variable(0), value: 4}],
+            depth: 1,
         };
         assert_eq!(4, heu.max_width(&sub));
     }
@@ -796,7 +797,8 @@ mod test_nbunassigned {
             state: Arc::new('a'),
             value: 10,
             ub   : 100,
-            path : vec![] // no decision made, all vars are available
+            path : vec![], // no decision made, all vars are available
+            depth: 0,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -815,7 +817,8 @@ mod test_nbunassigned {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!(0, heu.max_width(&sub));
     }
@@ -835,7 +838,8 @@ mod test_fixedwidth {
             ub   : 100,
             path : vec![
                 Decision{variable: Variable(0), value: 0},
-                ]
+                ],
+            depth: 1,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -846,7 +850,8 @@ mod test_fixedwidth {
             state: Arc::new('a'),
             value: 10,
             ub   : 100,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -864,7 +869,8 @@ mod test_fixedwidth {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -889,7 +895,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!(10, Times( 2, heu).max_width(&sub));
         assert_eq!(15, Times( 3, heu).max_width(&sub));
@@ -909,7 +916,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!( 2, DivBy( 2, FixedWidth(4)).max_width(&sub));
         assert_eq!( 3, DivBy( 3, FixedWidth(9)).max_width(&sub));
@@ -929,7 +937,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!( 1, Times( 0, FixedWidth(10)).max_width(&sub));
         assert_eq!( 1, Times(10, FixedWidth( 0)).max_width(&sub));
@@ -948,7 +957,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         DivBy( 0, FixedWidth(0)).max_width(&sub);
     }

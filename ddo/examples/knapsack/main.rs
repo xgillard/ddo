@@ -267,7 +267,7 @@ fn main() {
     let width = max_width(problem.nb_variables(), args.width);
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
-    let mut barrier = EmptyBarrier{};
+    let barrier = EmptyBarrier::new();
 
     let mut solver = DefaultSolver::new(
         &problem, 
@@ -276,7 +276,7 @@ fn main() {
         width.as_ref(), 
         &cutoff, 
         &mut fringe,
-        &mut barrier,
+        &barrier,
     );
 
     let start = Instant::now();

@@ -108,24 +108,24 @@ mod test {
     fn when_a_is_less_than_b_comparesubproblem_returns_less() {
         let cmp = CompareSubProblem::new(CharRanking);
         assert_eq!(cmp.compare(
-            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![]}, 
-            &SubProblem{state: Arc::new('b'), value: 0, ub: isize::MAX, path: vec![]}), 
+            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![], depth: 0}, 
+            &SubProblem{state: Arc::new('b'), value: 0, ub: isize::MAX, path: vec![], depth: 0}), 
             Ordering::Less);
     }
     #[test]
     fn when_a_is_greater_than_b_comparesubproblem_returns_greater() {
         let cmp = CompareSubProblem::new(CharRanking);
         assert_eq!(cmp.compare(
-            &SubProblem{state: Arc::new('b'), value: 0, ub: isize::MAX, path: vec![]}, 
-            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![]}), 
+            &SubProblem{state: Arc::new('b'), value: 0, ub: isize::MAX, path: vec![], depth: 0}, 
+            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![], depth: 0}), 
             Ordering::Greater);
     }
     #[test]
     fn when_a_is_equal_to_b_comparesubproblem_returns_equal() {
         let cmp = CompareSubProblem::new(CharRanking);
         assert_eq!(cmp.compare(
-            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![]}, 
-            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![]}), 
+            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![], depth: 0}, 
+            &SubProblem{state: Arc::new('a'), value: 0, ub: isize::MAX, path: vec![], depth: 0}), 
             Ordering::Equal);
     }
 }

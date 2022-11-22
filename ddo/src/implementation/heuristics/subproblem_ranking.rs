@@ -114,12 +114,12 @@ mod test_maxub {
 
     #[test]
     fn example() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-        let b = SubProblem {state: Arc::new('b'), value:  2, ub: 100, path: vec![]};
-        let c = SubProblem {state: Arc::new('c'), value: 24, ub: 150, path: vec![]};
-        let d = SubProblem {state: Arc::new('d'), value: 13, ub:  60, path: vec![]};
-        let e = SubProblem {state: Arc::new('e'), value: 65, ub: 700, path: vec![]};
-        let f = SubProblem {state: Arc::new('f'), value: 19, ub: 100, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
+        let b = SubProblem {state: Arc::new('b'), value:  2, ub: 100, path: vec![], depth: 0};
+        let c = SubProblem {state: Arc::new('c'), value: 24, ub: 150, path: vec![], depth: 0};
+        let d = SubProblem {state: Arc::new('d'), value: 13, ub:  60, path: vec![], depth: 0};
+        let e = SubProblem {state: Arc::new('e'), value: 65, ub: 700, path: vec![], depth: 0};
+        let f = SubProblem {state: Arc::new('f'), value: 19, ub: 100, path: vec![], depth: 0};
 
         let nodes = vec![a, b, c, d, e, f];
         let mut priority_q = BinaryHeap::from_vec_cmp(nodes, CompareSubProblem::new(MaxUB::new(&CharRanking)));
@@ -134,42 +134,42 @@ mod test_maxub {
 
     #[test]
     fn gt_because_ub() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-        let b = SubProblem {state: Arc::new('b'), value: 42, ub: 100, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
+        let b = SubProblem {state: Arc::new('b'), value: 42, ub: 100, path: vec![], depth: 0};
         let cmp = MaxUB::new(&CharRanking);
         assert_eq!(Ordering::Greater, cmp.compare(&a, &b));
     }
     #[test]
     fn gt_because_lplen() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-        let b = SubProblem {state: Arc::new('b'), value:  2, ub: 300, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
+        let b = SubProblem {state: Arc::new('b'), value:  2, ub: 300, path: vec![], depth: 0};
         let cmp = MaxUB::new(&CharRanking);
         assert_eq!(Ordering::Greater, cmp.compare(&a, &b));
     }
     #[test]
     fn lt_because_ub() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-        let b = SubProblem {state: Arc::new('b'), value: 42, ub: 100, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
+        let b = SubProblem {state: Arc::new('b'), value: 42, ub: 100, path: vec![], depth: 0};
         let cmp = MaxUB::new(&CharRanking);
         assert_eq!(Ordering::Less, cmp.compare(&b, &a));
     }
     #[test]
     fn lt_because_lplen() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-        let b = SubProblem {state: Arc::new('b'), value:  2, ub: 300, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
+        let b = SubProblem {state: Arc::new('b'), value:  2, ub: 300, path: vec![], depth: 0};
         let cmp = MaxUB::new(&CharRanking);
         assert_eq!(Ordering::Less, cmp.compare(&b, &a));
     }
     #[test]
     fn lt_because_state() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-        let b = SubProblem {state: Arc::new('b'), value: 42, ub: 300, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
+        let b = SubProblem {state: Arc::new('b'), value: 42, ub: 300, path: vec![], depth: 0};
         let cmp = MaxUB::new(&CharRanking);
         assert_eq!(Ordering::Less, cmp.compare(&a, &b));
     }
     #[test]
     fn eq_self() {
-        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
+        let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![], depth: 0};
         let cmp = MaxUB::new(&CharRanking);
         assert_eq!(Ordering::Equal, cmp.compare(&a, &a));
     }

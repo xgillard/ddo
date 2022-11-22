@@ -359,14 +359,16 @@ mod test_no_dup_fringe {
             state: Arc::new(42),
             value: 0,
             path : vec![],
-            ub   : 0
+            ub   : 0,
+            depth: 0,
         });
         assert_eq!(fringe.len(), 1);
         fringe.push(SubProblem{
             state: Arc::new(43),
             value: 0,
             path : vec![],
-            ub: 0
+            ub: 0,
+            depth: 0,
         });
         assert_eq!(fringe.len(), 2);
     }
@@ -378,14 +380,16 @@ mod test_no_dup_fringe {
             state: Arc::new(42),
             value: 0,
             path : vec![],
-            ub   : 0
+            ub   : 0,
+            depth: 0,
         });
         assert_eq!(fringe.len(), 1);
         fringe.push(SubProblem {
             state: Arc::new(42),
             value: 12,
             path : vec![],
-            ub   : 5
+            ub   : 5,
+            depth: 0,
         });
         assert_eq!(fringe.len(), 1);
     }
@@ -413,37 +417,43 @@ mod test_no_dup_fringe {
             state: Arc::new(1),
             value: 1,
             path : vec![],
-            ub   : 1
+            ub   : 1,
+            depth: 0,
         };
         let b = SubProblem {
             state: Arc::new(2),
             value: 2,
             path : vec![],
-            ub   : 2
+            ub   : 2,
+            depth: 0,
         };
         let c = SubProblem {
             state: Arc::new(3),
             value: 3,
             path : vec![],
-            ub   : 3
+            ub   : 3,
+            depth: 0,
         };
         let d = SubProblem {
             state: Arc::new(4),
             path: vec![],
             value: 4,
-            ub: 4
+            ub: 4,
+            depth: 0,
         };
         let e = SubProblem{
             state: Arc::new(5),
             path: vec![],
             value: 4,
-            ub: 5
+            ub: 5,
+            depth: 0,
         };
         let f = SubProblem{
             state: Arc::new(5),
             path: vec![],
             value: 5,
-            ub: 5
+            ub: 5,
+            depth: 0,
         };
 
         fringe.push(a.clone());
@@ -477,13 +487,15 @@ mod test_no_dup_fringe {
             state: Arc::new(5),
             path: pe,
             value: 4,
-            ub: 5
+            ub: 5,
+            depth: 1,
         };
         let nf = SubProblem{
             state: Arc::new(5),
             path: pf,
             value: 5,
-            ub: 5
+            ub: 5,
+            depth: 1,
         };
 
         let mut fringe = empty_fringe();
@@ -532,7 +544,8 @@ mod test_no_dup_fringe {
             state: Arc::new(42),
             path: vec![],
             value: 0,
-            ub: 0
+            ub: 0,
+            depth: 0,
         });
         fringe
     }
@@ -644,7 +657,8 @@ mod test_no_dup_fringe {
             state: Arc::new(state),
             path : vec![],
             value,
-            ub
+            ub,
+            depth: 0,
         }
     }
 }

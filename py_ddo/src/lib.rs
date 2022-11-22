@@ -61,7 +61,7 @@ fn maximize(
         let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
         let mut fringe = fringe(dedup, &ranking);
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
 
         let mut solver = SequentialSolver::<PyState, DefaultMDD<PyState>>::custom(
             &problem, 
@@ -71,7 +71,7 @@ fn maximize(
             cutset,
             cutoff.as_ref(), 
             fringe.as_mut(),
-            &mut barrier,
+            &barrier,
         );
 
         let start = Instant::now();

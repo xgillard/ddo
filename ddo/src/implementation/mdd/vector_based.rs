@@ -31,6 +31,12 @@ struct Node<T> {
     /// ### Note
     /// This field is only ever populated after the MDD has been fully unrolled.
     value_bot: isize,
+    /// A threshold value to be stored in the barrier that conditions the
+    /// re-exploration of other nodes with the same state.
+    /// 
+    /// ### Note
+    /// This field is only ever populated after the MDD has been fully unrolled.
+    theta: isize,
     /// The identifier of the last edge on the longest path between the problem 
     /// root and this node if it exists.
     best: Option<EdgeId>,
@@ -44,6 +50,9 @@ struct Node<T> {
     /// node is reachable in a backwards traversal of the MDD starting at the
     /// terminal node.
     flags: NodeFlags,
+    /// The depth of this node i. e. the number of transitions needed to reach it
+    /// from the root node of the problem
+    depth: usize,
 }
 
 /// Materializes one edge a.k.a arc from the decision diagram. It logically 
@@ -250,6 +259,7 @@ where
                                 &self.edges,
                             ),
                             ub,
+                            depth: node.depth,
                         })
                     }
                 }
@@ -261,9 +271,16 @@ where
         -> Result<Completion, Reason> {
         self.clear();
 
-        let mut depth = 0;
         let mut curr_l = vec![];
+
+        input
+            .residual
+            .path
+            .iter()
+            .copied()
+            .for_each(|x| self.root_pa.push(x));
         
+        let root_depth = input.residual.depth;
         let root_s = input.residual.state.clone();
         let root_v = input.residual.value;
         let root_n = Node {
@@ -272,18 +289,16 @@ where
             best: None,
             inbound: None,
             value_bot: isize::MIN,
+            theta: isize::MAX,
             rub: input.residual.ub - root_v,
             flags: NodeFlags::new_exact(),
+            depth: root_depth,
         };
-        input
-            .residual
-            .path
-            .iter()
-            .copied()
-            .for_each(|x| self.root_pa.push(x));
 
         self.nodes.push(root_n);
         self.next_l.insert(root_s, NodeId(0));
+
+        let mut depth = root_depth;
 
         while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|s| s.as_ref())) {
             // Did the cutoff kick in ?
@@ -302,6 +317,10 @@ where
                 break; 
             }
 
+            if depth > root_depth {
+                self.filter_with_barrier(input, &mut curr_l);
+            }
+
             match input.comp_type {
                 CompilationType::Exact => { /* do nothing: you want to explore the complete DD */ }
                 CompilationType::Restricted => {
@@ -311,7 +330,7 @@ where
                     }
                 }
                 CompilationType::Relaxed(cutset_type) => {
-                    if curr_l.len() > input.max_width && depth > 1 {
+                    if curr_l.len() > input.max_width && depth > root_depth + 1 {
                         if cutset_type == CutsetType::LastExactLayer {
                             let was_lel = self.maybe_save_lel();
                             //
@@ -352,7 +371,7 @@ where
         self.exact = self._is_exact(input.comp_type);
         //
         if matches!(input.comp_type, CompilationType::Relaxed(_)) {
-            self.compute_local_bounds(input);
+            self.compute_local_bounds_and_thresholds(input);
         }
 
         Ok(Completion { is_exact: self.is_exact(), best_value: self.best_value() })
@@ -403,9 +422,11 @@ where
                     inbound: Some(edge_id),
                     //
                     value_bot: isize::MIN,
+                    theta: isize::MAX,
                     //
                     rub: isize::MAX,
                     flags: self.nodes[from_id.0].flags,
+                    depth: self.nodes[from_id.0].depth + 1,
                 });
 
                 e.insert(node_id);
@@ -437,6 +458,24 @@ where
                 }
             }
         }
+    }
+
+    fn filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        curr_l.retain(|node_id| {
+            let node = &mut self.nodes[node_id.0];
+            let threshold = input.barrier.get_threshold(node.state.clone(), node.depth);
+            if let Some(threshold) = threshold {
+                if node.value > threshold.value {
+                    true
+                } else {
+                    node.flags.set_pruned_by_barrier(true);
+                    node.theta = threshold.value; // set theta for later propagation
+                    false
+                }
+            } else {
+                true
+            }
+        });
     }
 
     fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
@@ -475,9 +514,11 @@ where
                 inbound: None, // yet
                 //
                 value_bot: isize::MIN,
+                theta: isize::MAX,
                 //
                 rub: isize::MAX,
                 flags: NodeFlags::new_relaxed(),
+                depth: self.nodes[merge[0].0].depth,
             });
             node_id
         });
@@ -485,6 +526,8 @@ where
         self.nodes[merged_id.0].flags.set_relaxed(true);
 
         for drop_id in merge {
+            self.nodes[drop_id.0].flags.set_deleted(true);
+
             let mut edge_id = self.nodes[drop_id.0].inbound;
             while let Some(eid) = edge_id {
                 let edge = self.edges[eid.0];
@@ -518,65 +561,104 @@ where
 
         if recycled.is_some() {
             curr_l.truncate(input.max_width);
+            let saved_id = curr_l[input.max_width - 1];
+            self.nodes[saved_id.0].flags.set_deleted(false);
         } else {
             curr_l.truncate(input.max_width - 1);
             curr_l.push(merged_id);
         }
     }
 
-    fn compute_local_bounds(&mut self, input: &CompilationInput<T>) {
-        if !self.exact {
-            // if it's exact, there is nothing to be done
-            let mut visit = vec![];
-            let mut next_v = vec![];
+    fn compute_local_bounds_and_thresholds(&mut self, input: &CompilationInput<T>) {
+        for node_id in self.next_l.values() {
+            // init for local bounds
+            self.nodes[node_id.0].value_bot = 0;
+            self.nodes[node_id.0].flags.set_marked(true);
 
-            // all the nodes from the last layer have a lp_from_bot of 0
-            for id in self.next_l.values().copied() {
-                self.nodes[id.0].value_bot = 0;
-                self.nodes[id.0].flags.set_marked(true);
-                visit.push(id);
+            if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer)
+                    && self.cutset.is_none() {
+                self.nodes[node_id.0].flags.set_cutset(true);
+            } else if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier)
+                    && self.nodes[node_id.0].flags.is_exact() {
+                self.nodes[node_id.0].flags.set_cutset(true);
+            }
+        }
+
+        let mut lel_depth = None;
+        if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer) {
+            if let Some(lel) = &self.cutset {
+                if !lel.is_empty() {
+                    lel_depth = Some(self.nodes[lel[0].0].depth);
+                }
+            }
+        }
+
+        // propagate values upwards and update barrier
+        for node_id in (0..self.nodes.len()).rev() {
+
+            if self.nodes[node_id].flags.is_deleted() {
+                continue;
             }
 
-            while !visit.is_empty() {
-                std::mem::swap(&mut visit, &mut next_v);
-
-                for id in next_v.drain(..) {
-                    let mut inbound = self.nodes[id.0].inbound;
-                    while let Some(edge_id) = inbound {
-                        let edge = self.edges[edge_id.0];
-
-                        let lp_from_bot_using_edge =
-                            self.nodes[id.0].value_bot.saturating_add(edge.cost);
-
-                        self.nodes[edge.from.0].value_bot = self.nodes[edge.from.0]
-                            .value_bot
-                            .max(lp_from_bot_using_edge);
-
-                        if !self.nodes[edge.from.0].flags.is_marked() {
-                            self.nodes[edge.from.0].flags.set_marked(true);
-                            if !self.nodes[edge.from.0].flags.is_cutset() {
-                                visit.push(edge.from);
-                            }
-                        }
-
-                        if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier) && self.nodes[id.0].flags.is_marked(){
-                            if !self.nodes[id.0].flags.is_exact() && self.nodes[edge.from.0].flags.is_exact() // eligible for frontier cutset
-                                    && !self.nodes[edge.from.0].flags.is_cutset() {
-                                self.nodes[edge.from.0].flags.set_cutset(true);
-                                let fc = self.cutset.get_or_insert(vec![]);
-                                fc.push(edge.from);
-                            }
-                        }
-
-                        inbound = edge.next;
+            if self.nodes[node_id].flags.is_pruned_by_barrier() { // barrier pruning
+                // nothing to do
+            } else {
+                let ub = self.nodes[node_id].value.saturating_add(self.nodes[node_id].rub);
+                if ub <= input.best_lb { // RUB pruning
+                    self.nodes[node_id].theta = input.best_lb.saturating_sub(self.nodes[node_id].rub); // pruning threshold
+                } else if self.nodes[node_id].flags.is_cutset() {
+                    let locb = self.nodes[node_id].value.saturating_add(self.nodes[node_id].value_bot);
+                    if locb <= input.best_lb { // LocB pruning
+                        self.nodes[node_id].theta = self.nodes[node_id].theta
+                            .min(input.best_lb.saturating_sub(self.nodes[node_id].value_bot)); // pruning threshold
+                    } else {
+                        self.nodes[node_id].theta = self.nodes[node_id].value; // dominance threshold
                     }
                 }
+
+                if self.nodes[node_id].flags.is_exact() && self.nodes[node_id].depth <= lel_depth.unwrap_or(usize::MAX) { // update barrier
+                    input.barrier.update_threshold(
+                        self.nodes[node_id].state.clone(),
+                        self.nodes[node_id].depth,
+                        self.nodes[node_id].theta, 
+                        !self.nodes[node_id].flags.is_cutset() // need to explore nodes with the given value when they are in the cutset
+                    );
+                }
+            }
+
+            let mut inbound = self.nodes[node_id].inbound;
+            while let Some(edge_id) = inbound {
+                let edge = self.edges[edge_id.0];
+
+                // propagate for local bounds
+                if self.nodes[node_id].flags.is_marked() {
+                    let value_bot_using_edge = self.nodes[node_id].value_bot.saturating_add(edge.cost);
+                    self.nodes[edge.from.0].value_bot = self.nodes[edge.from.0].value_bot
+                        .max(value_bot_using_edge);
+                    self.nodes[edge.from.0].flags.set_marked(true);
+                }
+
+                // propagate for thresholds
+                let theta_using_edge = self.nodes[node_id].theta.saturating_sub(edge.cost);
+                self.nodes[edge.from.0].theta = self.nodes[edge.from.0].theta
+                    .min(theta_using_edge);
+
+                // fill frontier cutset if needed
+                if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier) 
+                        && self.nodes[node_id].flags.is_marked() {
+                    if !self.nodes[node_id].flags.is_exact() && self.nodes[edge.from.0].flags.is_exact()
+                            && !self.nodes[edge.from.0].flags.is_cutset() {
+                        self.nodes[edge.from.0].flags.set_cutset(true);
+                        let fc = self.cutset.get_or_insert(vec![]);
+                        fc.push(edge.from);
+                    }
+                }
+
+                inbound = edge.next;
             }
         }
     }
 }
-
-
 
 
 // ############################################################################
@@ -602,7 +684,7 @@ mod test_default_mdd {
 
     #[test]
     fn root_remembers_the_pa_from_the_fringe_node() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let mut input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -615,9 +697,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 1, value: 42}), 
                 value: 42, 
                 path:  vec![Decision{variable: Variable(0), value: 42}], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 1,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
 
         let mut mdd = VectorBased::new();
@@ -636,7 +719,7 @@ mod test_default_mdd {
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
     #[test]
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -649,9 +732,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
 
@@ -669,7 +753,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_drops_the_less_interesting_nodes() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -682,9 +766,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
 
@@ -702,7 +787,7 @@ mod test_default_mdd {
 
     #[test]
     fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -715,9 +800,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -729,7 +815,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -742,9 +828,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -756,7 +843,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -769,9 +856,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -789,7 +877,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -802,9 +890,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -814,7 +903,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -827,9 +916,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -838,7 +928,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -851,9 +941,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -863,7 +954,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -876,9 +967,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -897,7 +989,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -910,9 +1002,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -925,7 +1018,7 @@ mod test_default_mdd {
 
     #[test]
     fn an_exact_mdd_must_be_exact() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -938,9 +1031,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -951,7 +1045,7 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -964,9 +1058,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -977,7 +1072,7 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -990,9 +1085,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1002,7 +1098,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1015,9 +1111,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1027,7 +1124,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
@@ -1040,9 +1137,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1052,7 +1150,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_solution() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1065,9 +1163,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1076,7 +1175,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_best_value() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1089,9 +1188,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1100,7 +1200,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1113,9 +1213,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1124,7 +1225,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyInfeasibleProblem,
@@ -1137,9 +1238,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1148,7 +1250,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyInfeasibleProblem,
@@ -1161,9 +1263,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1278,7 +1381,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_computes_local_bounds() {
-        let mut barrier = EmptyBarrier{};
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &LocBoundsExamplePb,
@@ -1291,9 +1394,10 @@ mod test_default_mdd {
                 state: Arc::new('r'), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
+                ub:    isize::MAX,
+                depth: 0,
             },
-            barrier: Arc::new(&mut barrier),
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);

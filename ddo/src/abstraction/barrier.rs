@@ -17,13 +17,41 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module (and its submodule) provide the abstractions for the basic
-//! building blocks of an MDD solvers. A client willing to use our library to
-//! implement a solver for his/her particular problem should look into the `dp`
-//! submodule. Indeed, `dp` is the place where the traits `Problem` and
-//! `Relaxation` are defined. These are the two abstractions that one *must*
-//! implement in order to be able to use our library.
+use std::sync::Arc;
 
+use crate::{Threshold, SubProblem};
+
+/// This trait abstracts away the implementation details of the solver barrier.
+/// That is, a Barrier represents the data structure that stores thresholds that
+/// condition the re-exploration of nodes with a state already reached previously.
 pub trait Barrier {
+    type State;
+
+    /// Returns true if the subproblem still must be explored,
+    /// given the thresholds contained in the barrier.
+    fn must_explore(&self, subproblem: &SubProblem<Self::State>) -> bool {
+        let threshold = self.get_threshold(subproblem.state.clone(), subproblem.depth);
+        if let Some(threshold) = threshold {
+            if subproblem.value > threshold.value || (subproblem.value == threshold.value && !threshold.explored) {
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        }
+    }
+
+    /// Returns the threshold currently associated with the given state, if any.
+    fn get_threshold(&self, state: Arc<Self::State>, depth: usize) -> Option<Threshold>;
+
+    /// Updates the threshold associated with the given state, only if it is increased.
+    fn update_threshold(&self, state: Arc<Self::State>, depth: usize, value: isize, explored: bool);
+
+    /// Removes all thresholds associated with states at the given depth.
+    fn clear_layer(&self, depth: usize);
+
+    /// Clears the data structure.
+    fn clear(&self);
     
 }

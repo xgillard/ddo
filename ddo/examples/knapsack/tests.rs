@@ -44,7 +44,7 @@ pub fn solve_id(id: &str) -> isize {
     let width = NbUnassignedWitdh(problem.nb_variables());
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
-    let mut barrier = EmptyBarrier{};
+    let barrier = EmptyBarrier::new();
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
     let mut solver = DefaultSolver::new(
@@ -54,7 +54,7 @@ pub fn solve_id(id: &str) -> isize {
         &width, 
         &cutoff, 
         &mut fringe,
-        &mut barrier,
+        &barrier,
     );
 
     let Completion { best_value , ..} = solver.maximize();
