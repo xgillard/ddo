@@ -1,4 +1,4 @@
-// Copyright 2020 Xavier Gillard
+// Copyright 2022 Xavier Gillard
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of
 // this software and associated documentation files (the "Software"), to deal in
@@ -17,22 +17,12 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module provides an implementation of the mdd data structure. 
-//! After this API revamping, I have decided to only include the VectorBased MDD
-//! (aka DefaultMDD). But if there is a need, I might decide to bring back the 
-//! flat and pooled MDD implementations as well in the future. 
-//! 
-//! # Note: 
-//! PooledMDD was the version working best on the Maximum Independent Set Problem 
-//! (MISP). If this is the problem you want to solve, you might want to stick with
-//! a previous version of ddo (<= 0.5.0).
-mod node_flags;
-mod vector_based;
+//! DDO-Viz is meant to let you visualize the decision diagrams you have compiled
 
-pub use node_flags::*;
-pub use vector_based::*;
+pub mod common;
+pub mod viz_mdd;
+pub mod visualisation;
 
-/// By default, the mdd implementation which you will want to use is the vector based
-/// implementation. In most cases, it is faster than everything else I have tried.
-/// So having a alias calling it the "default" DD implem seems to make sense.
-pub type DefaultMDD<T> = VectorBased<T>;
+pub use common::*;
+pub use visualisation::*;
+pub use viz_mdd::*;

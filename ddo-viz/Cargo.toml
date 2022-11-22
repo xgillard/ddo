@@ -1,0 +1,21 @@
+[package]
+name             = "ddo-viz"
+version          = "1.0.0"
+authors          = ["Xavier Gillard <xavier.gillard@uclouvain.be>"]
+edition          = "2021"
+description      = "Visualization tools for DDO (a generic and efficient framework for MDD-based optimization)."
+repository       = "https://github.com/xgillard/ddo"
+readme           = "../README.md"
+license          = "MIT"
+keywords         = ["optimization", "solver", "decision-diagrams", "combinatorial", "cp"]
+categories       = ["science", "mathematics", "algorithms", "concurrency"]
+exclude          = ["examples/tests/resources/*" ]
+
+[dependencies]
+ddo              = {path = "../ddo" }
+rustc-hash       = "1.1"
+derive_builder   = "0.11"
+
+[dev-dependencies]
+structopt        = "0.3"
+anyhow           = "1.0"
