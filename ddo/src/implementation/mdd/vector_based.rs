@@ -50,8 +50,7 @@ struct Node<T> {
     /// node is reachable in a backwards traversal of the MDD starting at the
     /// terminal node.
     flags: NodeFlags,
-    /// The depth of this node i. e. the number of transitions needed to reach it
-    /// from the root node of the problem
+    /// The depth of this node with respect to the root node of the problem
     depth: usize,
 }
 
@@ -570,6 +569,15 @@ where
     }
 
     fn compute_local_bounds_and_thresholds(&mut self, input: &CompilationInput<T>) {
+        let mut lel_depth = None;
+        if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer) {
+            if let Some(lel) = &self.cutset {
+                if !lel.is_empty() {
+                    lel_depth = Some(self.nodes[lel[0].0].depth);
+                }
+            }
+        }
+
         for node_id in self.next_l.values() {
             // init for local bounds
             self.nodes[node_id.0].value_bot = 0;
@@ -578,18 +586,10 @@ where
             if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer)
                     && self.cutset.is_none() {
                 self.nodes[node_id.0].flags.set_cutset(true);
+                lel_depth = Some(self.nodes[node_id.0].depth);
             } else if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier)
                     && self.nodes[node_id.0].flags.is_exact() {
                 self.nodes[node_id.0].flags.set_cutset(true);
-            }
-        }
-
-        let mut lel_depth = None;
-        if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer) {
-            if let Some(lel) = &self.cutset {
-                if !lel.is_empty() {
-                    lel_depth = Some(self.nodes[lel[0].0].depth);
-                }
             }
         }
 
@@ -616,7 +616,8 @@ where
                     }
                 }
 
-                if self.nodes[node_id].flags.is_exact() && self.nodes[node_id].depth <= lel_depth.unwrap_or(usize::MAX) { // update barrier
+                if self.nodes[node_id].flags.is_exact() 
+                        && self.nodes[node_id].depth <= lel_depth.unwrap_or(usize::MAX) { // do not update barrier for nodes below the cutset
                     input.barrier.update_threshold(
                         self.nodes[node_id].state.clone(),
                         self.nodes[node_id].depth,
