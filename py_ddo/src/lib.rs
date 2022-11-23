@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Frontier, NoDupFrontier, StateRanking, MaxUB, SimpleFrontier, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType, EmptyBarrier, Barrier, SimpleBarrier};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -45,28 +45,34 @@ pub struct Solution {
 
 #[pyfunction]
 fn maximize(
-    pb      : PyObject, 
-    relax   : PyObject,
-    ranking : PyObject,
-    dedup   : bool,
-    width   : Option<usize>,
-    timeout : Option<u64>,
+    pb         : PyObject, 
+    relax      : PyObject,
+    ranking    : PyObject,
+    lel        : bool,
+    use_barrier: bool,
+    dedup      : bool,
+    width      : Option<usize>,
+    timeout    : Option<u64>,
 ) -> Solution {
     Python::with_gil(|gil| {
         let problem = PyProblem {gil, obj: pb};
         let relax = PyRelax {gil, obj: relax};
         let ranking = PyRanking {gil, obj: ranking};
         let max_width = max_width(problem.nb_variables(), width);
+        let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
-        let mut fringe = frontier(dedup, &ranking);
+        let mut fringe = fringe(dedup, &ranking);
+        let barrier = barrier(use_barrier, problem.nb_variables());
 
         let mut solver = SequentialSolver::<PyState, DefaultMDD<PyState>>::custom(
             &problem, 
             &relax, 
             &ranking, 
             max_width.as_ref(), 
+            cutset,
             cutoff.as_ref(), 
-            fringe.as_mut()
+            fringe.as_mut(),
+            barrier.as_ref(),
         );
 
         let start = Instant::now();
@@ -99,11 +105,11 @@ fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff> {
     }
 }
 
-fn frontier<'a>(dedup: bool, ranking: &'a PyRanking<'a>) -> Box<dyn Frontier<State = PyState<'a>> + 'a> {
+fn fringe<'a>(dedup: bool, ranking: &'a PyRanking<'a>) -> Box<dyn Fringe<State = PyState<'a>> + 'a> {
     if dedup {
-        Box::new(NoDupFrontier::new(MaxUB::new(ranking)))
+        Box::new(NoDupFringe::new(MaxUB::new(ranking)))
     } else {
-        Box::new(SimpleFrontier::new(MaxUB::new(ranking)))
+        Box::new(SimpleFringe::new(MaxUB::new(ranking)))
     }
 }
 
@@ -112,6 +118,22 @@ fn max_width<'a>(n: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<PyState<'
         Box::new(FixedWidth(w))
     } else {
         Box::new(NbUnassignedWitdh(n))
+    }
+}
+
+fn cutset(lel: bool) -> CutsetType {
+    if lel {
+        CutsetType::LastExactLayer
+    } else {
+        CutsetType::Frontier
+    }
+}
+
+fn barrier<'a>(barrier: bool, nb_variables: usize) -> Box<dyn Barrier<State = PyState<'a>> + 'a> {
+    if barrier {
+        Box::new(SimpleBarrier::new(nb_variables))
+    } else {
+        Box::new(EmptyBarrier::new())
     }
 }
 

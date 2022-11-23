@@ -28,7 +28,7 @@
 use std::clone::Clone;
 use std::{sync::Arc, hash::Hash};
 
-use crate::{Frontier, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, DefaultMDD, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, CutsetType, Barrier};
 
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -141,8 +141,8 @@ enum WorkLoad<T> {
 /// // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 /// 
-/// // 5. Create the solver frontier
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// // 5. Create the solver fringe
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 ///  
 /// // 6. Instanciate your solver
 /// let mut solver = DefaultSolver::new(
@@ -151,7 +151,7 @@ enum WorkLoad<T> {
 ///       &heuristic, 
 ///       &width, 
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// 
 /// // 7. Maximize your objective function
 /// // the outcome provides the value of the best solution that was found for
@@ -186,9 +186,15 @@ where D: DecisionDiagram<State = State> + Default,
     /// The maximum width heuristic used to enforce a given maximum memory
     /// usage when compiling mdds
     width_heu: &'a (dyn WidthHeuristic<State>),
+    /// This is a configuration parameter that decides which type of exact cutset
+    /// will be derived from the relaxed DDs compiled
+    cutset_type: CutsetType,
     /// A cutoff heuristic meant to decide when to stop the resolution of 
     /// a given problem.
     cutoff: &'a (dyn Cutoff),
+
+    /// Data structure containing info about past compilations used to prune the search
+    barrier: &'a dyn Barrier<State = State>,
 
     /// This is the fringe: the set of nodes that must still be explored before
     /// the problem can be considered 'solved'.
@@ -200,11 +206,15 @@ where D: DecisionDiagram<State = State> + Default,
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Frontier<State = State>),
+    fringe: &'a mut (dyn Fringe<State = State>),
     /// This is a counter that tracks the number of nodes that have effectively
     /// been explored. That is, the number of nodes that have been popped from
     /// the fringe, and for which a restricted and relaxed mdd have been developed.
     explored: usize,
+    /// This is a counter of the number of nodes in the fringe, for each level of the model
+    open_by_layer: Vec<usize>,
+    /// This is the index of the first level above which there are no nodes in the fringe
+    first_active_layer: usize,
     /// This is the value of the best known lower bound.
     best_lb: isize,
     /// This is the value of the best known upper bound.
@@ -230,9 +240,10 @@ where State: Eq + Hash + Clone
         ranking: &'a (dyn StateRanking<State = State>),
         width: &'a (dyn WidthHeuristic<State>),
         cutoff: &'a (dyn Cutoff), 
-        fringe: &'a mut (dyn Frontier<State = State>),
+        fringe: &'a mut (dyn Fringe<State = State>),
+        barrier: &'a dyn Barrier<State = State>,
     ) -> Self {
-        Self::custom(problem, relaxation, ranking, width, cutoff, fringe)
+        Self::custom(problem, relaxation, ranking, width, CutsetType::LastExactLayer, cutoff, fringe, barrier)
     }
 }
 
@@ -247,8 +258,10 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width_heu: &'a (dyn WidthHeuristic<State>),
+        cutset_type: CutsetType,
         cutoff: &'a (dyn Cutoff),
-        fringe: &'a mut (dyn Frontier<State = State>),
+        fringe: &'a mut (dyn Fringe<State = State>),
+        barrier: &'a dyn Barrier<State = State>,
     ) -> Self {
         SequentialSolver {
             problem,
@@ -256,12 +269,16 @@ where
             ranking,
             width_heu,
             cutoff,
+            barrier,
+            cutset_type,
             //
             best_sol: None,
             best_lb: isize::MIN,
             best_ub: isize::MAX,
             fringe,
             explored: 0,
+            open_by_layer: vec![0; problem.nb_variables() + 1],
+            first_active_layer: 0,
             abort_proof: None,
             mdd: D::default(),
         }
@@ -273,6 +290,7 @@ where
     fn initialize(&mut self) {
         let root = self.root_node();
         self.fringe.push(root);
+        self.open_by_layer[0] += 1;
     }
 
     fn root_node(&self) -> SubProblem<State> {
@@ -281,6 +299,7 @@ where
             value: self.problem.initial_value(),
             path: vec![],
             ub: isize::MAX,
+            depth: 0,
         }
     }
 
@@ -300,6 +319,10 @@ where
             return Ok(());
         }
 
+        if !self.barrier.must_explore(&node) {
+            return Ok(());
+        }
+
         let width = self.width_heu.max_width(&node);
         let mut compilation = CompilationInput {
             comp_type: CompilationType::Restricted,
@@ -308,6 +331,7 @@ where
             relaxation: self.relaxation,
             ranking: self.ranking,
             cutoff: self.cutoff,
+            barrier: self.barrier,
             residual: node,
             //
             best_lb,
@@ -321,7 +345,7 @@ where
 
         // 2. RELAXATION
         let best_lb = self.best_lb;
-        compilation.comp_type = CompilationType::Relaxed;
+        compilation.comp_type = CompilationType::Relaxed(self.cutset_type);
         compilation.best_lb = best_lb;
 
         let Completion{is_exact, ..} = self.mdd.compile(&compilation)?;
@@ -352,7 +376,11 @@ where
         self.mdd.drain_cutset(|mut cutset_node| {
             cutset_node.ub = ub.min(cutset_node.ub);
             if cutset_node.ub > best_lb {
+                let depth = cutset_node.depth;
+                let before = fringe.len();
                 fringe.push(cutset_node);
+                let after = fringe.len();
+                self.open_by_layer[depth] += after - before;
             }
         });
     }
@@ -360,6 +388,7 @@ where
     fn abort_search(&mut self, reason: Reason) {
         self.abort_proof = Some(reason);
         self.fringe.clear();
+        self.barrier.clear();
     }
 
     /// Consults the shared state to fetch a workload. Depending on the current
@@ -373,19 +402,29 @@ where
     ///     process.
     fn get_workload(&mut self) -> WorkLoad<State>
     {
-        // Do we need to stop
-        if self.abort_proof.is_some() {
-            return WorkLoad::Aborted;
+        // Can we clean up the barrier?
+        while self.first_active_layer < self.problem.nb_variables() &&
+                self.open_by_layer[self.first_active_layer] == 0 {
+            self.barrier.clear_layer(self.first_active_layer);
+            self.first_active_layer += 1;
         }
+
+        // Are we done ?
         if self.fringe.is_empty() {
             self.best_ub = self.best_lb;
             return WorkLoad::Complete;
+        }
+
+        // Do we need to stop
+        if self.abort_proof.is_some() {
+            return WorkLoad::Aborted;
         }
 
         let nn = self.fringe.pop().unwrap();
 
         // Consume the current node and process it
         self.explored += 1;
+        self.open_by_layer[nn.depth] -= 1;
         self.best_ub   = nn.ub;
 
         WorkLoad::WorkItem { node: nn }
@@ -463,6 +502,8 @@ where
 #[cfg(test)]
 mod test_solver {
     use crate::*;
+
+    type DD<'a> = SequentialSolver<'a, KnapsackState, DefaultMDD<KnapsackState>>;
     
     #[test]
     fn by_default_best_lb_is_min_infinity() {
@@ -475,14 +516,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         assert_eq!(isize::min_value(), solver.best_lower_bound());
@@ -498,14 +541,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         assert_eq!(isize::max_value(), solver.best_upper_bound());
@@ -521,14 +566,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         let _ = solver.maximize();
@@ -545,14 +592,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         let _ = solver.maximize();
@@ -570,14 +619,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
         assert!(solver.best_sol.is_none());
     }
@@ -592,14 +643,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         assert!(solver.fringe.is_empty());
@@ -615,14 +668,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         assert_eq!(isize::min_value(), solver.best_lb);
@@ -638,21 +693,23 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         assert_eq!(isize::max_value(), solver.best_ub);
     }
 
     #[test]
-    fn maximizes_yields_the_optimum() {
+    fn maximizes_yields_the_optimum_1a() {
         let problem = Knapsack {
             capacity: 50,
             profit  : vec![60, 100, 120],
@@ -662,14 +719,18 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
-        let mut solver = SequentialSolver::new(
+        let cutset = CutsetType::LastExactLayer;
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
+        let mut solver = DD::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            cutset,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         let maximized = solver.maximize();
@@ -688,7 +749,46 @@ mod test_solver {
     }
 
     #[test]
-    fn maximizes_yields_the_optimum_2() {
+    fn maximizes_yields_the_optimum_1b() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 100, 120],
+            weight  : vec![10,  20,  30]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
+        let mut solver = DD::custom(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            CutsetType::Frontier,
+            &cutoff,
+            &mut fringe,
+            &barrier,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision{variable: Variable(0), value: 0},
+            Decision{variable: Variable(1), value: 1},
+            Decision{variable: Variable(2), value: 1},
+        ]);
+    }
+
+    #[test]
+    fn maximizes_yields_the_optimum_2a() {
         let problem = Knapsack {
             capacity: 50,
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
@@ -698,14 +798,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         let maximized = solver.maximize();
@@ -726,6 +828,49 @@ mod test_solver {
             Decision { variable: Variable(6), value: 0 }
         ]);
     }
+
+    #[test]
+    fn maximizes_yields_the_optimum_2b() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 210, 12, 5, 100, 120, 110],
+            weight  : vec![10,  45, 20, 4,  20,  30,  50]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = SimpleBarrier::new(problem.nb_variables());
+        let mut solver = SequentialSolver::new(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            &cutoff,
+            &mut fringe,
+            &barrier,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision { variable: Variable(0), value: 0 },
+            Decision { variable: Variable(1), value: 0 },
+            Decision { variable: Variable(2), value: 0 },
+            Decision { variable: Variable(3), value: 0 },
+            Decision { variable: Variable(4), value: 1 },
+            Decision { variable: Variable(5), value: 1 },
+            Decision { variable: Variable(6), value: 0 }
+        ]);
+    }
+
     #[test]
     fn set_primal_overwrites_best_value_and_sol_if_it_improves() {
         let problem = Knapsack {
@@ -737,14 +882,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         let d1  = Decision{variable: Variable(0), value: 10};
@@ -782,14 +929,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         assert_eq!(1.0, solver.gap());
@@ -805,14 +954,16 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
-        let mut fringe = SimpleFrontier::new(MaxUB::new(&ranking));
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = EmptyBarrier::new();
         let mut solver = SequentialSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
             &cutoff,
-            &mut fringe
+            &mut fringe,
+            &barrier,
         );
 
         let Completion{is_exact, best_value} = solver.maximize();

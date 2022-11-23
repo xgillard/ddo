@@ -82,6 +82,22 @@ pub struct SubProblem<T> {
     pub path: Vec<Decision>,
     /// An upper bound on the objective reachable in this subproblem
     pub ub: isize,
+    /// The depth of the subproblem with respect to the root problem
+    pub depth: usize,
+}
+
+// ----------------------------------------------------------------------------
+// --- THRESHOLD --------------------------------------------------------------
+// ----------------------------------------------------------------------------
+/// A threshold is a value that can be stored during the execution of a branch
+/// and bound algorithm. It is associated with a single exact state and is used
+/// to determine whether a new node with the same state is worth exploring.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Threshold {
+    /// The value of the threshold
+    pub value: isize,
+    /// Whether a node with the given value has already been explored
+    pub explored: bool,
 }
 
 // ----------------------------------------------------------------------------

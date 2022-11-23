@@ -1,4 +1,5 @@
 import ddo
+import os
 
 class KnapsackState:
     '''
@@ -131,14 +132,17 @@ def read_instance(fname):
                 weights.append(int(b))
         return (capa, profits, weights)
 
+def get_path(instance):
+    dirname = os.path.dirname(__file__)
+    return os.path.join(dirname, "..", "..", "..", "resources", "knapsack", instance)
 
 if __name__ == "__main__":
-    instance  = "/Users/xgillard/Downloads/instances_01_KP(1)/large_scale/knapPI_3_100_1000_1"
-    (c, p, w) = read_instance(instance)
+    instance  = "f8_l-d_kp_23_10000"
+    (c, p, w) = read_instance(get_path(instance))
     problem   = Knapsack(c, p, w)
     relax     = KnapsackRelax(problem)
     ranking   = KnapsackRanking()
-    result    = ddo.maximize(problem, relax, ranking, True, 100, 15)
+    result    = ddo.maximize(problem, relax, ranking, True, True, True, 100, 15)
     print("Duration:   {:.3f} seconds \nObjective:  {}\nUpper Bnd:  {}\nLower Bnd:  {}\nGap:        {}\nAborted:    {}\nSolution:   {}"
         .format(
             result.duration, 

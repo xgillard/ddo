@@ -17,31 +17,31 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module provides the implementation of a simple solver frontier (priority queue)
+//! This module provides the implementation of a simple solver fringe (priority queue)
 
 use binary_heap_plus::BinaryHeap;
 
 use crate::*;
 
 
-/// The simplest frontier implementation you can think of: is basically consists
-/// of a binary heap that pushes and pops frontier nodes
+/// The simplest fringe implementation you can think of: is basically consists
+/// of a binary heap that pushes and pops fringe nodes
 /// 
 /// # Note
-/// This is the default type of frontier for both sequential and parallel 
+/// This is the default type of fringe for both sequential and parallel 
 /// solvers. Hence, you don't need to take any action in order to use the
-/// `SimpleFrontier`.
+/// `SimpleFringe`.
 /// 
-pub struct SimpleFrontier<O: SubProblemRanking> {
+pub struct SimpleFringe<O: SubProblemRanking> {
     heap: BinaryHeap<SubProblem<O::State>, CompareSubProblem<O>>
 }
-impl <O> SimpleFrontier<O> where O: SubProblemRanking {
-    /// This creates a new simple frontier which uses a custiom frontier order.
+impl <O> SimpleFringe<O> where O: SubProblemRanking {
+    /// This creates a new simple fringe which uses a custom fringe order.
     pub fn new(o: O) -> Self {
         Self{ heap: BinaryHeap::from_vec_cmp(vec![], CompareSubProblem::new(o)) }
     }
 }
-impl <O> Frontier for SimpleFrontier<O> where O: SubProblemRanking {
+impl <O> Fringe for SimpleFringe<O> where O: SubProblemRanking {
     type State = O::State;
     
     fn push(&mut self, node: SubProblem<Self::State>) {
@@ -64,7 +64,7 @@ impl <O> Frontier for SimpleFrontier<O> where O: SubProblemRanking {
 
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]
-mod test_simple_frontier {
+mod test_simple_fringe {
     use crate::*;
     use std::{sync::Arc, cmp::Ordering, ops::Deref};
 
@@ -82,7 +82,7 @@ mod test_simple_frontier {
     #[test]
     fn by_default_it_is_empty() {
         let order = MaxUB::new(&CharRanking); 
-        let front = SimpleFrontier::new(order);
+        let front = SimpleFringe::new(order);
         assert!(front.is_empty())
     }
 
@@ -90,151 +90,163 @@ mod test_simple_frontier {
     #[test]
     fn when_the_size_is_zero_then_it_is_empty() {
         let order = MaxUB::new(&CharRanking); 
-        let frontier = SimpleFrontier::new(order);
-        assert_eq!(frontier.len(), 0);
-        assert!(frontier.is_empty());
+        let fringe = SimpleFringe::new(order);
+        assert_eq!(fringe.len(), 0);
+        assert!(fringe.is_empty());
     } 
     
     // when the size is greater than zero, it it not empty
     #[test]
     fn when_the_size_is_greater_than_zero_it_is_not_empty() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        frontier.push(SubProblem {
+        let mut fringe = SimpleFringe::new(order);
+        fringe.push(SubProblem {
             state: Arc::new('a'),
             value: 10,
             ub   : 10,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        assert_eq!(frontier.len(), 1);
-        assert!(!frontier.is_empty());
+        assert_eq!(fringe.len(), 1);
+        assert!(!fringe.is_empty());
     }
 
-    // when I push a node onto the frontier then the length increases
+    // when I push a node onto the fringe then the length increases
     #[test]
-    fn when_i_push_a_node_onto_the_frontier_then_the_length_increases() {
+    fn when_i_push_a_node_onto_the_fringe_then_the_length_increases() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        frontier.push(SubProblem {
+        let mut fringe = SimpleFringe::new(order);
+        fringe.push(SubProblem {
             state: Arc::new('a'),
             value: 10,
             ub   : 10,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('b'),
             value: 20,
             ub   : 20,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
 
-        assert_eq!(frontier.len(), 2);
+        assert_eq!(fringe.len(), 2);
     }
-    // when I pop a node off the frontier then the length decreases
+    // when I pop a node off the fringe then the length decreases
     #[test]
-    fn when_i_pop_a_node_off_the_frontier_then_the_length_decreases() {
+    fn when_i_pop_a_node_off_the_fringe_then_the_length_decreases() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        frontier.push(SubProblem {
+        let mut fringe = SimpleFringe::new(order);
+        fringe.push(SubProblem {
             state: Arc::new('a'),
             value: 10,
             ub   : 10,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('b'),
             value: 20,
             ub   : 20,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
 
-        assert_eq!(frontier.len(), 2);
-        frontier.pop();
-        assert_eq!(frontier.len(), 1);
-        frontier.pop();
-        assert_eq!(frontier.len(), 0);
+        assert_eq!(fringe.len(), 2);
+        fringe.pop();
+        assert_eq!(fringe.len(), 1);
+        fringe.pop();
+        assert_eq!(fringe.len(), 0);
     }
 
-    // when I try to pop a node off an empty frontier, I get none
+    // when I try to pop a node off an empty fringe, I get none
     #[test]
-    fn when_i_try_to_pop_a_node_off_an_empty_frontier_i_get_none() {
+    fn when_i_try_to_pop_a_node_off_an_empty_fringe_i_get_none() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        assert!(frontier.pop().is_none());
+        let mut fringe = SimpleFringe::new(order);
+        assert!(fringe.pop().is_none());
     }
 
     // when I pop a node, it is always the one with the largest ub (then lp_len)
     #[test]
     fn when_i_pop_a_node_it_is_always_the_one_with_the_largest_ub_then_lp() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        frontier.push(SubProblem {
+        let mut fringe = SimpleFringe::new(order);
+        fringe.push(SubProblem {
             state: Arc::new('a'),
             value: 1,
             ub   : 1,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('b'),
             value: 2,
             ub   : 2,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('c'),
             value: 3,
             ub   : 3,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('d'),
             value: 4,
             ub   : 4,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('e'),
             value: 4,
             ub   : 5,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
-        frontier.push(SubProblem {
+        fringe.push(SubProblem {
             state: Arc::new('f'),
             value: 5,
             ub   : 5,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
         
-        assert_eq!(frontier.pop().unwrap().state.deref(), &'f');
-        assert_eq!(frontier.pop().unwrap().state.deref(), &'e');
-        assert_eq!(frontier.pop().unwrap().state.deref(), &'d');
-        assert_eq!(frontier.pop().unwrap().state.deref(), &'c');
-        assert_eq!(frontier.pop().unwrap().state.deref(), &'b');
-        assert_eq!(frontier.pop().unwrap().state.deref(), &'a');
+        assert_eq!(fringe.pop().unwrap().state.deref(), &'f');
+        assert_eq!(fringe.pop().unwrap().state.deref(), &'e');
+        assert_eq!(fringe.pop().unwrap().state.deref(), &'d');
+        assert_eq!(fringe.pop().unwrap().state.deref(), &'c');
+        assert_eq!(fringe.pop().unwrap().state.deref(), &'b');
+        assert_eq!(fringe.pop().unwrap().state.deref(), &'a');
     }
-    // when I clear an empty frontier, it remains empty
+    // when I clear an empty fringe, it remains empty
     #[test]
-    fn when_i_clear_an_empty_frontier_it_remains_empty() {
+    fn when_i_clear_an_empty_fringe_it_remains_empty() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        assert!(frontier.is_empty());
-        frontier.clear();
-        assert!(frontier.is_empty());
+        let mut fringe = SimpleFringe::new(order);
+        assert!(fringe.is_empty());
+        fringe.clear();
+        assert!(fringe.is_empty());
     }
-    // when I clear a non empty frontier it becomes empty
+    // when I clear a non empty fringe it becomes empty
     #[test]
-    fn when_i_clear_a_non_empty_frontier_it_becomes_empty() {
+    fn when_i_clear_a_non_empty_fringe_it_becomes_empty() {
         let order = MaxUB::new(&CharRanking); 
-        let mut frontier = SimpleFrontier::new(order);
-        frontier.push(SubProblem {
+        let mut fringe = SimpleFringe::new(order);
+        fringe.push(SubProblem {
             state: Arc::new('f'),
             value: 5,
             ub   : 5,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         });
 
-        assert!(!frontier.is_empty());
-        frontier.clear();
-        assert!(frontier.is_empty());
+        assert!(!fringe.is_empty());
+        fringe.clear();
+        assert!(fringe.is_empty());
     }
 }

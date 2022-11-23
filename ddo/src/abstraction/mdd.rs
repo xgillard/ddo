@@ -17,7 +17,16 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff};
+use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier};
+
+/// What type of cutset are we using for relaxed DDs ?
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CutsetType {
+    /// enqueue the last layer with only exact nodes
+    LastExactLayer,
+    /// enqueue all exact nodes that have at least a relaxed child node
+    Frontier,
+}
 
 /// How are we to compile the decision diagram ? 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +34,7 @@ pub enum CompilationType {
     /// If you want to use a pure DP resolution of the problem
     Exact,
     /// If you want to compile a restricted DD which yields a lower bound on the objective
-    Relaxed,
+    Relaxed(CutsetType),
     /// If you want to compile a relaxed DD which yields an upper bound on the objective
     Restricted,
 }
@@ -48,6 +57,8 @@ pub struct CompilationInput<'a, State> {
     pub residual: SubProblem<State>,
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
+    /// Data structure containing info about past compilations used to prune the search
+    pub barrier: &'a dyn Barrier<State = State>,
 }
 
 /// This trait describes the operations that can be expected from an abstract

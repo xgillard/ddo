@@ -119,7 +119,7 @@ use crate::Cutoff;
 /// let relaxation = KPRelax{pb: &problem};
 /// let width = FixedWidth(100);
 /// let heuristic = KPRanking;
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -128,7 +128,7 @@ use crate::Cutoff;
 ///       &width,
 ///       // this solver will only stop when optimality is proved
 ///       &NoCutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// let outcome = solver.maximize();
 /// ```
 #[derive(Debug, Default, Copy, Clone)]
@@ -236,7 +236,7 @@ impl Cutoff for NoCutoff {
 /// 
 /// // this solver will be allowed to run for 30 seconds
 /// let cutoff = TimeBudget::new(Duration::from_secs(30));
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -244,7 +244,7 @@ impl Cutoff for NoCutoff {
 ///       &heuristic, 
 ///       &width,
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// let outcome = solver.maximize();
 /// ```
 #[derive(Debug, Clone)]

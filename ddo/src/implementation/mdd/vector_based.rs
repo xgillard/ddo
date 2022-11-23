@@ -1,10 +1,10 @@
 //! This is an adaptation of the vector based architecture which implements all
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
-use std::{collections::hash_map::Entry, hash::Hash, ops::Deref, sync::Arc};
+use std::{collections::hash_map::Entry, hash::Hash, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
-use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason};
+use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason, CutsetType};
 
 use super::node_flags::NodeFlags;
 
@@ -19,8 +19,10 @@ struct NodeId(usize);
 struct EdgeId(usize);
 
 /// Represents an effective node from the decision diagram
-#[derive(Debug, Clone, Copy)]
-struct Node {
+#[derive(Debug, Clone)]
+struct Node<T> {
+    /// The state associated to this node
+    state: Arc<T>,
     /// The length of the longest path between the problem root and this
     /// specific node
     value: isize,
@@ -29,6 +31,12 @@ struct Node {
     /// ### Note
     /// This field is only ever populated after the MDD has been fully unrolled.
     value_bot: isize,
+    /// A threshold value to be stored in the barrier that conditions the
+    /// re-exploration of other nodes with the same state.
+    /// 
+    /// ### Note
+    /// This field is only ever populated after the MDD has been fully unrolled.
+    theta: isize,
     /// The identifier of the last edge on the longest path between the problem 
     /// root and this node if it exists.
     best: Option<EdgeId>,
@@ -42,6 +50,8 @@ struct Node {
     /// node is reachable in a backwards traversal of the MDD starting at the
     /// terminal node.
     flags: NodeFlags,
+    /// The depth of this node with respect to the root node of the problem
+    depth: usize,
 }
 
 /// Materializes one edge a.k.a arc from the decision diagram. It logically 
@@ -73,11 +83,12 @@ struct Edge {
 /// problem root to the root of this decision diagram (explores a sub problem). 
 /// The prev_l comprises information about the nodes that are currently being
 /// expanded, next_l stores the information about the nodes from the next layer 
-/// and lel simply stores a last exact layer cutset.
-/// 
-/// # Exact Cutset
-/// The exact cutset which is used in this implementation is the 
-/// Last Exact Layer cutset (LEL).
+/// and cutset stores an exact cutset of the DD.
+/// Depending on the type of DD compiled, different cutset types will be used:
+/// - Exact: no cutset is needed since the DD is exact
+/// - Restricted: the last exact layer is used as cutset
+/// - Relaxed: either the last exact layer of the frontier cutset can be chosen
+///            within the CompilationInput
 #[derive(Debug, Clone)]
 pub struct VectorBased<T>
 where
@@ -89,23 +100,23 @@ where
     /// All the nodes composing this decision diagram. The vector comprises 
     /// nodes from all layers in the DD. A nice property is that all nodes
     /// belonging to one same layer form a sequence in the ‘nodes‘ vector.
-    nodes: Vec<Node>,
+    nodes: Vec<Node<T>>,
     /// This vector stores the information about all edges connecting the nodes 
     /// of the decision diagram.
     edges: Vec<Edge>,
-    /// Maintains the association nodeid−>state for the nodes of the layer which 
-    /// is currently being expanded. This association is only used during the
-    /// unrolling of transition relation, and when merging nodes of a relaxed DD.
-    prev_l: FxHashMap<NodeId, T>,
+    /// Contains the nodes of the layer which is currently being expanded.
+    /// This collection is only used during the unrolling of transition relation,
+    /// and when merging nodes of a relaxed DD.
+    prev_l: Vec<NodeId>,
     /// The nodes from the next layer; those are the result of an application 
     /// of the transition function to a node in ‘prev_l‘.
     /// Note: next_l in itself is indexed on the state associated with nodes.
     /// The rationale being that two transitions to the same state in the same
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
-    next_l: FxHashMap<T, NodeId>,
-    /// The last exact layer of the decision diagram
-    lel: Option<Vec<(T, NodeId)>>,
+    next_l: FxHashMap<Arc<T>, NodeId>,
+    /// The cutset of the decision diagram
+    cutset: Option<Vec<NodeId>>,
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
     best_n: Option<NodeId>,
@@ -162,7 +173,7 @@ where
             edges: vec![],
             prev_l: Default::default(),
             next_l: Default::default(),
-            lel: None,
+            cutset: None,
             best_n: None,
             exact: true,
         }
@@ -172,13 +183,13 @@ where
         self.nodes.clear();
         self.edges.clear();
         self.next_l.clear();
-        self.lel = None;
+        self.cutset = None;
         self.exact = true;
     }
 
     fn _is_exact(&self, comp_type: CompilationType) -> bool {
-        self.lel.is_none()
-            || (comp_type == CompilationType::Relaxed && self.has_exact_best_path(self.best_n))
+        self.cutset.is_none()
+            || (matches!(comp_type, CompilationType::Relaxed(_)) && self.has_exact_best_path(self.best_n))
     }
 
     fn has_exact_best_path(&self, node: Option<NodeId>) -> bool {
@@ -210,7 +221,7 @@ where
     fn _best_path_partial_borrow(
         id: NodeId,
         root_pa: &[Decision],
-        nodes: &[Node],
+        nodes: &[Node<T>],
         edges: &[Edge],
     ) -> Vec<Decision> {
         let mut sol = root_pa.to_owned();
@@ -228,8 +239,8 @@ where
         F: FnMut(SubProblem<T>),
     {
         if let Some(best_value) = self.best_value() {
-            if let Some(lel) = self.lel.as_mut() {
-                for (state, id) in lel.drain(..) {
+            if let Some(cutset) = self.cutset.as_mut() {
+                for id in cutset.drain(..) {
                     let node = &self.nodes[id.0];
 
                     if node.flags.is_marked() {
@@ -238,8 +249,8 @@ where
                         let ub = rub.min(locb).min(best_value);
 
                         func(SubProblem {
-                            state: Arc::new(state),
-                            value: self.nodes[id.0].value,
+                            state: node.state.clone(),
+                            value: node.value,
                             path: Self::_best_path_partial_borrow(
                                 id,
                                 &self.root_pa,
@@ -247,6 +258,7 @@ where
                                 &self.edges,
                             ),
                             ub,
+                            depth: node.depth,
                         })
                     }
                 }
@@ -258,44 +270,54 @@ where
         -> Result<Completion, Reason> {
         self.clear();
 
-        let mut depth = 0;
         let mut curr_l = vec![];
-        
-        let root_s = input.residual.state.deref().clone();
-        let root_v = input.residual.value;
-        let root_n = Node {
-            value: root_v,
-            best: None,
-            inbound: None,
-            value_bot: isize::MIN,
-            rub: input.residual.ub - root_v,
-            flags: NodeFlags::new_exact(),
-        };
+
         input
             .residual
             .path
             .iter()
             .copied()
             .for_each(|x| self.root_pa.push(x));
+        
+        let root_depth = input.residual.depth;
+        let root_s = input.residual.state.clone();
+        let root_v = input.residual.value;
+        let root_n = Node {
+            state: root_s.clone(),
+            value: root_v,
+            best: None,
+            inbound: None,
+            value_bot: isize::MIN,
+            theta: isize::MAX,
+            rub: input.residual.ub - root_v,
+            flags: NodeFlags::new_exact(),
+            depth: root_depth,
+        };
 
         self.nodes.push(root_n);
         self.next_l.insert(root_s, NodeId(0));
 
-        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys()) {
+        let mut depth = root_depth;
+
+        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|s| s.as_ref())) {
             // Did the cutoff kick in ?
             if input.cutoff.must_stop() {
                 return Err(Reason::CutoffOccurred);
             }
             self.prev_l.clear();
-            for (state, id) in curr_l.drain(..) {
-                self.prev_l.insert(id, state);
+            for id in curr_l.drain(..) {
+                self.prev_l.push(id);
             }
-            for (state, id) in self.next_l.drain() {
-                curr_l.push((state, id));
+            for (_, id) in self.next_l.drain() {
+                curr_l.push(id);
             }
 
             if curr_l.is_empty() {
                 break; 
+            }
+
+            if depth > root_depth {
+                self.filter_with_barrier(input, &mut curr_l);
             }
 
             match input.comp_type {
@@ -306,29 +328,32 @@ where
                         self.restrict(input, &mut curr_l)
                     }
                 }
-                CompilationType::Relaxed => {
-                    if curr_l.len() > input.max_width && depth > 1 {
-                        let was_lel = self.maybe_save_lel();
-                        //
-                        if was_lel {
-                            for (s, id) in curr_l.iter() {
-                                let rub = input.relaxation.fast_upper_bound(s);
-                                self.nodes[id.0].rub = rub;
+                CompilationType::Relaxed(cutset_type) => {
+                    if curr_l.len() > input.max_width && depth > root_depth + 1 {
+                        if cutset_type == CutsetType::LastExactLayer {
+                            let was_lel = self.maybe_save_lel();
+                            //
+                            if was_lel {
+                                for id in curr_l.iter() {
+                                    let rub = input.relaxation.fast_upper_bound(self.nodes[id.0].state.as_ref());
+                                    self.nodes[id.0].rub = rub;
+                                }
                             }
+                            //
                         }
-                        //
                         self.relax(input, &mut curr_l)
                     }
                 }
             }
 
-            for (state, node_id) in curr_l.iter() {
-                let rub = input.relaxation.fast_upper_bound(state);
+            for node_id in curr_l.iter() {
+                let state = self.nodes[node_id.0].state.clone();
+                let rub = input.relaxation.fast_upper_bound(state.as_ref());
                 self.nodes[node_id.0].rub = rub;
                 let ub = rub.saturating_add(self.nodes[node_id.0].value);
                 if ub > input.best_lb {
-                    input.problem.for_each_in_domain(var, state, &mut |decision| {
-                        self.branch_on(state, *node_id, decision, input.problem)
+                    input.problem.for_each_in_domain(var, state.as_ref(), &mut |decision| {
+                        self.branch_on(*node_id, decision, input.problem)
                     })
                 }
             }
@@ -342,23 +367,23 @@ where
             .values()
             .copied()
             .max_by_key(|id| self.nodes[id.0].value);
-        self.exact = self._is_exact(input.comp_type);
         //
-        if matches!(input.comp_type, CompilationType::Relaxed) {
-            self.compute_local_bounds();
+        if matches!(input.comp_type, CompilationType::Relaxed(_)) {
+            self.compute_local_bounds_and_thresholds(input);
         }
+        self.exact = self._is_exact(input.comp_type);
 
         Ok(Completion { is_exact: self.is_exact(), best_value: self.best_value() })
     }
 
     fn maybe_save_lel(&mut self) -> bool {
-        if self.lel.is_none() {
+        if self.cutset.is_none() {
             let mut lel = vec![];
-            for (id, state) in self.prev_l.iter() {
-                lel.push((state.clone(), *id));
+            for id in self.prev_l.iter() {
+                lel.push(*id);
                 self.nodes[id.0].flags.set_cutset(true);
             }
-            self.lel = Some(lel);
+            self.cutset = Some(lel);
             true
         } else {
             false
@@ -367,15 +392,15 @@ where
 
     fn branch_on(
         &mut self,
-        state: &T,
         from_id: NodeId,
         decision: Decision,
         problem: &dyn Problem<State = T>,
     ) {
-        let next_state = problem.transition(state, decision);
+        let state = self.nodes[from_id.0].state.as_ref();
+        let next_state = Arc::new(problem.transition(state, decision));
         let cost = problem.transition_cost(state, decision);
 
-        match self.next_l.entry(next_state) {
+        match self.next_l.entry(next_state.clone()) {
             Entry::Vacant(e) => {
                 let node_id = NodeId(self.nodes.len());
                 let edge_id = EdgeId(self.edges.len());
@@ -389,15 +414,18 @@ where
                     next: None,
                 });
                 self.nodes.push(Node {
+                    state: next_state,
                     //my_id  : node_id,
                     value: self.nodes[from_id.0].value.saturating_add(cost),
                     best: Some(edge_id),
                     inbound: Some(edge_id),
                     //
                     value_bot: isize::MIN,
+                    theta: isize::MAX,
                     //
                     rub: isize::MAX,
                     flags: self.nodes[from_id.0].flags,
+                    depth: self.nodes[from_id.0].depth + 1,
                 });
 
                 e.insert(node_id);
@@ -431,59 +459,82 @@ where
         }
     }
 
-    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        curr_l.retain(|node_id| {
+            let node = &mut self.nodes[node_id.0];
+            let threshold = input.barrier.get_threshold(node.state.clone(), node.depth);
+            if let Some(threshold) = threshold {
+                if node.value > threshold.value {
+                    true
+                } else {
+                    node.flags.set_pruned_by_barrier(true);
+                    node.theta = threshold.value; // set theta for later propagation
+                    false
+                }
+            } else {
+                true
+            }
+        });
+    }
+
+    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            self.nodes[a.1 .0]
+            self.nodes[a.0]
                 .value
-                .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+                .cmp(&self.nodes[b.0].value)
+                .then_with(|| input.ranking.compare(self.nodes[a.0].state.as_ref(), self.nodes[b.0].state.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
         curr_l.truncate(input.max_width);
     }
 
-    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            self.nodes[a.1 .0]
+            self.nodes[a.0]
                 .value
-                .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+                .cmp(&self.nodes[b.0].value)
+                .then_with(|| input.ranking.compare(self.nodes[a.0].state.as_ref(), self.nodes[b.0].state.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
 
         //--
         let (keep, merge) = curr_l.split_at_mut(input.max_width - 1);
-        let merged = input.relaxation.merge(&mut merge.iter().map(|(k, _v)| k));
+        let merged = Arc::new(input.relaxation.merge(&mut merge.iter().map(|node_id| self.nodes[node_id.0].state.as_ref())));
 
-        let recycled = keep.iter().find(|(k, _v)| k.eq(&merged)).map(|(_k, v)| *v);
+        let recycled = keep.iter().find(|node_id| self.nodes[node_id.0].state.eq(&merged)).map(|node_id| *node_id);
 
         let merged_id = recycled.unwrap_or_else(|| {
             let node_id = NodeId(self.nodes.len());
             self.nodes.push(Node {
+                state: merged.clone(),
                 //my_id  : node_id,
                 value: isize::MIN,
                 best: None,    // yet
                 inbound: None, // yet
                 //
                 value_bot: isize::MIN,
+                theta: isize::MAX,
                 //
                 rub: isize::MAX,
                 flags: NodeFlags::new_relaxed(),
+                depth: self.nodes[merge[0].0].depth,
             });
             node_id
         });
 
         self.nodes[merged_id.0].flags.set_relaxed(true);
 
-        for (drop_k, drop_v) in merge {
-            let mut edge_id = self.nodes[drop_v.0].inbound;
+        for drop_id in merge {
+            self.nodes[drop_id.0].flags.set_deleted(true);
+
+            let mut edge_id = self.nodes[drop_id.0].inbound;
             while let Some(eid) = edge_id {
                 let edge = self.edges[eid.0];
-                let src = &self.prev_l[&edge.from];
+                let src = self.nodes[edge.from.0].state.as_ref();
 
                 let rcost = input
                     .relaxation
-                    .relax(src, drop_k, &merged, edge.decision, edge.cost);
+                    .relax(src, self.nodes[drop_id.0].state.as_ref(), &merged, edge.decision, edge.cost);
 
                 let new_eid = EdgeId(self.edges.len());
                 let new_edge = Edge {
@@ -509,56 +560,106 @@ where
 
         if recycled.is_some() {
             curr_l.truncate(input.max_width);
+            let saved_id = curr_l[input.max_width - 1];
+            self.nodes[saved_id.0].flags.set_deleted(false);
         } else {
             curr_l.truncate(input.max_width - 1);
-            curr_l.push((merged, merged_id));
+            curr_l.push(merged_id);
         }
     }
 
-    fn compute_local_bounds(&mut self) {
-        if !self.exact {
-            // if it's exact, there is nothing to be done
-            let mut visit = vec![];
-            let mut next_v = vec![];
+    fn compute_local_bounds_and_thresholds(&mut self, input: &CompilationInput<T>) {
+        let mut lel_depth = None;
+        if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer) {
+            if let Some(lel) = &self.cutset {
+                if !lel.is_empty() {
+                    lel_depth = Some(self.nodes[lel[0].0].depth);
+                }
+            }
+        }
 
-            // all the nodes from the last layer have a lp_from_bot of 0
-            for id in self.next_l.values().copied() {
-                self.nodes[id.0].value_bot = 0;
-                self.nodes[id.0].flags.set_marked(true);
-                visit.push(id);
+        for node_id in self.next_l.values() {
+            // init for local bounds
+            self.nodes[node_id.0].value_bot = 0;
+            self.nodes[node_id.0].flags.set_marked(true);
+
+            if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer)
+                    && self.cutset.is_none() {
+                self.nodes[node_id.0].flags.set_cutset(true);
+                lel_depth = Some(self.nodes[node_id.0].depth);
+            } else if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier)
+                    && self.nodes[node_id.0].flags.is_exact() {
+                self.nodes[node_id.0].flags.set_cutset(true);
+            }
+        }
+
+        // propagate values upwards and update barrier
+        for node_id in (0..self.nodes.len()).rev() {
+
+            if self.nodes[node_id].flags.is_deleted() {
+                continue;
             }
 
-            while !visit.is_empty() {
-                std::mem::swap(&mut visit, &mut next_v);
-
-                for id in next_v.drain(..) {
-                    let mut inbound = self.nodes[id.0].inbound;
-                    while let Some(edge_id) = inbound {
-                        let edge = self.edges[edge_id.0];
-
-                        let lp_from_bot_using_edge =
-                            self.nodes[id.0].value_bot.saturating_add(edge.cost);
-
-                        self.nodes[edge.from.0].value_bot = self.nodes[edge.from.0]
-                            .value_bot
-                            .max(lp_from_bot_using_edge);
-
-                        if !self.nodes[edge.from.0].flags.is_marked() {
-                            self.nodes[edge.from.0].flags.set_marked(true);
-                            if !self.nodes[edge.from.0].flags.is_cutset() {
-                                visit.push(edge.from);
-                            }
-                        }
-
-                        inbound = edge.next;
+            if self.nodes[node_id].flags.is_pruned_by_barrier() { // barrier pruning
+                // nothing to do
+            } else {
+                let ub = self.nodes[node_id].value.saturating_add(self.nodes[node_id].rub);
+                if ub <= input.best_lb { // RUB pruning
+                    self.nodes[node_id].theta = input.best_lb.saturating_sub(self.nodes[node_id].rub); // pruning threshold
+                } else if self.nodes[node_id].flags.is_cutset() {
+                    let locb = self.nodes[node_id].value.saturating_add(self.nodes[node_id].value_bot);
+                    if locb <= input.best_lb { // LocB pruning
+                        self.nodes[node_id].theta = self.nodes[node_id].theta
+                            .min(input.best_lb.saturating_sub(self.nodes[node_id].value_bot)); // pruning threshold
+                    } else {
+                        self.nodes[node_id].theta = self.nodes[node_id].value; // dominance threshold
                     }
                 }
+
+                if self.nodes[node_id].flags.is_exact() 
+                        && self.nodes[node_id].depth <= lel_depth.unwrap_or(usize::MAX) { // do not update barrier for nodes below the cutset
+                    input.barrier.update_threshold(
+                        self.nodes[node_id].state.clone(),
+                        self.nodes[node_id].depth,
+                        self.nodes[node_id].theta, 
+                        !self.nodes[node_id].flags.is_cutset() // need to explore nodes with the given value when they are in the cutset
+                    );
+                }
+            }
+
+            let mut inbound = self.nodes[node_id].inbound;
+            while let Some(edge_id) = inbound {
+                let edge = self.edges[edge_id.0];
+
+                // propagate for local bounds
+                if self.nodes[node_id].flags.is_marked() {
+                    let value_bot_using_edge = self.nodes[node_id].value_bot.saturating_add(edge.cost);
+                    self.nodes[edge.from.0].value_bot = self.nodes[edge.from.0].value_bot
+                        .max(value_bot_using_edge);
+                    self.nodes[edge.from.0].flags.set_marked(true);
+                }
+
+                // propagate for thresholds
+                let theta_using_edge = self.nodes[node_id].theta.saturating_sub(edge.cost);
+                self.nodes[edge.from.0].theta = self.nodes[edge.from.0].theta
+                    .min(theta_using_edge);
+
+                // fill frontier cutset if needed
+                if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier) 
+                        && self.nodes[node_id].flags.is_marked() {
+                    if !self.nodes[node_id].flags.is_exact() && self.nodes[edge.from.0].flags.is_exact()
+                            && !self.nodes[edge.from.0].flags.is_cutset() {
+                        self.nodes[edge.from.0].flags.set_cutset(true);
+                        let fc = self.cutset.get_or_insert(vec![]);
+                        fc.push(edge.from);
+                    }
+                }
+
+                inbound = edge.next;
             }
         }
     }
 }
-
-
 
 
 // ############################################################################
@@ -573,7 +674,7 @@ mod test_default_mdd {
 
     use rustc_hash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback};
+    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, CutsetType, EmptyBarrier, SimpleBarrier, Barrier};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
@@ -583,7 +684,8 @@ mod test_default_mdd {
     }
 
     #[test]
-    fn root_remembers_the_pa_from_the_frontier_node() {
+    fn root_remembers_the_pa_from_the_fringe_node() {
+        let barrier = EmptyBarrier::new();
         let mut input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -596,15 +698,17 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 1, value: 42}), 
                 value: 42, 
                 path:  vec![Decision{variable: Variable(0), value: 42}], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 1,
+            },
+            barrier: &barrier,
         };
 
         let mut mdd = VectorBased::new();
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
-        input.comp_type = CompilationType::Relaxed;
+        input.comp_type = CompilationType::Relaxed(CutsetType::LastExactLayer);
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
@@ -616,6 +720,7 @@ mod test_default_mdd {
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
     #[test]
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -628,8 +733,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
 
@@ -647,6 +754,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_drops_the_less_interesting_nodes() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -659,8 +767,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
 
@@ -678,6 +788,7 @@ mod test_default_mdd {
 
     #[test]
     fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -690,8 +801,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -703,6 +816,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -715,8 +829,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -728,8 +844,9 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -740,8 +857,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -759,6 +878,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -771,8 +891,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -782,6 +904,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -794,8 +917,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -804,8 +929,9 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -816,8 +942,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -827,8 +955,9 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -839,8 +968,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -859,8 +990,9 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -871,8 +1003,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -885,6 +1019,7 @@ mod test_default_mdd {
 
     #[test]
     fn an_exact_mdd_must_be_exact() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -897,8 +1032,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -909,8 +1046,9 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -921,8 +1059,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -933,8 +1073,9 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -945,8 +1086,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -956,6 +1099,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -968,8 +1112,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -979,8 +1125,9 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
@@ -991,8 +1138,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1002,6 +1151,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_solution() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1014,8 +1164,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1024,6 +1176,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_best_value() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1036,8 +1189,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1046,9 +1201,10 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
-            problem:    &DummyInfeasibleProblem,
+            problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
@@ -1058,8 +1214,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1068,9 +1226,10 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
-            problem:    &DummyInfeasibleProblem,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
@@ -1080,8 +1239,10 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1090,9 +1251,10 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
+        let barrier = EmptyBarrier::new();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
-            problem:    &DummyInfeasibleProblem,
+            problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
@@ -1102,8 +1264,94 @@ mod test_default_mdd {
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = VectorBased::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+    #[test]
+    fn exact_skips_nodes_with_a_value_less_than_known_threshold() {
+        let barrier = SimpleBarrier::new(DummyProblem.nb_variables());
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Exact,
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  usize::MAX,
+            best_lb:    isize::MIN,
+            residual: SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = VectorBased::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+    #[test]
+    fn relaxed_skips_nodes_with_a_value_less_than_known_threshold() {
+        let barrier = SimpleBarrier::new(DummyProblem.nb_variables());
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  usize::MAX,
+            best_lb:    isize::MIN,
+            residual: SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = VectorBased::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        assert!(mdd.best_solution().is_none())
+    }
+    #[test]
+    fn restricted_skips_nodes_with_a_value_less_than_known_threshold() {
+        let barrier = SimpleBarrier::new(DummyProblem.nb_variables());
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
+        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Restricted,
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  usize::MAX,
+            best_lb:    isize::MIN,
+            residual: SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1136,10 +1384,10 @@ mod test_default_mdd {
     /// ```
     ///
     #[derive(Copy, Clone)]
-    struct LocBoundsExamplePb;
-    impl Problem for LocBoundsExamplePb {
+    struct LocBoundsAndThresholdsExamplePb;
+    impl Problem for LocBoundsAndThresholdsExamplePb {
         type State = char;
-        fn nb_variables (&self) -> usize {  3  }
+        fn nb_variables (&self) -> usize {  4  }
         fn initial_state(&self) -> char  { 'r' }
         fn initial_value(&self) -> isize {  0  }
         fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -1153,6 +1401,9 @@ mod test_default_mdd {
                 'M' => Some(Variable(2)),
                 'e' => Some(Variable(2)),
                 'f' => Some(Variable(2)),
+                'g' => Some(Variable(0)),
+                'h' => Some(Variable(0)),
+                'i' => Some(Variable(0)),
                 _   => None,
             }
         }
@@ -1166,6 +1417,9 @@ mod test_default_mdd {
                 'M' => vec![4],
                 'e' => vec![0],
                 'f' => vec![1, 2],
+                'g' => vec![0],
+                'h' => vec![0],
+                'i' => vec![0],
                 _   => vec![],
             })
             .iter()
@@ -1195,8 +1449,8 @@ mod test_default_mdd {
     }
 
     #[derive(Copy, Clone)]
-    struct LocBoundExampleRelax;
-    impl Relaxation for LocBoundExampleRelax {
+    struct LocBoundsAndThresholdsExampleRelax;
+    impl Relaxation for LocBoundsAndThresholdsExampleRelax {
         type State = char;
         fn merge(&self, _: &mut dyn Iterator<Item=&char>) -> char {
             'M'
@@ -1204,6 +1458,22 @@ mod test_default_mdd {
 
         fn relax(&self, _: &char, _: &char, _: &char, _: Decision, cost: isize) -> isize {
             cost
+        }
+
+        fn fast_upper_bound(&self, state: &char) -> isize {
+            match *state {
+                'r' => 30,
+                'a' => 20,
+                'b' => 20,
+                // c, d are merged into M
+                'M' => 10,
+                'e' => 10,
+                'f' => 10,
+                'g' => 0,
+                'h' => 0,
+                'i' => 0,
+                _   => 0,
+            }
         }
     }
 
@@ -1217,11 +1487,12 @@ mod test_default_mdd {
     }
 
     #[test]
-    fn relaxed_computes_local_bounds() {
+    fn relaxed_computes_local_bounds_and_thresholds_1() {
+        let barrier = SimpleBarrier::new(LocBoundsAndThresholdsExamplePb.nb_variables());
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
-            problem:    &LocBoundsExamplePb,
-            relaxation: &LocBoundExampleRelax,
+            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
             ranking:    &CmpChar,
             cutoff:     &NoCutoff,
             max_width:  3,
@@ -1230,8 +1501,10 @@ mod test_default_mdd {
                 state: Arc::new('r'), 
                 value: 0, 
                 path:  vec![], 
-                ub:    isize::MAX
-            }
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
         };
         let mut mdd = VectorBased::new();
         let result = mdd.compile(&input);
@@ -1245,6 +1518,180 @@ mod test_default_mdd {
 
         assert_eq!(16, v[&'a']);
         assert_eq!(14, v[&'b']);
+        assert_eq!(2, v.len());
+
+        assert!(barrier.get_threshold(Arc::new('r'), 0).is_some());
+        assert!(barrier.get_threshold(Arc::new('a'), 1).is_some());
+        assert!(barrier.get_threshold(Arc::new('b'), 1).is_some());
+        assert!(barrier.get_threshold(Arc::new('M'), 2).is_none());
+        assert!(barrier.get_threshold(Arc::new('e'), 2).is_none());
+        assert!(barrier.get_threshold(Arc::new('f'), 2).is_none());
+        assert!(barrier.get_threshold(Arc::new('g'), 3).is_none());
+        assert!(barrier.get_threshold(Arc::new('h'), 3).is_none());
+        assert!(barrier.get_threshold(Arc::new('i'), 3).is_none());
+        assert!(barrier.get_threshold(Arc::new('t'), 4).is_none());
+
+        let mut threshold = barrier.get_threshold(Arc::new('r'), 0).unwrap();
+        assert_eq!(0, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('a'), 1).unwrap();
+        assert_eq!(10, threshold.value);
+        assert!(!threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('b'), 1).unwrap();
+        assert_eq!(7, threshold.value);
+        assert!(!threshold.explored);
+    }
+
+    #[test]
+    fn relaxed_computes_local_bounds_and_thresholds_2() {
+        let barrier = SimpleBarrier::new(LocBoundsAndThresholdsExamplePb.nb_variables());
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Relaxed(CutsetType::Frontier),
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
+            ranking:    &CmpChar,
+            cutoff:     &NoCutoff,
+            max_width:  3,
+            best_lb:    0,
+            residual: SubProblem { 
+                state: Arc::new('r'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = VectorBased::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+
+        assert_eq!(false,    mdd.is_exact());
+        assert_eq!(Some(16), mdd.best_value());
+
+        let mut v = FxHashMap::<char, isize>::default();
+        mdd.drain_cutset(|n| {v.insert(*n.state, n.ub);});
+
+        assert_eq!(16, v[&'a']);
+        assert_eq!(14, v[&'b']);
+        assert_eq!(13, v[&'h']);
+        assert_eq!(14, v[&'i']);
+        assert_eq!(4, v.len());
+
+        assert!(barrier.get_threshold(Arc::new('r'), 0).is_some());
+        assert!(barrier.get_threshold(Arc::new('a'), 1).is_some());
+        assert!(barrier.get_threshold(Arc::new('b'), 1).is_some());
+        assert!(barrier.get_threshold(Arc::new('M'), 2).is_none());
+        assert!(barrier.get_threshold(Arc::new('e'), 2).is_some());
+        assert!(barrier.get_threshold(Arc::new('f'), 2).is_some());
+        assert!(barrier.get_threshold(Arc::new('g'), 3).is_none());
+        assert!(barrier.get_threshold(Arc::new('h'), 3).is_some());
+        assert!(barrier.get_threshold(Arc::new('i'), 3).is_some());
+        assert!(barrier.get_threshold(Arc::new('t'), 4).is_none());
+
+        let mut threshold = barrier.get_threshold(Arc::new('r'), 0).unwrap();
+        assert_eq!(0, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('a'), 1).unwrap();
+        assert_eq!(10, threshold.value);
+        assert!(!threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('b'), 1).unwrap();
+        assert_eq!(7, threshold.value);
+        assert!(!threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('e'), 2).unwrap();
+        assert_eq!(13, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('f'), 2).unwrap();
+        assert_eq!(12, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('h'), 3).unwrap();
+        assert_eq!(13, threshold.value);
+        assert!(!threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('i'), 3).unwrap();
+        assert_eq!(14, threshold.value);
+        assert!(!threshold.explored);
+    }
+
+    #[test]
+    fn relaxed_computes_local_bounds_and_thresholds_with_pruning() {
+        let barrier = SimpleBarrier::new(LocBoundsAndThresholdsExamplePb.nb_variables());
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Relaxed(CutsetType::Frontier),
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
+            ranking:    &CmpChar,
+            cutoff:     &NoCutoff,
+            max_width:  3,
+            best_lb:    15,
+            residual: SubProblem { 
+                state: Arc::new('r'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = VectorBased::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+
+        assert_eq!(false,    mdd.is_exact());
+        assert_eq!(Some(16), mdd.best_value());
+
+        let mut v = FxHashMap::<char, isize>::default();
+        mdd.drain_cutset(|n| {v.insert(*n.state, n.ub);});
+
+        assert_eq!(16, v[&'a']);
+        assert_eq!(14, v[&'b']);
+        assert_eq!(2, v.len());
+
+        assert!(barrier.get_threshold(Arc::new('r'), 0).is_some());
+        assert!(barrier.get_threshold(Arc::new('a'), 1).is_some());
+        assert!(barrier.get_threshold(Arc::new('b'), 1).is_some());
+        assert!(barrier.get_threshold(Arc::new('M'), 2).is_none());
+        assert!(barrier.get_threshold(Arc::new('e'), 2).is_some());
+        assert!(barrier.get_threshold(Arc::new('f'), 2).is_some());
+        assert!(barrier.get_threshold(Arc::new('g'), 3).is_none());
+        assert!(barrier.get_threshold(Arc::new('h'), 3).is_some());
+        assert!(barrier.get_threshold(Arc::new('i'), 3).is_some());
+        assert!(barrier.get_threshold(Arc::new('t'), 4).is_none());
+
+        let mut threshold = barrier.get_threshold(Arc::new('r'), 0).unwrap();
+        assert_eq!(0, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('a'), 1).unwrap();
+        assert_eq!(10, threshold.value);
+        assert!(!threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('b'), 1).unwrap();
+        assert_eq!(8, threshold.value);
+        assert!(!threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('e'), 2).unwrap();
+        assert_eq!(15, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('f'), 2).unwrap();
+        assert_eq!(13, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('h'), 3).unwrap();
+        assert_eq!(15, threshold.value);
+        assert!(threshold.explored);
+
+        threshold = barrier.get_threshold(Arc::new('i'), 3).unwrap();
+        assert_eq!(15, threshold.value);
+        assert!(threshold.explored);
     }
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]

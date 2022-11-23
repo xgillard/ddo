@@ -234,8 +234,8 @@ fn main() {
     // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
     let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 
-    // 5. Create the solver frontier
-    let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+    // 5. Create the solver fringe
+    let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
     
     // 6. Instanciate your solver
     let mut solver = DefaultSolver::new(
@@ -244,7 +244,7 @@ fn main() {
           &heuristic, 
           &width, 
           &cutoff, 
-          &mut frontier);
+          &mut fringe);
 
     // 7. Maximize your objective function
     // the outcome provides the value of the best solution that was found for

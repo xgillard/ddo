@@ -129,7 +129,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// # let relaxation = KPRelax{pb: &problem};
 /// # let heuristic = KPRanking;
 /// # let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// # let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// # let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -137,7 +137,7 @@ use crate::{WidthHeuristic, SubProblem};
 ///       &heuristic, 
 ///       &FixedWidth(100), // all DDs will be compiled with a maximum width of 100 nodes 
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct FixedWidth(pub usize);
@@ -331,7 +331,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -339,7 +339,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 ///       &heuristic, 
 ///       &NbUnassignedWitdh(problem.nb_variables()),
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Default, Debug, Copy, Clone)]
 pub struct NbUnassignedWitdh(pub usize);
@@ -541,7 +541,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -549,7 +549,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 ///       &heuristic, 
 ///       &Times(5, NbUnassignedWitdh(problem.nb_variables())),
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct Times<X>(pub usize, pub X);
@@ -751,7 +751,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
-/// let mut frontier = SimpleFrontier::new(MaxUB::new(&heuristic));
+/// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
@@ -759,7 +759,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 ///       &heuristic, 
 ///       &DivBy(2, NbUnassignedWitdh(problem.nb_variables())),
 ///       &cutoff, 
-///       &mut frontier);
+///       &mut fringe);
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct DivBy<X>(pub usize, pub X);
@@ -785,7 +785,8 @@ mod test_nbunassigned {
             state: Arc::new('a'),
             value: 10,
             ub   : 100,
-            path : vec![Decision{variable: Variable(0), value: 4}]
+            path : vec![Decision{variable: Variable(0), value: 4}],
+            depth: 1,
         };
         assert_eq!(4, heu.max_width(&sub));
     }
@@ -796,7 +797,8 @@ mod test_nbunassigned {
             state: Arc::new('a'),
             value: 10,
             ub   : 100,
-            path : vec![] // no decision made, all vars are available
+            path : vec![], // no decision made, all vars are available
+            depth: 0,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -815,7 +817,8 @@ mod test_nbunassigned {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!(0, heu.max_width(&sub));
     }
@@ -835,7 +838,8 @@ mod test_fixedwidth {
             ub   : 100,
             path : vec![
                 Decision{variable: Variable(0), value: 0},
-                ]
+                ],
+            depth: 1,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -846,7 +850,8 @@ mod test_fixedwidth {
             state: Arc::new('a'),
             value: 10,
             ub   : 100,
-            path : vec![]
+            path : vec![],
+            depth: 0,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -864,7 +869,8 @@ mod test_fixedwidth {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!(5, heu.max_width(&sub));
     }
@@ -889,7 +895,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!(10, Times( 2, heu).max_width(&sub));
         assert_eq!(15, Times( 3, heu).max_width(&sub));
@@ -909,7 +916,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!( 2, DivBy( 2, FixedWidth(4)).max_width(&sub));
         assert_eq!( 3, DivBy( 3, FixedWidth(9)).max_width(&sub));
@@ -929,7 +937,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         assert_eq!( 1, Times( 0, FixedWidth(10)).max_width(&sub));
         assert_eq!( 1, Times(10, FixedWidth( 0)).max_width(&sub));
@@ -948,7 +957,8 @@ mod test_adapters {
                 Decision{variable: Variable(2), value: 2},
                 Decision{variable: Variable(3), value: 3},
                 Decision{variable: Variable(4), value: 4},
-                ]
+                ],
+            depth: 5,
         };
         DivBy( 0, FixedWidth(0)).max_width(&sub);
     }

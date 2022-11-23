@@ -82,9 +82,9 @@ pub trait StateRanking {
 }
 
 /// A subproblem ranking is an heuristic that imposes a partial order on
-/// subproblems on the solver frontier. This order is used by the framework 
+/// subproblems on the solver fringe. This order is used by the framework 
 /// as a means to impose a given ordering on the nodes that are popped from
-/// the solver frontier.
+/// the solver fringe.
 pub trait SubProblemRanking {
     /// As is the case for `Problem` and `Relaxation`, a `SubProblemRanking` 
     /// must tell the kind of states it is able to operate on.

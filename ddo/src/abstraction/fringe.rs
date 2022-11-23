@@ -17,23 +17,29 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module (and its submodule) provide the abstractions for the basic
-//! building blocks of an MDD solvers. A client willing to use our library to
-//! implement a solver for his/her particular problem should look into the `dp`
-//! submodule. Indeed, `dp` is the place where the traits `Problem` and
-//! `Relaxation` are defined. These are the two abstractions that one *must*
-//! implement in order to be able to use our library.
+use crate::SubProblem;
 
-mod dp;
-mod heuristics;
-mod solver;
-mod fringe;
-mod mdd;
-mod barrier;
 
-pub use dp::*;
-pub use heuristics::*;
-pub use solver::*;
-pub use fringe::*;
-pub use mdd::*;
-pub use barrier::*;
+/// This trait abstracts away the implementation details of the solver fringe.
+/// That is, a Fringe represents the global priority queue which stores all 
+/// the nodes remaining to explore.
+pub trait Fringe {
+    type State;
+
+    /// This is how you push a node onto the fringe.
+    fn push(&mut self, node: SubProblem<Self::State>);
+    /// This method yields the most promising node from the fringe.
+    /// # Note:
+    /// The solvers rely on the assumption that a fringe will pop nodes in
+    /// descending upper bound order. Hence, it is a requirement for any fringe
+    /// implementation to enforce that requirement.
+    fn pop(&mut self) -> Option<SubProblem<Self::State>>;
+    /// This method clears the fringe: it removes all nodes from the queue.
+    fn clear(&mut self);
+    /// Yields the length of the queue.
+    fn len(&self) -> usize;
+    /// Returns true iff the fringe is empty (len == 0)
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}

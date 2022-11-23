@@ -24,16 +24,53 @@
 //! `Relaxation` are defined. These are the two abstractions that one *must*
 //! implement in order to be able to use our library.
 
-mod dp;
-mod heuristics;
-mod solver;
-mod fringe;
-mod mdd;
-mod barrier;
+use std::{sync::Arc, hash::Hash};
 
-pub use dp::*;
-pub use heuristics::*;
-pub use solver::*;
-pub use fringe::*;
-pub use mdd::*;
-pub use barrier::*;
+use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
+
+use crate::{Barrier, Threshold};
+
+/// Simple implementation of the Barrier using one hashmap for each layer,
+/// each protected with a read-write lock.
+pub struct SimpleBarrier<T>
+where T: Hash + Eq {
+    thresholds_by_layer: Vec<RwLock<FxHashMap<Arc<T>, Threshold>>>,
+}
+
+impl<T> SimpleBarrier<T>
+where T: Hash + Eq {
+    pub fn new(nb_variables: usize) -> Self {
+        let mut layers = vec![];
+        for _ in 0..=nb_variables {
+            layers.push(RwLock::new(Default::default()));
+        }
+        SimpleBarrier { thresholds_by_layer: layers }
+    }
+}
+
+impl<T> Barrier for SimpleBarrier<T>
+where T: Hash + Eq {
+    type State = T;
+
+    fn get_threshold(&self, state: Arc<T>, depth: usize) -> Option<Threshold> {
+        self.thresholds_by_layer[depth].read().get(state.as_ref()).copied()
+    }
+
+    fn update_threshold(&self, state: Arc<T>, depth: usize, value: isize, explored: bool) {
+        let mut guard = self.thresholds_by_layer[depth].write();
+        let current = guard
+            .entry(state)
+            .or_insert(Threshold { value: isize::MIN, explored: false });
+        let mut new = Threshold { value, explored };
+        *current = *current.max(&mut new);
+    }
+
+    fn clear_layer(&self, depth: usize) {
+        self.thresholds_by_layer[depth].write().clear();
+    }
+
+    fn clear(&self) {
+        self.thresholds_by_layer.iter().for_each(|l| l.write().clear());
+    }
+}

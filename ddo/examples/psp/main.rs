@@ -92,8 +92,10 @@ fn main() {
     let ranking = PspRanking;
 
     let width = max_width(&problem, args.width);
+    let cutset = CutsetType::LastExactLayer;
     let cutoff = cutoff(args.duration);
-    let mut fringe = NoDupFrontier::new(MaxUB::new(&ranking));
+    let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
+    let barrier = EmptyBarrier::new();
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
     let mut solver = DefaultSolver::<PspState, DefaultMDD<PspState>>::custom(
@@ -101,9 +103,12 @@ fn main() {
         &relaxation, 
         &ranking, 
         width.as_ref(), 
+        cutset,
         cutoff.as_ref(), 
         &mut fringe,
-        args.threads);
+        &barrier,
+        args.threads,
+    );
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();
