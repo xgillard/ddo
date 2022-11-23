@@ -142,7 +142,7 @@ if __name__ == "__main__":
     problem   = Knapsack(c, p, w)
     relax     = KnapsackRelax(problem)
     ranking   = KnapsackRanking()
-    result    = ddo.maximize(problem, relax, ranking, True, True, 100, 15)
+    result    = ddo.maximize(problem, relax, ranking, True, True, True, 100, 15)
     print("Duration:   {:.3f} seconds \nObjective:  {}\nUpper Bnd:  {}\nLower Bnd:  {}\nGap:        {}\nAborted:    {}\nSolution:   {}"
         .format(
             result.duration, 

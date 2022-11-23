@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType, EmptyBarrier};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType, EmptyBarrier, Barrier, SimpleBarrier};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -45,13 +45,14 @@ pub struct Solution {
 
 #[pyfunction]
 fn maximize(
-    pb      : PyObject, 
-    relax   : PyObject,
-    ranking : PyObject,
-    lel     : bool,
-    dedup   : bool,
-    width   : Option<usize>,
-    timeout : Option<u64>,
+    pb         : PyObject, 
+    relax      : PyObject,
+    ranking    : PyObject,
+    lel        : bool,
+    use_barrier: bool,
+    dedup      : bool,
+    width      : Option<usize>,
+    timeout    : Option<u64>,
 ) -> Solution {
     Python::with_gil(|gil| {
         let problem = PyProblem {gil, obj: pb};
@@ -61,7 +62,7 @@ fn maximize(
         let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
         let mut fringe = fringe(dedup, &ranking);
-        let barrier = EmptyBarrier::new();
+        let barrier = barrier(use_barrier, problem.nb_variables());
 
         let mut solver = SequentialSolver::<PyState, DefaultMDD<PyState>>::custom(
             &problem, 
@@ -71,7 +72,7 @@ fn maximize(
             cutset,
             cutoff.as_ref(), 
             fringe.as_mut(),
-            &barrier,
+            barrier.as_ref(),
         );
 
         let start = Instant::now();
@@ -125,6 +126,14 @@ fn cutset(lel: bool) -> CutsetType {
         CutsetType::LastExactLayer
     } else {
         CutsetType::Frontier
+    }
+}
+
+fn barrier<'a>(barrier: bool, nb_variables: usize) -> Box<dyn Barrier<State = PyState<'a>> + 'a> {
+    if barrier {
+        Box::new(SimpleBarrier::new(nb_variables))
+    } else {
+        Box::new(EmptyBarrier::new())
     }
 }
 
