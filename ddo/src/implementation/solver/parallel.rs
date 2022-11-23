@@ -1054,6 +1054,95 @@ mod test_solver {
     }
 
     #[test]
+    fn maximizes_yields_the_optimum_2c() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 210, 12, 5, 100, 120, 110],
+            weight  : vec![10,  45, 20, 4,  20,  30,  50]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let cutset = CutsetType::LastExactLayer;
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = SimpleBarrier::new(problem.nb_variables());
+        let mut solver = DD::custom(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            cutset,
+            &cutoff,
+            &mut fringe,
+            &barrier,
+            1,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision { variable: Variable(0), value: 0 },
+            Decision { variable: Variable(1), value: 0 },
+            Decision { variable: Variable(2), value: 0 },
+            Decision { variable: Variable(3), value: 0 },
+            Decision { variable: Variable(4), value: 1 },
+            Decision { variable: Variable(5), value: 1 },
+            Decision { variable: Variable(6), value: 0 }
+        ]);
+    }
+
+    #[test]
+    fn maximizes_yields_the_optimum_2d() {
+        let problem = Knapsack {
+            capacity: 50,
+            profit  : vec![60, 210, 12, 5, 100, 120, 110],
+            weight  : vec![10,  45, 20, 4,  20,  30,  50]
+        };
+        let relax = KPRelax {pb: &&problem};
+        let ranking = KPRanking;
+        let cutoff = NoCutoff;
+        let width = NbUnassignedWitdh(problem.nb_variables());
+        let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+        let barrier = SimpleBarrier::new(problem.nb_variables());
+        let mut solver = DD::custom(
+            &problem,
+            &relax,
+            &ranking,
+            &width,
+            CutsetType::Frontier,
+            &cutoff,
+            &mut fringe,
+            &barrier,
+            1,
+        );
+
+        let maximized = solver.maximize();
+
+        assert!(maximized.is_exact);
+        assert_eq!(maximized.best_value, Some(220));
+        assert!(solver.best_solution().is_some());
+
+        let mut sln = solver.best_solution().unwrap();
+        sln.sort_unstable_by_key(|d| d.variable.id());
+        assert_eq!(sln, vec![
+            Decision { variable: Variable(0), value: 0 },
+            Decision { variable: Variable(1), value: 0 },
+            Decision { variable: Variable(2), value: 0 },
+            Decision { variable: Variable(3), value: 0 },
+            Decision { variable: Variable(4), value: 1 },
+            Decision { variable: Variable(5), value: 1 },
+            Decision { variable: Variable(6), value: 0 }
+        ]);
+    }
+
+    #[test]
     fn set_primal_overwrites_best_value_and_sol_if_it_improves() {
         let problem = Knapsack {
             capacity: 50,

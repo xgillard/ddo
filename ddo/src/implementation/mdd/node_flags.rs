@@ -262,36 +262,128 @@ mod test_node_flags {
         assert_eq!(true, tested.is_marked());
     }
     #[test]
+    fn is_cutset_iff_marked_so() {
+        let mut tested = NodeFlags::new_exact();
+        assert_eq!(false, tested.is_cutset());
+
+        tested.set_cutset(true);
+        assert_eq!(true, tested.is_cutset());
+
+        tested.set_cutset(false);
+        assert_eq!(false, tested.is_cutset());
+
+        tested.set_cutset(true);
+        assert_eq!(true, tested.is_cutset());
+    }
+    #[test]
+    fn is_deleted_iff_marked_so() {
+        let mut tested = NodeFlags::new_exact();
+        assert_eq!(false, tested.is_deleted());
+
+        tested.set_deleted(true);
+        assert_eq!(true, tested.is_deleted());
+
+        tested.set_deleted(false);
+        assert_eq!(false, tested.is_deleted());
+
+        tested.set_deleted(true);
+        assert_eq!(true, tested.is_deleted());
+    }
+    #[test]
+    fn is_pruned_by_barrier_iff_marked_so() {
+        let mut tested = NodeFlags::new_exact();
+        assert_eq!(false, tested.is_pruned_by_barrier());
+
+        tested.set_pruned_by_barrier(true);
+        assert_eq!(true, tested.is_pruned_by_barrier());
+
+        tested.set_pruned_by_barrier(false);
+        assert_eq!(false, tested.is_pruned_by_barrier());
+
+        tested.set_pruned_by_barrier(true);
+        assert_eq!(true, tested.is_pruned_by_barrier());
+    }
+    #[test]
     fn test_yields_the_value_of_the_flag() {
         let mut tested = NodeFlags::new_exact();
         assert_eq!(true, tested.test(NodeFlags::F_EXACT));
         assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
 
         tested.set_relaxed(true);
         assert_eq!(true, tested.test(NodeFlags::F_EXACT));
         assert_eq!(true, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
 
         tested.set_marked(true);
         assert_eq!(true, tested.test(NodeFlags::F_EXACT));
         assert_eq!(true, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(true, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
 
         tested.set_exact(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
         assert_eq!(true, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(true, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
 
         tested.set_relaxed(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
         assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(true, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
 
         tested.set_marked(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
         assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+
+        tested.set_deleted(true);
+        assert_eq!(false, tested.test(NodeFlags::F_EXACT));
+        assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
+        assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(true, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+
+        tested.set_pruned_by_barrier(true);
+        assert_eq!(false, tested.test(NodeFlags::F_EXACT));
+        assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
+        assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(true, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(true, tested.test(NodeFlags::F_BARRIER));
+
+        tested.set_deleted(false);
+        assert_eq!(false, tested.test(NodeFlags::F_EXACT));
+        assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
+        assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(true, tested.test(NodeFlags::F_BARRIER));
+
+        tested.set_pruned_by_barrier(false);
+        assert_eq!(false, tested.test(NodeFlags::F_EXACT));
+        assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
+        assert_eq!(false, tested.test(NodeFlags::F_MARKED));
+        assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
+        assert_eq!(false, tested.test(NodeFlags::F_DELETED));
+        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
     }
     #[test]
     fn test_checks_the_value_of_more_than_one_flag() {
@@ -611,5 +703,8 @@ mod test_node_flags {
         assert_eq!(true, NodeFlags::default().test(NodeFlags::F_EXACT));
         assert_eq!(false, NodeFlags::default().test(NodeFlags::F_RELAXED));
         assert_eq!(false, NodeFlags::default().test(NodeFlags::F_MARKED));
+        assert_eq!(false, NodeFlags::default().test(NodeFlags::F_CUTSET));
+        assert_eq!(false, NodeFlags::default().test(NodeFlags::F_DELETED));
+        assert_eq!(false, NodeFlags::default().test(NodeFlags::F_BARRIER));
     }
 }
