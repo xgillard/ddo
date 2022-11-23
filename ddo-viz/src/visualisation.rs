@@ -186,15 +186,16 @@ impl <'a, T> Visualisation<'a, T> where T: Debug + 'a {
         let shape = Self::node_shape(merged, restricted);
         let color = Self::node_color(node, merged);
         let peripheries = Self::node_peripheries(node);
-        let group = Self::node_group(node);
+        let group = self.node_group(node);
         let label = Self::node_label(node, state, config);
 
         format!("shape={shape},style=filled,color={color},peripheries={peripheries},group=\"{group}\",label=\"{label}\"")
     }
     /// Determines the group of a node based on the last branching decicion leading to it
-    fn node_group(node: &Node) -> String {
+    fn node_group(&self, node: &Node) -> String {
         if let Some(eid) = node.best {
-            format!("{}", eid.0)
+            let edge = self.edges[eid.0];
+            format!("{}", edge.decision.variable.0)
         } else {
             "root".to_string()
         }
