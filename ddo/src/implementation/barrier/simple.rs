@@ -33,25 +33,28 @@ use crate::{Barrier, Threshold};
 
 /// Simple implementation of the Barrier using one hashmap for each layer,
 /// each protected with a read-write lock.
+#[derive(Debug)]
 pub struct SimpleBarrier<T>
 where T: Hash + Eq {
     thresholds_by_layer: Vec<RwLock<FxHashMap<Arc<T>, Threshold>>>,
 }
-
-impl<T> SimpleBarrier<T>
+impl <T> Default for SimpleBarrier<T> 
 where T: Hash + Eq {
-    pub fn new(nb_variables: usize) -> Self {
-        let mut layers = vec![];
-        for _ in 0..=nb_variables {
-            layers.push(RwLock::new(Default::default()));
-        }
-        SimpleBarrier { thresholds_by_layer: layers }
+    fn default() -> Self {
+        Self { thresholds_by_layer: vec![] }
     }
 }
 
 impl<T> Barrier for SimpleBarrier<T>
 where T: Hash + Eq {
     type State = T;
+
+    fn initialize(&mut self, problem: &dyn crate::Problem<State = Self::State>) {
+        let nb_variables = problem.nb_variables();
+        for _ in 0..=nb_variables {
+            self.thresholds_by_layer.push(RwLock::new(Default::default()));
+        }
+    }
 
     fn get_threshold(&self, state: Arc<T>, depth: usize) -> Option<Threshold> {
         self.thresholds_by_layer[depth].read().get(state.as_ref()).copied()

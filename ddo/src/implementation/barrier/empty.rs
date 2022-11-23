@@ -24,32 +24,48 @@
 //! `Relaxation` are defined. These are the two abstractions that one *must*
 //! implement in order to be able to use our library.
 
-use std::{marker::PhantomData, sync::Arc};
+use std::{sync::Arc, marker::PhantomData};
 
 use crate::*;
 
 /// Dummy implementation of Barrier with no information stored at all.
+#[derive(Debug, Clone, Copy)]
 pub struct EmptyBarrier<T> {
     phantom: PhantomData<T>,
 }
-
-impl<T> EmptyBarrier<T> {
+impl <T> Default for EmptyBarrier<T> {
+    fn default() -> Self {
+        EmptyBarrier { phantom: Default::default() }
+    }
+}
+impl <T> EmptyBarrier<T> {
     pub fn new() -> Self {
-        EmptyBarrier { phantom: PhantomData::default() }
+        Default::default()
     }
 }
 
 impl<T> Barrier for EmptyBarrier<T> {
     type State = T;
 
+    #[inline(always)]
+    fn initialize(&mut self, _: &dyn Problem<State = Self::State>) {}
+
+    #[inline(always)]
     fn get_threshold(&self, _: Arc<T>, _: usize) -> Option<Threshold> {
         None
     }
 
+    #[inline(always)]
     fn update_threshold(&self, _: Arc<T>, _: usize, _: isize, _: bool) {}
 
+    #[inline(always)]
     fn clear_layer(&self, _: usize) {}
 
+    #[inline(always)]
     fn clear(&self) {}
 
+    #[inline(always)]
+    fn must_explore(&self, _: &SubProblem<Self::State>) -> bool {
+        true
+    }
 }

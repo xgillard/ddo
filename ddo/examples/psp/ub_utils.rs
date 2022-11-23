@@ -35,8 +35,8 @@ pub fn wagner_whithin(psp: &Psp) -> Vec<usize> {
             .map(|(i, _)| i);
 
         if let Some(x) = x {
-            for k in time .. state.prev_demands[x] as usize {
-                ww[k] += psp.stocking[x];
+            for k in ww.iter_mut().take(state.prev_demands[x] as usize).skip(time) {
+                *k += psp.stocking[x];
             }
     
             state = psp.transition(&state, Decision{variable: Variable(time), value: x as isize});
@@ -67,7 +67,7 @@ pub fn all_mst(changeover: &Vec<Vec<usize>>) -> Vec<usize> {
 }
 
 /// minimum spanning tree
-pub fn mst(members: Set32, changeover: &Vec<Vec<usize>>) -> usize {
+pub fn mst(members: Set32, changeover: &[Vec<usize>]) -> usize {
     if members.len() <= 1 {
         0
     } else {

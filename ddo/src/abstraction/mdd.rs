@@ -19,7 +19,14 @@
 
 use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier};
 
+// FIXME: Replace that with the following enum definition when const generics allow enum types
 /// What type of cutset are we using for relaxed DDs ?
+pub type CutsetType = u8;
+/// enqueue the last layer with only exact nodes
+pub const LAST_EXACT_LAYER: u8 = 1;
+/// enqueue all exact nodes that have at least a relaxed child node
+pub const FRONTIER: u8 = 2;
+/*
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CutsetType {
     /// enqueue the last layer with only exact nodes
@@ -27,6 +34,7 @@ pub enum CutsetType {
     /// enqueue all exact nodes that have at least a relaxed child node
     Frontier,
 }
+*/
 
 /// How are we to compile the decision diagram ? 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +42,7 @@ pub enum CompilationType {
     /// If you want to use a pure DP resolution of the problem
     Exact,
     /// If you want to compile a restricted DD which yields a lower bound on the objective
-    Relaxed(CutsetType),
+    Relaxed,
     /// If you want to compile a relaxed DD which yields an upper bound on the objective
     Restricted,
 }
@@ -54,7 +62,7 @@ pub struct CompilationInput<'a, State> {
     /// What is the maximum width of the mdd ?
     pub max_width: usize,
     /// The subproblem whose state space must be explored
-    pub residual: SubProblem<State>,
+    pub residual: &'a SubProblem<State>,
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
     /// Data structure containing info about past compilations used to prune the search

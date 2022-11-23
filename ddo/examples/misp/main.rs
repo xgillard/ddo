@@ -273,11 +273,11 @@ fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Misp, Error> {
             continue;
         }
 
-        if comment.is_match(&line) {
+        if comment.is_match(line) {
             continue;
         }
 
-        if let Some(caps) = pb_decl.captures(&line) {
+        if let Some(caps) = pb_decl.captures(line) {
             let n = caps["vars"].to_string().parse::<usize>()?;
             let full = (0..n).collect(); 
 
@@ -287,7 +287,7 @@ fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Misp, Error> {
             continue;
         }
 
-        if let Some(caps) = node_decl.captures(&line) {
+        if let Some(caps) = node_decl.captures(line) {
             let n = caps["node"].to_string().parse::<usize>()?;
             let w = caps["weight"].to_string().parse::<isize>()?;
 
@@ -296,7 +296,7 @@ fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Misp, Error> {
             continue;
         }
 
-        if let Some(caps) = edge_decl.captures(&line) {
+        if let Some(caps) = edge_decl.captures(line) {
             let src = caps["src"].to_string().parse::<usize>()?;
             let dst = caps["dst"].to_string().parse::<usize>()?;
 
@@ -342,25 +342,21 @@ fn main() {
     let args = Args::parse();
     let fname = &args.fname;
     let problem = read_instance(fname).unwrap();
-    let relaxation = MispRelax {pb: &&problem};
+    let relaxation = MispRelax {pb: &problem};
     let ranking = MispRanking;
 
     let width = max_width(&problem, args.width);
-    let cutset = CutsetType::LastExactLayer;
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
-    let barrier = EmptyBarrier::new();
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultSolver::<BitSet, DefaultMDD<BitSet>>::custom(
+    let mut solver = DefaultBarrierSolver::custom(
         &problem, 
         &relaxation, 
         &ranking, 
         width.as_ref(),
-        cutset,
         cutoff.as_ref(), 
         &mut fringe,
-        &barrier,
         args.threads,
     );
 
@@ -396,5 +392,5 @@ fn main() {
     println!("Lower Bnd:  {}",            lower_bound);
     println!("Gap:        {:.3}",         gap);
     println!("Aborted:    {}",            !is_exact);
-    println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
+    println!("Solution:   {:?}",          best_solution.unwrap_or_default());
 }

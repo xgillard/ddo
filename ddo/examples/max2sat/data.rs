@@ -81,17 +81,17 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Weighed2Sat, Error> {
             continue;
         }
 
-        if comment.is_match(&line) {
+        if comment.is_match(line) {
             continue;
         }
 
-        if let Some(caps) = pb_decl.captures(&line) {
+        if let Some(caps) = pb_decl.captures(line) {
             let n = caps["vars"].to_string().parse::<usize>()?;
             instance.nb_vars = n;
             continue;
         }
 
-        if let Some(caps) = bin_decl.captures(&line) {
+        if let Some(caps) = bin_decl.captures(line) {
             let w = caps["w"].to_string().parse::<isize>()?;
             let x = caps["x"].to_string().parse::<isize>()?;
             let y = caps["y"].to_string().parse::<isize>()?;
@@ -99,7 +99,7 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Weighed2Sat, Error> {
             instance.weights.insert(BinaryClause::new(x, y), w);
             continue;
         }
-        if let Some(caps) = unit_decl.captures(&line) {
+        if let Some(caps) = unit_decl.captures(line) {
             let w = caps["w"].to_string().parse::<isize>()?;
             let x = caps["x"].to_string().parse::<isize>()?;
 

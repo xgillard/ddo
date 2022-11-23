@@ -118,7 +118,7 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Psp, Error> {
         horizon: nb_periods, 
         stocking: stocking_cost, 
         changeover: changeover_cost, 
-        prev_demands: prev_demands,
-        rem_demands: rem_demands 
+        prev_demands,
+        rem_demands 
     })
 }

@@ -71,8 +71,8 @@ impl Problem for Mcp {
         
         let x = d.variable.id();
         let n = self.nb_variables();
-        for v in x..n { // for all unassigned vars
-            benefits[v] = state.benef[v] + d.value * self.graph[(d.variable, Variable(v))];
+        for (v, item) in benefits.iter_mut().enumerate().take(n).skip(x) { // for all unassigned vars
+            *item = state.benef[v] + d.value * self.graph[(d.variable, Variable(v))];
         }
         McpState {depth: 1 + state.depth, benef: benefits}
     }

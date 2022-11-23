@@ -64,12 +64,12 @@ impl Graph {
                 continue;
             }
 
-            if let Some(caps) = graph.captures(&line) {
+            if let Some(caps) = graph.captures(line) {
                 result = Graph::new(caps["vars"].to_string().parse::<usize>().unwrap());
                 continue;
             }
 
-            if let Some(caps) = edge.captures(&line) {
+            if let Some(caps) = edge.captures(line) {
                 let x = caps["src"].to_string().parse::<usize>().unwrap() - 1;
                 let y = caps["dst"].to_string().parse::<usize>().unwrap() - 1;
                 let w = caps["w"].to_string().parse::<isize>().unwrap();

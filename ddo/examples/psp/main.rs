@@ -21,12 +21,12 @@
 //! using ddo. It is a fairly simple example but it features most of the aspects you will
 //! want to copy when implementing your own solver.
 
-use std::{vec, time::{Duration, Instant}};
+use std::{time::{Duration, Instant}};
 
 use clap::Parser;
 use ddo::*;
 
-use crate::{io_utils::read_instance, model::{PspRelax, PspRanking, PspState}};
+use crate::{io_utils::read_instance, model::{PspRelax, PspRanking}};
 
 mod model;
 mod io_utils;
@@ -92,21 +92,17 @@ fn main() {
     let ranking = PspRanking;
 
     let width = max_width(&problem, args.width);
-    let cutset = CutsetType::LastExactLayer;
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
-    let barrier = EmptyBarrier::new();
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultSolver::<PspState, DefaultMDD<PspState>>::custom(
+    let mut solver = DefaultBarrierSolver::custom(
         &problem, 
         &relaxation, 
         &ranking, 
         width.as_ref(), 
-        cutset,
         cutoff.as_ref(), 
         &mut fringe,
-        &barrier,
         args.threads,
     );
 
@@ -131,5 +127,5 @@ fn main() {
     println!("Lower Bnd:  {}",            -lower_bound);
     println!("Gap:        {:.3}",         gap);
     println!("Aborted:    {}",            !is_exact);
-    println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
+    println!("Solution:   {:?}",          best_solution.unwrap_or_default());
 }

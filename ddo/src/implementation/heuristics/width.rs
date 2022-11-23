@@ -36,7 +36,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// let heuristic = FixedWidth(100); // assume a fixed width of 100
 /// 
 /// // assume the exsitence of whatever subroblem you like..
-/// let subproblem = SubProblem {state: Arc::new('a'), value: 42, ub: 100, path: vec![]};
+/// let subproblem = SubProblem {state: Arc::new('a'), value: 42, ub: 100, depth: 0, path: vec![]};
 /// // still, the heuristic always return 100.
 /// assert_eq!(100, heuristic.max_width(&subproblem));
 /// ```
@@ -228,6 +228,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
 /// #    value: 5, 
 /// #    ub: 100, 
+/// #    depth: 3,
 ///     // three decisions have already been made. There only remain variables 0 and 2
 ///     path: vec![
 ///         Decision{variable: Variable(1), value: 1},
@@ -438,6 +439,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
 /// #    value: 5, 
 /// #    ub: 100, 
+/// #    depth: 3,
 ///     // three decisions have already been made. There only remain variables 0 and 2
 ///     path: vec![
 ///         Decision{variable: Variable(1), value: 1},
@@ -649,6 +651,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
 /// #    value: 5, 
 /// #    ub: 100, 
+/// #    depth: 3,
 ///     // three decisions have already been made. There only remain variables 0 and 2
 ///     path: vec![
 ///         Decision{variable: Variable(1), value: 1},

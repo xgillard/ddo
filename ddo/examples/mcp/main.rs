@@ -35,16 +35,14 @@ fn main() {
     let width = max_width(&problem, width);
     let cutoff = cutoff(timeout);
     let mut fringe = NoDupFringe::new(MaxUB::new(&rank));
-    let barrier = EmptyBarrier::new();
 
-    let mut solver = DefaultSolver::new(
+    let mut solver = DefaultBarrierSolver::new(
         &problem, 
         &relax, 
         &rank, 
         width.as_ref(), 
         cutoff.as_ref(), 
         &mut fringe,
-        &barrier,
     );
 
         let start = Instant::now();
@@ -62,7 +60,7 @@ fn main() {
         println!("Lower Bnd:  {}",            lower_bound);
         println!("Gap:        {:.3}",         gap);
         println!("Aborted:    {}",            !is_exact);
-        println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
+        println!("Solution:   {:?}",          best_solution.unwrap_or_default());
 }
 
 fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {

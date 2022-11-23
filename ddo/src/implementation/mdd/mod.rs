@@ -32,7 +32,23 @@ mod vector_based;
 pub use node_flags::*;
 pub use vector_based::*;
 
+use crate::{LAST_EXACT_LAYER, FRONTIER};
+
 /// By default, the mdd implementation which you will want to use is the vector based
 /// implementation. In most cases, it is faster than everything else I have tried.
 /// So having a alias calling it the "default" DD implem seems to make sense.
-pub type DefaultMDD<T> = VectorBased<T>;
+pub type DefaultMDD<T> = DefaultMDDLEL<T>;
+
+/// By default, the mdd implementation which you will want to use is the vector based
+/// implementation. In most cases, it is faster than everything else I have tried.
+/// So having a alias calling it the "default" DD implem seems to make sense.
+/// 
+/// This is the variant implementation that produces a last exact layer cutset when asked
+pub type DefaultMDDLEL<T> = VectorBased<T, {LAST_EXACT_LAYER}>;
+
+/// By default, the mdd implementation which you will want to use is the vector based
+/// implementation. In most cases, it is faster than everything else I have tried.
+/// So having a alias calling it the "default" DD implem seems to make sense.
+/// 
+/// This is the variant implementation that produces a frontier cutset when asked
+pub type DefaultMDDFC<T> = VectorBased<T, {FRONTIER}>;

@@ -4,7 +4,7 @@ use std::{collections::hash_map::Entry, hash::Hash, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
-use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason, CutsetType};
+use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason, CutsetType, LAST_EXACT_LAYER, FRONTIER};
 
 use super::node_flags::NodeFlags;
 
@@ -90,7 +90,7 @@ struct Edge {
 /// - Relaxed: either the last exact layer of the frontier cutset can be chosen
 ///            within the CompilationInput
 #[derive(Debug, Clone)]
-pub struct VectorBased<T>
+pub struct VectorBased<T, const CUTSET_TYPE: CutsetType>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -124,7 +124,7 @@ where
     /// traverses no merged node (Exact Best Path Optimization aka EBPO).
     exact: bool,
 }
-impl<T> Default for VectorBased<T>
+impl<T, const CUTSET_TYPE: CutsetType> Default for VectorBased<T, {CUTSET_TYPE}>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -132,7 +132,7 @@ where
         Self::new()
     }
 }
-impl<T> DecisionDiagram for VectorBased<T>
+impl<T, const CUTSET_TYPE: CutsetType> DecisionDiagram for VectorBased<T, {CUTSET_TYPE}>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -162,7 +162,7 @@ where
         self._drain_cutset(func)
     }
 }
-impl<T> VectorBased<T>
+impl<T, const CUTSET_TYPE: CutsetType> VectorBased<T, {CUTSET_TYPE}>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -189,7 +189,7 @@ where
 
     fn _is_exact(&self, comp_type: CompilationType) -> bool {
         self.cutset.is_none()
-            || (matches!(comp_type, CompilationType::Relaxed(_)) && self.has_exact_best_path(self.best_n))
+            || (matches!(comp_type, CompilationType::Relaxed) && self.has_exact_best_path(self.best_n))
     }
 
     fn has_exact_best_path(&self, node: Option<NodeId>) -> bool {
@@ -327,10 +327,10 @@ where
                         self.maybe_save_lel();
                         self.restrict(input, &mut curr_l)
                     }
-                }
-                CompilationType::Relaxed(cutset_type) => {
+                },
+                CompilationType::Relaxed => {
                     if curr_l.len() > input.max_width && depth > root_depth + 1 {
-                        if cutset_type == CutsetType::LastExactLayer {
+                        if CUTSET_TYPE == LAST_EXACT_LAYER {
                             let was_lel = self.maybe_save_lel();
                             //
                             if was_lel {
@@ -343,7 +343,7 @@ where
                         }
                         self.relax(input, &mut curr_l)
                     }
-                }
+                },
             }
 
             for node_id in curr_l.iter() {
@@ -368,7 +368,7 @@ where
             .copied()
             .max_by_key(|id| self.nodes[id.0].value);
         //
-        if matches!(input.comp_type, CompilationType::Relaxed(_)) {
+        if matches!(input.comp_type, CompilationType::Relaxed) {
             self.compute_local_bounds_and_thresholds(input);
         }
         self.exact = self._is_exact(input.comp_type);
@@ -501,7 +501,7 @@ where
         let (keep, merge) = curr_l.split_at_mut(input.max_width - 1);
         let merged = Arc::new(input.relaxation.merge(&mut merge.iter().map(|node_id| self.nodes[node_id.0].state.as_ref())));
 
-        let recycled = keep.iter().find(|node_id| self.nodes[node_id.0].state.eq(&merged)).map(|node_id| *node_id);
+        let recycled = keep.iter().find(|node_id| self.nodes[node_id.0].state.eq(&merged)).copied();
 
         let merged_id = recycled.unwrap_or_else(|| {
             let node_id = NodeId(self.nodes.len());
@@ -568,9 +568,10 @@ where
         }
     }
 
+    // TODO: Refactor this method as it is way too long.
     fn compute_local_bounds_and_thresholds(&mut self, input: &CompilationInput<T>) {
         let mut lel_depth = None;
-        if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer) {
+        if CUTSET_TYPE == LAST_EXACT_LAYER && input.comp_type == CompilationType::Relaxed {
             if let Some(lel) = &self.cutset {
                 if !lel.is_empty() {
                     lel_depth = Some(self.nodes[lel[0].0].depth);
@@ -583,13 +584,21 @@ where
             self.nodes[node_id.0].value_bot = 0;
             self.nodes[node_id.0].flags.set_marked(true);
 
-            if input.comp_type == CompilationType::Relaxed(CutsetType::LastExactLayer)
-                    && self.cutset.is_none() {
-                self.nodes[node_id.0].flags.set_cutset(true);
-                lel_depth = Some(self.nodes[node_id.0].depth);
-            } else if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier)
-                    && self.nodes[node_id.0].flags.is_exact() {
-                self.nodes[node_id.0].flags.set_cutset(true);
+            if input.comp_type == CompilationType::Relaxed {
+                match CUTSET_TYPE {
+                    LAST_EXACT_LAYER => {
+                        if self.cutset.is_none() {
+                            self.nodes[node_id.0].flags.set_cutset(true);
+                            lel_depth = Some(self.nodes[node_id.0].depth);
+                        }
+                    },
+                    FRONTIER => {
+                        if self.nodes[node_id.0].flags.is_exact() {
+                            self.nodes[node_id.0].flags.set_cutset(true);
+                        }
+                    }, 
+                    _ => {}
+                }
             }
         }
 
@@ -645,14 +654,16 @@ where
                     .min(theta_using_edge);
 
                 // fill frontier cutset if needed
-                if input.comp_type == CompilationType::Relaxed(CutsetType::Frontier) 
-                        && self.nodes[node_id].flags.is_marked() {
-                    if !self.nodes[node_id].flags.is_exact() && self.nodes[edge.from.0].flags.is_exact()
-                            && !self.nodes[edge.from.0].flags.is_cutset() {
-                        self.nodes[edge.from.0].flags.set_cutset(true);
-                        let fc = self.cutset.get_or_insert(vec![]);
-                        fc.push(edge.from);
-                    }
+                if input.comp_type == CompilationType::Relaxed
+                    && CUTSET_TYPE == FRONTIER
+                    && self.nodes[node_id].flags.is_marked()
+                    && !self.nodes[node_id].flags.is_exact() 
+                    && self.nodes[edge.from.0].flags.is_exact()
+                    && !self.nodes[edge.from.0].flags.is_cutset() {
+                    // TODO: Turn the above condition into a dedicated method
+                    self.nodes[edge.from.0].flags.set_cutset(true);
+                    let fc = self.cutset.get_or_insert(vec![]);
+                    fc.push(edge.from);
                 }
 
                 inbound = edge.next;
@@ -674,11 +685,11 @@ mod test_default_mdd {
 
     use rustc_hash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, CutsetType, EmptyBarrier, SimpleBarrier, Barrier};
+    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, DefaultMDD, DefaultMDDLEL, DefaultMDDFC};
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
-        let mdd = VectorBased::<usize>::new();
+        let mdd = VectorBased::<usize, {LAST_EXACT_LAYER}>::new();
 
         assert!(mdd.is_exact());
     }
@@ -694,7 +705,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  3,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 1, value: 42}), 
                 value: 42, 
                 path:  vec![Decision{variable: Variable(0), value: 42}], 
@@ -704,11 +715,11 @@ mod test_default_mdd {
             barrier: &barrier,
         };
 
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
-        input.comp_type = CompilationType::Relaxed(CutsetType::LastExactLayer);
+        input.comp_type = CompilationType::Relaxed;
         assert!(mdd.compile(&input).is_ok());
         assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
 
@@ -729,7 +740,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -738,7 +749,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
 
         assert!(mdd.compile(&input).is_ok());
         assert!(mdd.best_solution().is_some());
@@ -763,7 +774,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -772,7 +783,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
 
         assert!(mdd.compile(&input).is_ok());
         assert!(mdd.best_solution().is_some());
@@ -797,7 +808,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -806,7 +817,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
 
         assert!(result.is_ok());
@@ -825,7 +836,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -834,7 +845,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         
         assert!(result.is_ok());
@@ -846,14 +857,14 @@ mod test_default_mdd {
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -862,7 +873,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         
         assert!(result.is_ok());
@@ -887,7 +898,7 @@ mod test_default_mdd {
             cutoff:     &CutoffAlways,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -896,7 +907,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
@@ -913,7 +924,7 @@ mod test_default_mdd {
             cutoff:     &CutoffAlways,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -922,7 +933,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
@@ -931,14 +942,14 @@ mod test_default_mdd {
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &CutoffAlways,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -947,7 +958,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_err());
         assert_eq!(Some(Reason::CutoffOccurred), result.err());
@@ -957,14 +968,14 @@ mod test_default_mdd {
     fn relaxed_merges_the_less_interesting_nodes() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -973,7 +984,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
 
         assert!(result.is_ok());
@@ -992,14 +1003,14 @@ mod test_default_mdd {
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1008,7 +1019,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1028,7 +1039,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1037,7 +1048,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1048,14 +1059,14 @@ mod test_default_mdd {
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  10,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1064,7 +1075,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1075,14 +1086,14 @@ mod test_default_mdd {
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1091,7 +1102,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1108,7 +1119,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  10,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1117,7 +1128,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1127,14 +1138,14 @@ mod test_default_mdd {
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  1,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1143,7 +1154,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
@@ -1160,7 +1171,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1169,7 +1180,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1185,7 +1196,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual:  &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1194,7 +1205,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_value().is_none())
@@ -1210,7 +1221,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    1000,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1219,7 +1230,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1228,14 +1239,14 @@ mod test_default_mdd {
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
         let barrier = EmptyBarrier::new();
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    1000,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1244,7 +1255,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1260,7 +1271,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    1000,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1269,14 +1280,15 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
     }
     #[test]
     fn exact_skips_nodes_with_a_value_less_than_known_threshold() {
-        let barrier = SimpleBarrier::new(DummyProblem.nb_variables());
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
@@ -1288,7 +1300,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1297,26 +1309,27 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
     }
     #[test]
     fn relaxed_skips_nodes_with_a_value_less_than_known_threshold() {
-        let barrier = SimpleBarrier::new(DummyProblem.nb_variables());
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
             relaxation: &DummyRelax,
             ranking:    &DummyRanking,
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1325,14 +1338,15 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
     }
     #[test]
     fn restricted_skips_nodes_with_a_value_less_than_known_threshold() {
-        let barrier = SimpleBarrier::new(DummyProblem.nb_variables());
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
@@ -1344,7 +1358,7 @@ mod test_default_mdd {
             cutoff:     &NoCutoff,
             max_width:  usize::MAX,
             best_lb:    isize::MIN,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new(DummyState{depth: 0, value: 0}), 
                 value: 0, 
                 path:  vec![], 
@@ -1353,7 +1367,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         assert!(mdd.best_solution().is_none())
@@ -1488,16 +1502,17 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_computes_local_bounds_and_thresholds_1() {
-        let barrier = SimpleBarrier::new(LocBoundsAndThresholdsExamplePb.nb_variables());
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::LastExactLayer),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
             relaxation: &LocBoundsAndThresholdsExampleRelax,
             ranking:    &CmpChar,
             cutoff:     &NoCutoff,
             max_width:  3,
             best_lb:    0,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new('r'), 
                 value: 0, 
                 path:  vec![], 
@@ -1506,7 +1521,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDDLEL::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
@@ -1546,16 +1561,17 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_computes_local_bounds_and_thresholds_2() {
-        let barrier = SimpleBarrier::new(LocBoundsAndThresholdsExamplePb.nb_variables());
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::Frontier),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
             relaxation: &LocBoundsAndThresholdsExampleRelax,
             ranking:    &CmpChar,
             cutoff:     &NoCutoff,
             max_width:  3,
             best_lb:    0,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new('r'), 
                 value: 0, 
                 path:  vec![], 
@@ -1564,7 +1580,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDDFC::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
@@ -1622,16 +1638,17 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_computes_local_bounds_and_thresholds_with_pruning() {
-        let barrier = SimpleBarrier::new(LocBoundsAndThresholdsExamplePb.nb_variables());
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
         let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed(CutsetType::Frontier),
+            comp_type: crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
             relaxation: &LocBoundsAndThresholdsExampleRelax,
             ranking:    &CmpChar,
             cutoff:     &NoCutoff,
             max_width:  3,
             best_lb:    15,
-            residual: SubProblem { 
+            residual: &SubProblem { 
                 state: Arc::new('r'), 
                 value: 0, 
                 path:  vec![], 
@@ -1640,7 +1657,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = VectorBased::new();
+        let mut mdd = DefaultMDDFC::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 

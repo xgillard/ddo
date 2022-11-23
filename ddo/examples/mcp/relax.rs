@@ -141,8 +141,8 @@ impl McpRelax<'_> {
     fn merge_states(&self, nodes: &[&McpState]) -> McpState {
         let mut data = vec![0; self.pb.nb_variables()];
 
-        for v in 0..self.pb.nb_variables() {
-            data[v] = self.merge_substates(Variable(v), nodes);
+        for (v, item) in data.iter_mut().enumerate().take(self.pb.nb_variables()) {
+            *item = self.merge_substates(Variable(v), nodes);
         }
 
         McpState{ depth: nodes[0].depth, benef: data }

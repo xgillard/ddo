@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use clap::Parser;
-use ddo::{TimeBudget, NoCutoff, Cutoff, FixedWidth, DefaultSolver, NoDupFringe, MaxUB, Solver, Completion, WidthHeuristic, NbUnassignedWitdh, Problem, Decision, Variable, EmptyBarrier};
+use ddo::*;
 use model::{f, t};
 
 use crate::{heuristics::Max2SatRanking, model::{Max2Sat, v}, relax::Max2SatRelax, data::read_instance};
@@ -37,16 +37,14 @@ fn main() {
     let width = max_width(&problem, width);
     let cutoff = cutoff(timeout);
     let mut fringe = NoDupFringe::new(MaxUB::new(&Max2SatRanking));
-    let barrier = EmptyBarrier::new();
 
-    let mut solver = DefaultSolver::new(
+    let mut solver = DefaultBarrierSolver::new(
         &problem, 
         &relax, 
         &rank, 
         width.as_ref(), 
         cutoff.as_ref(), 
         &mut fringe,
-        &barrier,
     );
 
         let start = Instant::now();
@@ -58,7 +56,7 @@ fn main() {
         let gap = solver.gap();
         let best_solution  = solver.best_solution().map(|mut decisions|{
             decisions.sort_unstable_by_key(|d| d.variable.id());
-            decisions.iter().map(|d| v(d.variable) * d.value).collect()
+            decisions.iter().map(|d| v(d.variable) * d.value).collect::<Vec<_>>()
         });
     
         println!("Duration:   {:.3} seconds", duration.as_secs_f32());
@@ -68,7 +66,7 @@ fn main() {
         println!("Gap:        {:.3}",         gap);
         println!("Aborted:    {}",            !is_exact);
         println!("Cost:       {:?}",          solution_cost(&problem, &solver.best_solution()));
-        println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
+        println!("Solution:   {:?}",          best_solution.unwrap_or_default());
 }
 
 fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {

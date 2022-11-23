@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use crate::{Threshold, SubProblem};
+use crate::{Threshold, SubProblem, Problem};
 
 /// This trait abstracts away the implementation details of the solver barrier.
 /// That is, a Barrier represents the data structure that stores thresholds that
@@ -32,15 +32,14 @@ pub trait Barrier {
     fn must_explore(&self, subproblem: &SubProblem<Self::State>) -> bool {
         let threshold = self.get_threshold(subproblem.state.clone(), subproblem.depth);
         if let Some(threshold) = threshold {
-            if subproblem.value > threshold.value || (subproblem.value == threshold.value && !threshold.explored) {
-                true
-            } else {
-                false
-            }
+            subproblem.value > threshold.value || (subproblem.value == threshold.value && !threshold.explored)
         } else {
             true
         }
     }
+
+    /// Prepare the barrier to be used with the given problem
+    fn initialize(&mut self, problem: &dyn Problem<State = Self::State>);
 
     /// Returns the threshold currently associated with the given state, if any.
     fn get_threshold(&self, state: Arc<Self::State>, depth: usize) -> Option<Threshold>;

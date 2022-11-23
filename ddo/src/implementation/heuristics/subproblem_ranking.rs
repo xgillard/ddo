@@ -49,12 +49,12 @@ use crate::{StateRanking, SubProblemRanking, SubProblem};
 ///     }
 /// }
 /// 
-/// let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, path: vec![]};
-/// let b = SubProblem {state: Arc::new('b'), value:  2, ub: 100, path: vec![]};
-/// let c = SubProblem {state: Arc::new('c'), value: 24, ub: 150, path: vec![]};
-/// let d = SubProblem {state: Arc::new('d'), value: 13, ub:  60, path: vec![]};
-/// let e = SubProblem {state: Arc::new('e'), value: 65, ub: 700, path: vec![]};
-/// let f = SubProblem {state: Arc::new('f'), value: 19, ub: 100, path: vec![]};
+/// let a = SubProblem {state: Arc::new('a'), value: 42, ub: 300, depth: 0, path: vec![]};
+/// let b = SubProblem {state: Arc::new('b'), value:  2, ub: 100, depth: 0, path: vec![]};
+/// let c = SubProblem {state: Arc::new('c'), value: 24, ub: 150, depth: 0, path: vec![]};
+/// let d = SubProblem {state: Arc::new('d'), value: 13, ub:  60, depth: 0, path: vec![]};
+/// let e = SubProblem {state: Arc::new('e'), value: 65, ub: 700, depth: 0, path: vec![]};
+/// let f = SubProblem {state: Arc::new('f'), value: 19, ub: 100, depth: 0, path: vec![]};
 ///
 /// let ranking = MaxUB::new(&CharRanking);
 /// let mut priority_q = SimpleFringe::new(ranking);

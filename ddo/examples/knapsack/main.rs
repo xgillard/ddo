@@ -94,7 +94,7 @@ impl Problem for Knapsack {
         0
     }
     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
-        let mut ret = state.clone();
+        let mut ret = *state;
         ret.depth  += 1;
         if dec.value == TAKE_IT { 
             ret.capacity -= self.weight[dec.variable.id()] 
@@ -230,14 +230,14 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
         }
         if is_first {
             is_first = false;
-            let mut ab = line.split(" ");
+            let mut ab = line.split(' ');
             n = ab.next().ok_or(Error::Format)?.parse()?;
             capa = ab.next().ok_or(Error::Format)?.parse()?;
         } else {
             if count >= n {
                 break;
             }
-            let mut ab = line.split(" ");
+            let mut ab = line.split(' ');
             profit.push(ab.next().ok_or(Error::Format)?.parse()?);
             weight.push(ab.next().ok_or(Error::Format)?.parse()?);
             count += 1;
@@ -267,16 +267,14 @@ fn main() {
     let width = max_width(problem.nb_variables(), args.width);
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
-    let barrier = EmptyBarrier::new();
 
-    let mut solver = DefaultSolver::new(
+    let mut solver = DefaultBarrierSolver::new(
         &problem, 
         &relaxation, 
         &heuristic, 
         width.as_ref(), 
         &cutoff, 
         &mut fringe,
-        &barrier,
     );
 
     let start = Instant::now();
@@ -288,7 +286,7 @@ fn main() {
     let gap = solver.gap();
     let best_solution  = solver.best_solution().map(|mut decisions|{
         decisions.sort_unstable_by_key(|d| d.variable.id());
-        decisions.iter().map(|d| d.value).collect()
+        decisions.iter().map(|d| d.value).collect::<Vec<_>>()
     });
 
     println!("Duration:   {:.3} seconds", duration.as_secs_f32());
@@ -297,5 +295,5 @@ fn main() {
     println!("Lower Bnd:  {}",            lower_bound);
     println!("Gap:        {:.3}",         gap);
     println!("Aborted:    {}",            !is_exact);
-    println!("Solution:   {:?}",          best_solution.unwrap_or(vec![]));
+    println!("Solution:   {:?}",          best_solution.unwrap_or_default());
 }

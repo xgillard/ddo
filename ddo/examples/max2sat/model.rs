@@ -113,7 +113,7 @@ const fn idx(x: isize) -> usize {
     (x.abs() - 1) as usize
 }
 fn mk_lit(x: isize) -> usize {
-    let sign = if x > 0 { 1 } else { 0 };
+    let sign = usize::from(x > 0);
     let abs = (x.abs() - 1) as usize;
 
     abs + abs + sign
@@ -309,9 +309,7 @@ impl Problem for Max2Sat {
             }
 
             res + sum
-        } else
-        /*if d.value == T*/
-        {
+        } else { /* when d.value == T*/
             let res = pos(state[k]);
             let mut sum = self.weight(t(k), t(k)); // Weight if unit clause
             for l in vars {
