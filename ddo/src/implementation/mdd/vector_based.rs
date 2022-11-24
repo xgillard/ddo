@@ -2,7 +2,7 @@
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
 use std::{collections::hash_map::Entry, hash::Hash, sync::Arc};
 
-use rustc_hash::FxHashMap;
+use fxhash::FxHashMap;
 
 use crate::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason, CutsetType, LAST_EXACT_LAYER, FRONTIER};
 
@@ -683,7 +683,7 @@ mod test_default_mdd {
     use std::cmp::Ordering;
     use std::sync::Arc;
 
-    use rustc_hash::FxHashMap;
+    use fxhash::FxHashMap;
 
     use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, DefaultMDD, DefaultMDDLEL, DefaultMDDFC};
 

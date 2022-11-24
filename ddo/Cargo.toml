@@ -15,8 +15,9 @@ exclude          = ["examples/tests/resources/*" ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustc-hash       = "1.1.0"
+fxhash           = "0.2.1"
 binary-heap-plus = "0.5.0"
+dashmap          = "5.4"
 
 # -- going parallel --------
 num_cpus         = "1.13.0"

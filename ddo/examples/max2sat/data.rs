@@ -18,7 +18,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use regex::Regex;
-use rustc_hash::FxHashMap;
+use fxhash::FxHashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;

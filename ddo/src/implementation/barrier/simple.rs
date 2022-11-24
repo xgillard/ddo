@@ -26,8 +26,7 @@
 
 use std::{sync::Arc, hash::Hash};
 
-use parking_lot::RwLock;
-use rustc_hash::FxHashMap;
+use dashmap::DashMap;
 
 use crate::{Barrier, Threshold};
 
@@ -36,7 +35,7 @@ use crate::{Barrier, Threshold};
 #[derive(Debug)]
 pub struct SimpleBarrier<T>
 where T: Hash + Eq {
-    thresholds_by_layer: Vec<RwLock<FxHashMap<Arc<T>, Threshold>>>,
+    thresholds_by_layer: Vec<DashMap<Arc<T>, Threshold, fxhash::FxBuildHasher>>,
 }
 impl <T> Default for SimpleBarrier<T> 
 where T: Hash + Eq {
@@ -52,28 +51,27 @@ where T: Hash + Eq {
     fn initialize(&mut self, problem: &dyn crate::Problem<State = Self::State>) {
         let nb_variables = problem.nb_variables();
         for _ in 0..=nb_variables {
-            self.thresholds_by_layer.push(RwLock::new(Default::default()));
+            self.thresholds_by_layer.push(Default::default());
         }
     }
 
     fn get_threshold(&self, state: Arc<T>, depth: usize) -> Option<Threshold> {
-        self.thresholds_by_layer[depth].read().get(state.as_ref()).copied()
+        self.thresholds_by_layer[depth].get(state.as_ref()).as_deref().copied()
     }
 
     fn update_threshold(&self, state: Arc<T>, depth: usize, value: isize, explored: bool) {
-        let mut guard = self.thresholds_by_layer[depth].write();
-        let current = guard
+        let mut current = self.thresholds_by_layer[depth]
             .entry(state)
             .or_insert(Threshold { value: isize::MIN, explored: false });
-        let mut new = Threshold { value, explored };
-        *current = *current.max(&mut new);
+        let new = Threshold { value, explored };
+        *current.value_mut() = new.max(*current.value());
     }
 
     fn clear_layer(&self, depth: usize) {
-        self.thresholds_by_layer[depth].write().clear();
+        self.thresholds_by_layer[depth].clear();
     }
 
     fn clear(&self) {
-        self.thresholds_by_layer.iter().for_each(|l| l.write().clear());
+        self.thresholds_by_layer.iter().for_each(|l| l.clear());
     }
 }

@@ -26,7 +26,7 @@ use std::cmp::Ordering;
 use std::cmp::Ordering::{Greater, Less};
 
 use compare::Compare;
-use rustc_hash::FxHashMap;
+use fxhash::FxHashMap;
 
 use crate::*;
 use self::Action::{BubbleDown, BubbleUp, DoNothing};
