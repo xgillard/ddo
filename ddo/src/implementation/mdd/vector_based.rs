@@ -331,15 +331,7 @@ where
                 CompilationType::Relaxed => {
                     if curr_l.len() > input.max_width && depth > root_depth + 1 {
                         if CUTSET_TYPE == LAST_EXACT_LAYER {
-                            let was_lel = self.maybe_save_lel();
-                            //
-                            if was_lel {
-                                for id in curr_l.iter() {
-                                    let rub = input.relaxation.fast_upper_bound(self.nodes[id.0].state.as_ref());
-                                    self.nodes[id.0].rub = rub;
-                                }
-                            }
-                            //
+                            self.maybe_save_lel();
                         }
                         self.relax(input, &mut curr_l)
                     }
@@ -553,7 +545,7 @@ where
                     self.nodes[merged_id.0].best = Some(new_eid);
                     self.nodes[merged_id.0].value = new_value;
                 }
-
+                
                 edge_id = edge.next;
             }
         }
