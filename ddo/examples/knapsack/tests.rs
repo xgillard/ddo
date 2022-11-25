@@ -44,17 +44,15 @@ pub fn solve_id(id: &str) -> isize {
     let width = NbUnassignedWitdh(problem.nb_variables());
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
-    let barrier = EmptyBarrier::new();
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultSolver::new(
+    let mut solver = DefaultBarrierSolver::new(
         &problem, 
         &relaxation, 
         &ranking, 
         &width, 
         &cutoff, 
         &mut fringe,
-        &barrier,
     );
 
     let Completion { best_value , ..} = solver.maximize();
@@ -114,6 +112,18 @@ fn knappi_1_200_1000_1() {
 fn knappi_2_100_1000_1() {
     assert_eq!(solve_id("knapPI_2_100_1000_1"), 1514);
 }
+#[test]
+fn knappi_2_200_1000_1() {
+    assert_eq!(solve_id("knapPI_2_200_1000_1"), 1634);
+}
+#[test]
+fn knappi_3_100_1000_1() {
+    assert_eq!(solve_id("knapPI_3_100_1000_1"), 2397);
+}
+#[test]
+fn knappi_3_200_1000_1() {
+    assert_eq!(solve_id("knapPI_3_200_1000_1"), 2697);
+}
 
 // =================================================================
 // these large scale integration tests are ignored but feel free
@@ -127,11 +137,6 @@ fn knappi_1_5000_1000_1() {
 #[ignore] #[test]
 fn knappi_2_2000_1000_1() {
     assert_eq!(solve_id("knapPI_2_2000_1000_1"), 18051);
-}
-
-#[ignore] #[test]
-fn knappi_3_200_1000_1() {
-    assert_eq!(solve_id("knapPI_3_200_1000_1"), 2697);
 }
 
 #[ignore] #[test]
@@ -175,11 +180,6 @@ fn knappi_3_2000_1000_1() {
 }
 
 #[ignore] #[test]
-fn knappi_3_100_1000_1() {
-    assert_eq!(solve_id("knapPI_3_100_1000_1"), 2397);
-}
-
-#[ignore] #[test]
 fn knappi_1_1000_1000_1() {
     assert_eq!(solve_id("knapPI_1_1000_1000_1"), 54503);
 }
@@ -187,11 +187,6 @@ fn knappi_1_1000_1000_1() {
 #[ignore] #[test]
 fn knappi_3_10000_1000_1() {
     assert_eq!(solve_id("knapPI_3_10000_1000_1"), 146919);
-}
-
-#[ignore] #[test]
-fn knappi_2_200_1000_1() {
-    assert_eq!(solve_id("knapPI_2_200_1000_1"), 1634);
 }
 
 #[ignore] #[test]

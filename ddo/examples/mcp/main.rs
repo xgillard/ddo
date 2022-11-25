@@ -36,7 +36,7 @@ fn main() {
     let cutoff = cutoff(timeout);
     let mut fringe = NoDupFringe::new(MaxUB::new(&rank));
 
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultSolver::new(
         &problem, 
         &relax, 
         &rank, 
