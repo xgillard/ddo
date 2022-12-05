@@ -21,12 +21,12 @@
 //! using ddo. It is a fairly simple example but it features most of the aspects you will
 //! want to copy when implementing your own solver.
 
-use std::vec;
+use std::{vec, collections::BinaryHeap};
 
 use ddo::*;
 use smallbitset::Set32;
 
-use crate::ub_utils::{all_mst, wagner_whithin};
+use crate::ub_utils::all_mst;
 
 /// The state of the DP model
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -119,7 +119,7 @@ impl Problem for Psp {
     fn for_each_in_domain(&self, variable: ddo::Variable, state: &Self::State, f: &mut dyn ddo::DecisionCallback) {
         let t = variable.id() as isize;
         let dom = (0..self.n_items).filter(|i| state.prev_demands[*i] >= t).collect::<Vec<usize>>();
-        let rem_demands = dom.iter().map(|i| self.rem_demands[*i][state.prev_demands[*i] as usize]).sum::<isize>();
+        let rem_demands = (0..self.n_items).filter(|i| state.prev_demands[*i] >= 0).map(|i| self.rem_demands[i][state.prev_demands[i] as usize]).sum::<isize>();
 
         if rem_demands > t + 1 {
             return;
@@ -138,17 +138,14 @@ impl Problem for Psp {
 /// This structure implements the PSP relaxation
 pub struct PspRelax<'a>{
     pb: &'a Psp,
-
     mst: Vec<usize>,
-    ww: Vec<usize>
 }
 
 impl <'a> PspRelax<'a> {
     pub fn new(pb: &'a Psp) -> Self {
         let mst = all_mst(&pb.changeover);
-        let ww = wagner_whithin(pb);
 
-        Self { pb, mst, ww }
+        Self { pb, mst }
     }
 
     fn members(state: &PspState) -> Set32 {
@@ -185,27 +182,35 @@ impl Relaxation for PspRelax<'_> {
     fn relax(
         &self,
         _source: &Self::State,
-        dest: &Self::State,
-        new:  &Self::State,
+        _dest: &Self::State,
+        _new:  &Self::State,
         _decision: Decision,
         cost: isize,
     ) -> isize {
-        let mut c = cost;
-
-        for (i, (a, b)) in dest.prev_demands.iter().zip(new.prev_demands.iter()).enumerate() {
-            if a > b {
-                c -= self.pb.stocking[i] as isize * (a - b);
-            }
-        }
-
-        c
+        cost
     }
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
         let idx: u32 = u32::from(Self::members(state));
-        let co = self.mst[idx as usize];
-        let ww = self.ww[state.time - 1];
-        -((co + ww) as isize)
+        let co = self.mst[idx as usize] as isize;
+
+        let mut prev_demands = state.prev_demands.clone();
+        let mut ww = 0;
+        let mut items = BinaryHeap::new();
+        for time in (0..state.time).rev() {
+            for i in 0..self.pb.n_items {
+                while prev_demands[i] >= time as isize {
+                    items.push((self.pb.stocking[i], prev_demands[i]));
+                    prev_demands[i] = self.pb.prev_demands[i][prev_demands[i] as usize];
+                }
+            }
+
+            if let Some((cost, deadline)) = items.pop() {
+                ww += cost as isize * (time as isize - deadline);
+            }
+        }
+    
+        -(co + ww)
     }
 }
 
