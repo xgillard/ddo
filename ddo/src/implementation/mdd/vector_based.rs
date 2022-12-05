@@ -331,15 +331,7 @@ where
                 CompilationType::Relaxed => {
                     if curr_l.len() > input.max_width && depth > root_depth + 1 {
                         if CUTSET_TYPE == LAST_EXACT_LAYER {
-                            let was_lel = self.maybe_save_lel();
-                            //
-                            if was_lel {
-                                for id in curr_l.iter() {
-                                    let rub = input.relaxation.fast_upper_bound(self.nodes[id.0].state.as_ref());
-                                    self.nodes[id.0].rub = rub;
-                                }
-                            }
-                            //
+                            self.maybe_save_lel();
                         }
                         self.relax(input, &mut curr_l)
                     }
@@ -376,7 +368,7 @@ where
         Ok(Completion { is_exact: self.is_exact(), best_value: self.best_value() })
     }
 
-    fn maybe_save_lel(&mut self) -> bool {
+    fn maybe_save_lel(&mut self) {
         if self.cutset.is_none() {
             let mut lel = vec![];
             for id in self.prev_l.iter() {
@@ -384,9 +376,6 @@ where
                 self.nodes[id.0].flags.set_cutset(true);
             }
             self.cutset = Some(lel);
-            true
-        } else {
-            false
         }
     }
 
