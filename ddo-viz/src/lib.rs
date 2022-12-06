@@ -18,11 +18,5 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! DDO-Viz is meant to let you visualize the decision diagrams you have compiled
-
-pub mod common;
 pub mod viz_mdd;
-pub mod visualisation;
-
-pub use common::*;
-pub use visualisation::*;
 pub use viz_mdd::*;

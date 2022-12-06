@@ -13,9 +13,10 @@ exclude          = ["examples/tests/resources/*" ]
 
 [dependencies]
 ddo              = {path = "../ddo" }
-rustc-hash       = "1.1"
-derive_builder   = "0.11"
+fxhash           = "0.2"
+derive_builder   = "0.12"
 
 [dev-dependencies]
-structopt        = "0.3"
+clap             = {version = "4.0", features = ["derive"]}
 anyhow           = "1.0"
+thiserror        = "1.0"

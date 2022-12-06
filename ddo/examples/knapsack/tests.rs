@@ -19,11 +19,11 @@
 
 //! This module is meant to tests the correctness of our knapsack example
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use ddo::*;
 
-use crate::{KPRelax, KPranking, read_instance};
+use crate::{KPRelax, KPranking, read_instance, KnapsackState};
 
 fn locate(id: &str) -> PathBuf {
     PathBuf::new()

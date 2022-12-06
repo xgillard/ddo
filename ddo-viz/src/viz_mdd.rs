@@ -1,42 +1,91 @@
 //! This is an adaptation of the vector based architecture which implements all
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
-//! It also implements the visualizable trait so that we can easily display the relevant
-//! info with an expressive picture.
-use std::{collections::hash_map::Entry, hash::Hash, ops::Deref, sync::Arc, fmt::Debug};
 
-use rustc_hash::FxHashMap;
+use std::{sync::Arc, hash::Hash, collections::hash_map::Entry, fmt::Debug};
 
-use ddo::{Decision, DecisionDiagram, CompilationInput, Problem, SubProblem, CompilationType, Completion, Reason, NodeFlags};
+use derive_builder::Builder;
+use fxhash::FxHashMap;
 
-use crate::{common::{NodeId, Node, Edge, EdgeId}, visualisation::{Visualisable, Visualisation}};
+use ddo::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem};
 
+/// The identifier of a node: it indicates the position of the referenced node 
+/// in the ’nodes’ vector of the mdd structure.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+struct NodeId(usize);
+
+/// The identifier of an edge: it indicates the position of the referenced edge 
+/// in the ’edges’ vector of the mdd structure.
+#[derive(Debug, Clone, Copy)]
+struct EdgeId(usize);
+
+/// The identifier of an edge list: it indicates the position of an edge list
+/// in the ’edgelists’ vector of the mdd structure.
+#[derive(Debug, Clone, Copy)]
+struct EdgesListId(usize);
+
+/// The identifier of a layer: it indicates the position of the referenced layer 
+/// in the 'layers' vector of the mdd structure.
+#[derive(Debug, Clone, Copy)]
+struct LayerId(usize);
+
+/// Represents an effective node from the decision diagram
 #[derive(Debug, Clone)]
-pub struct VizData<T> {
-    pub states: Vec<T>,
-    pub merged: Vec<bool>,
-    pub restricted: Vec<bool>,
-    pub groups: FxHashMap<NodeId, Vec<NodeId>>,  
-    pub terminal: Vec<NodeId>
+struct Node<T> {
+    /// The state associated to this node
+    state: Arc<T>,
+    /// The length of the longest path between the problem root and this
+    /// specific node
+    value_top: isize,
+    /// The length of the longest path between this node and the terminal node.
+    /// 
+    /// ### Note
+    /// This field is only ever populated after the MDD has been fully unrolled.
+    value_bot: isize,
+    /// The identifier of the last edge on the longest path between the problem 
+    /// root and this node if it exists.
+    best: Option<EdgeId>,
+    /// The identifier of the latest edge having been added to the adjacency
+    /// list of this node. (Edges, by themselves form a kind of linked structure)
+    inbound: EdgesListId,
+    // The rough upper bound associated to this node
+    rub: isize,
+    /// A group of flag telling if the node is an exact node, if it is a relaxed
+    /// node (helps to determine if the best path is an exact path) and if the
+    /// node is reachable in a backwards traversal of the MDD starting at the
+    /// terminal node.
+    flags: NodeFlags,
+    /// The number of decisions that have been made since the problem root
+    depth: usize,
 }
-impl <T> Default for VizData<T> {
-    fn default() -> Self {
-        Self {
-            states: vec![],
-            merged: vec![],
-            restricted: vec![],
-            groups: FxHashMap::default(),
-            terminal: vec![],
-        }
-    }
+
+/// Materializes one edge a.k.a arc from the decision diagram. It logically 
+/// connects two nodes and annotates the link with a decision and a cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Edge {
+    /// The identifier of the node at the ∗∗source∗∗ of this edge.
+    from: NodeId,
+    /// The identifier of the node at the ∗∗destinaition∗∗ of this edge.
+    to: NodeId,
+    /// This is the decision label associated to this edge. It gives the 
+    /// information "what variable" is assigned to "what value".
+    decision: Decision,
+    /// This is the transition cost of making this decision from the state
+    /// associated with the source node of this edge.
+    cost: isize,
 }
-impl <T> VizData<T> {
-    fn clear(&mut self) {
-        self.states.clear();
-        self.merged.clear();
-        self.restricted.clear();
-        self.groups.clear();
-        self.terminal.clear();
-    }
+
+/// Represents a 'node' in the linked list that forms the adjacent edges list for a node 
+#[derive(Debug, Clone, Copy)]
+enum EdgesList {
+    Cons {head: EdgeId, tail: EdgesListId},
+    Nil
+}
+
+/// Represents a 'layer' in the decision diagram
+#[derive(Debug, Clone, Copy)]
+struct Layer {
+    from: usize,
+    to: usize,
 }
 
 /// The decision diagram in itself. This structure essentially keeps track
@@ -46,168 +95,202 @@ impl <T> VizData<T> {
 /// problem root to the root of this decision diagram (explores a sub problem). 
 /// The prev_l comprises information about the nodes that are currently being
 /// expanded, next_l stores the information about the nodes from the next layer 
-/// and lel simply stores a last exact layer cutset.
-/// 
-/// # Exact Cutset
-/// The exact cutset which is used in this implementation is the 
-/// Last Exact Layer cutset (LEL).
+/// and cutset stores an exact cutset of the DD.
+/// Depending on the type of DD compiled, different cutset types will be used:
+/// - Exact: no cutset is needed since the DD is exact
+/// - Restricted: the last exact layer is used as cutset
+/// - Relaxed: either the last exact layer of the frontier cutset can be chosen
+///            within the CompilationInput
 #[derive(Debug, Clone)]
-pub struct VizMdd<T>
+pub struct Mdd<T, const CUTSET_TYPE: CutsetType>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
-    /// Keeps track of the decisions that have been taken to reach the root
-    /// of this DD, starting from the problem root.
-    root_pa: Vec<Decision>,
+    /// This vector stores the information about the structure of all the layers
+    /// in this decision diagram
+    layers: Vec<Layer>,
     /// All the nodes composing this decision diagram. The vector comprises 
     /// nodes from all layers in the DD. A nice property is that all nodes
     /// belonging to one same layer form a sequence in the ‘nodes‘ vector.
-    pub nodes: Vec<Node>,
+    nodes: Vec<Node<T>>,
     /// This vector stores the information about all edges connecting the nodes 
     /// of the decision diagram.
-    pub edges: Vec<Edge>,
-    /// Maintains the association nodeid−>state for the nodes of the layer which 
-    /// is currently being expanded. This association is only used during the
-    /// unrolling of transition relation, and when merging nodes of a relaxed DD.
-    prev_l: FxHashMap<NodeId, T>,
+    edges: Vec<Edge>,
+    /// This vector stores the information about all edge lists consituting 
+    /// linked lists between edges
+    edgelists: Vec<EdgesList>,
+    
+    /// Contains the nodes of the layer which is currently being expanded.
+    /// This collection is only used during the unrolling of transition relation,
+    /// and when merging nodes of a relaxed DD.
+    prev_l: Vec<NodeId>,
     /// The nodes from the next layer; those are the result of an application 
     /// of the transition function to a node in ‘prev_l‘.
     /// Note: next_l in itself is indexed on the state associated with nodes.
     /// The rationale being that two transitions to the same state in the same
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
-    next_l: FxHashMap<T, NodeId>,
-    /// The last exact layer of the decision diagram
-    lel: Option<Vec<(T, NodeId)>>,
+    next_l: FxHashMap<Arc<T>, NodeId>,
+
+    /// Keeps track of the decisions that have been taken to reach the root
+    /// of this DD, starting from the problem root.
+    path_to_root: Vec<Decision>,
+    /// The identifier of the last exact layer (should this dd be inexact)
+    lel: Option<LayerId>,
+    /// The cutset of the decision diagram (only maintained for relaxed dd)
+    cutset: Vec<NodeId>,
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
-    best_n: Option<NodeId>,
+    best_node: Option<NodeId>,
     /// A flag set to true when the longest r-t path of this decision diagram
     /// traverses no merged node (Exact Best Path Optimization aka EBPO).
-    exact: bool,
-
-    viz_data: VizData<T>,
+    is_exact: bool,
 }
-impl<T> Default for VizMdd<T>
+
+const NIL: EdgesListId = EdgesListId(0);
+
+
+// Tech note: WHY AM I USING MACROS HERE ? 
+// ---> Simply to avoid the need to fight the borrow checker
+
+/// These macro retrieve an element of the dd by its id
+macro_rules! get {
+    (    node     $id:expr, $dd:expr) => {&    $dd.nodes   [$id.0]};
+    (mut node     $id:expr, $dd:expr) => {&mut $dd.nodes   [$id.0]};
+    (    edge     $id:expr, $dd:expr) => {&    $dd.edges   [$id.0]};
+    (mut edge     $id:expr, $dd:expr) => {&mut $dd.edges   [$id.0]};
+    (    edgelist $id:expr, $dd:expr) => {&    $dd.edgelists[$id.0]};
+    (mut edgelist $id:expr, $dd:expr) => {&mut $dd.edgelists[$id.0]};
+    (    layer    $id:expr, $dd:expr) => {&    $dd.layers  [$id.0]};
+    (mut layer    $id:expr, $dd:expr) => {&mut $dd.layers  [$id.0]};
+}
+
+/// This macro performs an action for each edge of a given node in the dd
+macro_rules! foreach {
+    (edge of $id:expr, $dd:expr, $action:expr) => {
+        let mut list = get!(node $id, $dd).inbound;
+        while let EdgesList::Cons{head, tail} = *get!(edgelist list, $dd) {
+            let edge = *get!(edge head, $dd);
+            $action(edge);
+            list = tail;
+        }
+    };
+}
+
+/// This macro appends an edge to the list of edges adjacent to a given node
+macro_rules! append_edge_to {
+    ($dd:expr, $id:expr, $edge:expr) => {
+        let new_eid = EdgeId($dd.edges.len());
+        let lst_id  = EdgesListId($dd.edgelists.len());
+        $dd.edges.push($edge);
+        $dd.edgelists.push(EdgesList::Cons { head: new_eid, tail: get!(node $id, $dd).inbound });
+        
+        let parent = get!(node $edge.from, $dd);
+        let parent_exact = parent.flags.is_exact();
+        let value = parent.value_top.saturating_add($edge.cost);
+        
+        let node = get!(mut node $id, $dd);
+        let exact = parent_exact & node.flags.is_exact();
+        node.flags.set_exact(exact);
+        node.inbound = lst_id;
+
+        if value >= node.value_top {
+            node.best = Some(new_eid);
+            node.value_top = value;
+        }
+    };
+}
+
+impl<T, const CUTSET_TYPE: CutsetType> Default for Mdd<T, {CUTSET_TYPE}>
 where
-    T: Eq + PartialEq + Hash + Clone + Debug,
+    T: Eq + PartialEq + Hash + Clone,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl <T> Visualisable for VizMdd<T> 
+impl<T, const CUTSET_TYPE: CutsetType> DecisionDiagram for Mdd<T, {CUTSET_TYPE}>
 where
-    T: Eq + PartialEq + Hash + Clone + Debug,
-{
-    fn visualisation(&self) -> Visualisation<T> {
-        Visualisation { 
-            nodes:  &self.nodes, 
-            edges:  &self.edges, 
-            states: &self.viz_data.states, 
-            merged: &self.viz_data.merged, 
-            restricted: &self.viz_data.restricted, 
-            groups: &self.viz_data.groups,
-            terminal: &self.viz_data.terminal
-        }
-    }
-}
-
-impl<T> DecisionDiagram for VizMdd<T>
-where
-    T: Eq + PartialEq + Hash + Clone + Debug,
+    T: Eq + PartialEq + Hash + Clone,
 {
     type State = T;
 
-    fn compile(&mut self, input: &CompilationInput<T>)
-        -> Result<Completion, Reason> {
+    fn compile(&mut self, input: &CompilationInput<Self::State>) -> Result<Completion, Reason> {
         self._compile(input)
     }
 
     fn is_exact(&self) -> bool {
-        self.exact
+        self.is_exact
     }
 
     fn best_value(&self) -> Option<isize> {
         self._best_value()
     }
 
-    fn best_solution(&self) -> Option<Vec<Decision>> {
+    fn best_solution(&self) -> Option<ddo::Solution> {
         self._best_solution()
     }
 
     fn drain_cutset<F>(&mut self, func: F)
     where
-        F: FnMut(SubProblem<T>),
-    {
+        F: FnMut(ddo::SubProblem<Self::State>) {
         self._drain_cutset(func)
     }
 }
-impl<T> VizMdd<T>
+
+impl<T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}>
 where
-    T: Eq + PartialEq + Hash + Clone + Debug,
+    T: Eq + PartialEq + Hash + Clone,
 {
     pub fn new() -> Self {
         Self {
-            root_pa: vec![],
+            layers: vec![],
             nodes: vec![],
             edges: vec![],
-            prev_l: Default::default(),
+            edgelists: vec![],
+            //
+            prev_l: vec![],
             next_l: Default::default(),
+            //
+            path_to_root: vec![],
             lel: None,
-            best_n: None,
-            exact: true,
-
-            viz_data: Default::default(),
+            cutset: vec![],
+            best_node: None,
+            is_exact: true,
         }
     }
-    fn clear(&mut self) {
-        self.root_pa.clear();
+    
+    fn _clear(&mut self) {
+        self.layers.clear();
         self.nodes.clear();
         self.edges.clear();
+        self.edgelists.clear();
+        self.prev_l.clear();
         self.next_l.clear();
+        self.path_to_root.clear();
+        self.cutset.clear();
         self.lel = None;
-        self.exact = true;
-
-        self.viz_data.clear();
-    }
-
-    fn _is_exact(&self, comp_type: CompilationType) -> bool {
-        self.lel.is_none()
-            || (comp_type == CompilationType::Relaxed && self.has_exact_best_path(self.best_n))
-    }
-
-    fn has_exact_best_path(&self, node: Option<NodeId>) -> bool {
-        if let Some(node_id) = node {
-            let n = &self.nodes[node_id.0];
-            if n.flags.is_exact() {
-                true
-            } else {
-                !n.flags.is_relaxed()
-                    && self.has_exact_best_path(n.best.map(|e| self.edges[e.0].from))
-            }
-        } else {
-            true
-        }
+        self.best_node = None;
+        self.is_exact = true;
     }
 
     fn _best_value(&self) -> Option<isize> {
-        self.best_n.map(|id| self.nodes[id.0].value)
+        self.best_node.map(|id| get!(node id, self).value_top)
     }
 
     fn _best_solution(&self) -> Option<Vec<Decision>> {
-        self.best_n.map(|id| self._best_path(id))
+        self.best_node.map(|id| self._best_path(id))
     }
 
     fn _best_path(&self, id: NodeId) -> Vec<Decision> {
-        Self::_best_path_partial_borrow(id, &self.root_pa, &self.nodes, &self.edges)
+        Self::_best_path_partial_borrow(id, &self.path_to_root, &self.nodes, &self.edges)
     }
 
     fn _best_path_partial_borrow(
         id: NodeId,
         root_pa: &[Decision],
-        nodes: &[Node],
+        nodes: &[Node<T>],
         edges: &[Edge],
     ) -> Vec<Decision> {
         let mut sol = root_pa.to_owned();
@@ -220,1168 +303,531 @@ where
         sol
     }
 
+    fn _compile(&mut self, input: &CompilationInput<T>) -> Result<Completion, Reason> {
+        self._clear();
+        self._initialize(input);
+        
+        let mut curr_l = vec![];
+        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|s| s.as_ref())) {
+            // Did the cutoff kick in ?
+            if input.cutoff.must_stop() {
+                return Err(Reason::CutoffOccurred);
+            }
+            
+            if !self._move_to_next_layer(input, &mut curr_l) {
+                break;
+            }
+
+            for node_id in curr_l.iter() {
+                let state = self.nodes[node_id.0].state.clone();
+                let rub = input.relaxation.fast_upper_bound(state.as_ref());
+                self.nodes[node_id.0].rub = rub;
+                let ub = rub.saturating_add(self.nodes[node_id.0].value_top);
+                if ub > input.best_lb {
+                    input.problem.for_each_in_domain(var, state.as_ref(), &mut |decision| {
+                        self._branch_on(*node_id, decision, input.problem)
+                    })
+                }
+            }
+        }
+
+        self._finalize(input);
+
+        Ok(Completion { 
+            is_exact: self.is_exact, 
+            best_value: self.best_node.map(|n| get!(node n, self).value_top) 
+        })
+    }
+
+    fn _initialize(&mut self, input: &CompilationInput<T>) {
+        self.path_to_root.extend_from_slice(&input.residual.path);
+        self.edgelists.push(EdgesList::Nil);
+
+        let root_node_id = NodeId(0);
+        
+        let root_node = Node { 
+            state: input.residual.state.clone(), 
+            value_top: input.residual.value, 
+            value_bot: isize::MIN, 
+            best: None, 
+            inbound: NIL, 
+            rub: input.residual.ub, 
+            flags: NodeFlags::new_exact(), 
+            depth: input.residual.depth,
+        };
+
+        self.nodes.push(root_node);
+        self.next_l.insert(input.residual.state.clone(), root_node_id);
+        self.edgelists.push(EdgesList::Nil);
+    }
+
+    fn _finalize(&mut self, input: &CompilationInput<T>) {
+        self._finalize_layers();
+        self._find_best_node();
+        self._finalize_exact(input);
+        self._finalize_cutset(input);
+        self._compute_local_bounds(input);
+    }
+
+
     fn _drain_cutset<F>(&mut self, mut func: F)
     where
         F: FnMut(SubProblem<T>),
     {
         if let Some(best_value) = self.best_value() {
-            if let Some(lel) = self.lel.as_mut() {
-                for (state, id) in lel.drain(..) {
-                    let node = &self.nodes[id.0];
+            for id in self.cutset.drain(..) {
+                let node = get!(node id, self);
 
-                    if node.flags.is_marked() {
-                        let rub = node.value.saturating_add(node.rub);
-                        let locb = node.value.saturating_add(node.value_bot);
-                        let ub = rub.min(locb).min(best_value);
+                if node.flags.is_marked() {
+                    let rub  = node.value_top.saturating_add(node.rub);
+                    let locb = node.value_top.saturating_add(node.value_bot);
+                    let ub = rub.min(locb).min(best_value);
 
-                        func(SubProblem {
-                            state: Arc::new(state),
-                            value: self.nodes[id.0].value,
-                            path: Self::_best_path_partial_borrow(
-                                id,
-                                &self.root_pa,
-                                &self.nodes,
-                                &self.edges,
-                            ),
-                            ub,
-                        })
-                    }
-                }
-            }
-        }
-    }
-
-    fn _compile(&mut self, input: &CompilationInput<T>)
-        -> Result<Completion, Reason> {
-        self.clear();
-
-        let mut depth = 0;
-        let mut curr_l = vec![];
-        
-        let root_s = input.residual.state.deref().clone();
-        let root_v = input.residual.value;
-        let root_n = Node {
-            value: root_v,
-            best: None,
-            inbound: None,
-            value_bot: isize::MIN,
-            rub: input.residual.ub.saturating_sub(root_v),
-            flags: NodeFlags::new_exact(),
-        };
-        input
-            .residual
-            .path
-            .iter()
-            .copied()
-            .for_each(|x| self.root_pa.push(x));
-
-        self.nodes.push(root_n);
-        self.next_l.insert(root_s, NodeId(0));
-
-        self.viz_data.states.push(input.residual.state.deref().clone());
-        self.viz_data.merged.push(false);
-        self.viz_data.restricted.push(false);
-
-        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys()) {
-            // Did the cutoff kick in ?
-            if input.cutoff.must_stop() {
-                return Err(Reason::CutoffOccurred);
-            }
-            self.prev_l.clear();
-            for (state, id) in curr_l.drain(..) {
-                self.prev_l.insert(id, state);
-            }
-            for (state, id) in self.next_l.drain() {
-                curr_l.push((state, id));
-            }
-
-            if curr_l.is_empty() {
-                break; 
-            }
-
-            match input.comp_type {
-                CompilationType::Exact => { /* do nothing: you want to explore the complete DD */ }
-                CompilationType::Restricted => {
-                    if curr_l.len() > input.max_width {
-                        self.maybe_save_lel();
-                        self.restrict(input, &mut curr_l)
-                    }
-                }
-                CompilationType::Relaxed => {
-                    if curr_l.len() > input.max_width && depth > 1 {
-                        let was_lel = self.maybe_save_lel();
-                        //
-                        if was_lel {
-                            for (s, id) in curr_l.iter() {
-                                let rub = input.relaxation.fast_upper_bound(s);
-                                self.nodes[id.0].rub = rub;
-                            }
-                        }
-                        //
-                        self.relax(input, &mut curr_l)
-                    }
-                }
-            }
-
-            for (state, node_id) in curr_l.iter() {
-                let rub = input.relaxation.fast_upper_bound(state);
-                self.nodes[node_id.0].rub = rub;
-                let ub = rub.saturating_add(self.nodes[node_id.0].value);
-                if ub > input.best_lb {
-                    input.problem.for_each_in_domain(var, state, &mut |decision| {
-                        self.branch_on(state, *node_id, decision, input.problem)
+                    func(SubProblem {
+                        state: node.state.clone(),
+                        value: node.value_top,
+                        path: Self::_best_path_partial_borrow(
+                            id,
+                            &self.path_to_root,
+                            &self.nodes,
+                            &self.edges,
+                        ),
+                        ub,
+                        depth: node.depth,
                     })
                 }
             }
-
-            depth += 1;
         }
+    }
 
-        self.next_l.iter()
-            .for_each(|(_k, v)| self.viz_data.terminal.push(*v));
+    fn _compute_local_bounds(&mut self, input: &CompilationInput<T>) {
+        if !self.is_exact && input.comp_type == CompilationType::Relaxed {
+            // initialize last layer
+            let Layer { from, to } = *get!(layer LayerId(self.layers.len()-1), self);
+            for node in &mut self.nodes[from..to] {
+                node.value_bot = 0;
+                node.flags.set_marked(true);
+            }
 
-        //
-        self.best_n = self
+            // traverse bottom-up
+            let lel = self.lel.map(|l| l.0).unwrap_or(usize::MAX);
+            for Layer{from, to} in self.layers.iter().skip(lel).rev().copied() {
+                for id in from..to {
+                    let id = NodeId(id);
+                    let node = get!(node id, self);
+                    let value = node.value_bot;
+                    if node.flags.is_marked() {
+                        foreach!(edge of id, self, |edge: Edge| {
+                            let using_edge = value.saturating_add(edge.cost);
+                            let parent = get!(mut node edge.from, self);
+                            parent.flags.set_marked(true);
+                            parent.value_bot = parent.value_bot.max(using_edge);
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    fn _finalize_cutset(&mut self, input: &CompilationInput<T>) {
+        // TODO frontier cutset
+        if input.comp_type == CompilationType::Relaxed && CUTSET_TYPE == LAST_EXACT_LAYER {
+            if let Some(lel) = self.lel {
+                let Layer { from, to } = *get!(layer lel, self);
+                for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
+                    self.cutset.push(NodeId(id));
+                    node.flags.set_cutset(true);
+                }
+            }
+        }
+    }
+
+    fn _finalize_layers(&mut self) {
+        if !self.next_l.is_empty() {
+            if self.layers.is_empty() {
+                self.layers.push(Layer { from: 0, to: self.nodes.len() });
+            } else {
+                let id = LayerId(self.layers.len()-1);
+                let layer = get!(layer id, self);
+                self.layers.push(Layer { from: layer.to, to: self.nodes.len() });
+            }
+        }
+    }
+
+    fn _find_best_node(&mut self) {
+        self.best_node = self
             .next_l
             .values()
             .copied()
-            .max_by_key(|id| self.nodes[id.0].value);
-        self.exact = self._is_exact(input.comp_type);
-        //
-        if matches!(input.comp_type, CompilationType::Relaxed) {
-            self.compute_local_bounds();
-        }
-
-        Ok(Completion { is_exact: self.is_exact(), best_value: self.best_value() })
+            .max_by_key(|id| get!(node id, self).value_top);
     }
 
-    fn maybe_save_lel(&mut self) -> bool {
-        if self.lel.is_none() {
-            let mut lel = vec![];
-            for (id, state) in self.prev_l.iter() {
-                lel.push((state.clone(), *id));
-                self.nodes[id.0].flags.set_cutset(true);
+    fn _finalize_exact(&mut self, input: &CompilationInput<T>) {
+        self.is_exact = self.lel.is_none()
+            || (matches!(input.comp_type, CompilationType::Relaxed) && self._has_exact_best_path(self.best_node));
+    }
+
+    fn _has_exact_best_path(&self, node: Option<NodeId>) -> bool {
+        if let Some(node_id) = node {
+            let n = get!(node node_id, self);
+            if n.flags.is_exact() {
+                true
+            } else {
+                !n.flags.is_relaxed()
+                    && self._has_exact_best_path(n.best.map(|e| get!(edge e, self).from))
             }
-            self.lel = Some(lel);
-            true
         } else {
-            false
+            true
         }
     }
 
-    fn branch_on(
+    fn _move_to_next_layer(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) -> bool {
+        self.prev_l.clear();
+
+        for id in curr_l.drain(..) {
+            self.prev_l.push(id);
+        }
+        for (_, id) in self.next_l.drain() {
+            curr_l.push(id);
+        }
+
+        if curr_l.is_empty() {
+            self.layers.push(Layer { from: 0, to: 0 });
+            false
+        } else {
+            self._squash_if_needed(input, curr_l);
+            
+            if self.layers.is_empty() {
+                self.layers.push(Layer { from: 0, to: self.nodes.len() });
+            } else {
+                let id = LayerId(self.layers.len()-1);
+                let layer = get!(layer id, self);
+                self.layers.push(Layer { from: layer.to, to: self.nodes.len() });
+            }
+            true
+        }
+    }
+
+
+    fn _branch_on(
         &mut self,
-        state: &T,
         from_id: NodeId,
         decision: Decision,
         problem: &dyn Problem<State = T>,
     ) {
-        let next_state = problem.transition(state, decision);
+        let state = get!(node from_id, self).state.as_ref();
+        let next_state = Arc::new(problem.transition(state, decision));
         let cost = problem.transition_cost(state, decision);
 
         match self.next_l.entry(next_state.clone()) {
             Entry::Vacant(e) => {
+                let parent = get!(node from_id, self);
                 let node_id = NodeId(self.nodes.len());
-                let edge_id = EdgeId(self.edges.len());
-
-                self.edges.push(Edge {
-                    //my_id: edge_id,
-                    from: from_id,
-                    //to   : node_id,
-                    decision,
-                    cost,
-                    next: None,
-                });
                 self.nodes.push(Node {
-                    //my_id  : node_id,
-                    value: self.nodes[from_id.0].value.saturating_add(cost),
-                    best: Some(edge_id),
-                    inbound: Some(edge_id),
-                    //
+                    state: next_state,
+                    value_top: parent.value_top.saturating_add(cost),
                     value_bot: isize::MIN,
                     //
+                    best: None,
+                    inbound: NIL,
+                    //
                     rub: isize::MAX,
-                    flags: self.nodes[from_id.0].flags,
+                    flags: parent.flags,
+                    depth: parent.depth + 1,
                 });
-
+                append_edge_to!(self, node_id, Edge {
+                    from: from_id,
+                    to  : node_id,
+                    decision,
+                    cost,
+                });
                 e.insert(node_id);
-
-                self.viz_data.states.push(next_state);
-                self.viz_data.merged.push(false);
-                self.viz_data.restricted.push(false);
             }
             Entry::Occupied(e) => {
                 let node_id = *e.get();
-                let exact = self.nodes[from_id.0].flags.is_exact();
-                let value = self.nodes[from_id.0].value.saturating_add(cost);
-                let node = &mut self.nodes[node_id.0];
-
-                // flags hygiene
-                let exact = exact & node.flags.is_exact();
-                node.flags.set_exact(exact);
-
-                let edge_id = EdgeId(self.edges.len());
-                self.edges.push(Edge {
-                    //my_id: edge_id,
+                append_edge_to!(self, node_id, Edge {
                     from: from_id,
-                    //to   : node_id,
+                    to  : node_id,
                     decision,
                     cost,
-                    next: node.inbound,
                 });
-
-                node.inbound = Some(edge_id);
-                if value > node.value {
-                    node.value = value;
-                    node.best = Some(edge_id);
-                }
             }
         }
     }
 
-    fn restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+
+    fn _squash_if_needed(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        match input.comp_type {
+            CompilationType::Exact => { /* do nothing: you want to explore the complete DD */ }
+            CompilationType::Restricted => {
+                if curr_l.len() > input.max_width {
+                    self._maybe_save_lel();
+                    self._restrict(input, curr_l)
+                }
+            },
+            CompilationType::Relaxed => {
+                if curr_l.len() > input.max_width && self.layers.len() > 1 {
+                    self._maybe_save_lel();
+                    self._relax(input, curr_l)
+                }
+            },
+        }
+    }
+    fn _maybe_save_lel(&mut self) {
+        if self.lel.is_none() {
+            self.lel = Some(LayerId(self.layers.len()-1)); // lel was the previous layer
+        }
+    }
+
+    fn _restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            self.nodes[a.1 .0]
-                .value
-                .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+            get!(node a, self).value_top
+                .cmp(&get!(node b, self).value_top)
+                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
-        
-        for (_, x) in curr_l.iter().skip(input.max_width) {
-            self.viz_data.restricted[x.0] = true;
+
+        for drop_id in curr_l.iter().skip(input.max_width).copied() {
+            get!(mut node drop_id, self).flags.set_deleted(true);
         }
+
         curr_l.truncate(input.max_width);
     }
 
-    fn relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<(T, NodeId)>) {
+    fn _relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            self.nodes[a.1 .0]
-                .value
-                .cmp(&self.nodes[b.1 .0].value)
-                .then_with(|| input.ranking.compare(&a.0, &b.0))
+            get!(node a, self).value_top
+                .cmp(&get!(node b, self).value_top)
+                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
                 .reverse()
         }); // reverse because greater means more likely to be kept
 
         //--
         let (keep, merge) = curr_l.split_at_mut(input.max_width - 1);
-        let merged = input.relaxation.merge(&mut merge.iter().map(|(k, _v)| k));
+        let merged = Arc::new(input.relaxation.merge(&mut merge.iter().map(|id| get!(node id, self).state.as_ref())));
 
-        let recycled = keep.iter().find(|(k, _v)| k.eq(&merged)).map(|(_k, v)| *v);
+        let recycled = keep.iter().find(|id| get!(node *id, self).state.eq(&merged)).copied();
 
         let merged_id = recycled.unwrap_or_else(|| {
             let node_id = NodeId(self.nodes.len());
             self.nodes.push(Node {
-                //my_id  : node_id,
-                value: isize::MIN,
-                best: None,    // yet
-                inbound: None, // yet
-                //
+                state: merged.clone(),
+                value_top: isize::MIN,
                 value_bot: isize::MIN,
+                best: None,    // yet
+                inbound: NIL,  // yet
                 //
                 rub: isize::MAX,
                 flags: NodeFlags::new_relaxed(),
+                depth: get!(node merge[0], self).depth,
             });
-            self.viz_data.merged.push(false);
-            self.viz_data.restricted.push(false);
-            self.viz_data.states.push(merged.clone());
             node_id
         });
 
-        self.nodes[merged_id.0].flags.set_relaxed(true);
+        get!(mut node merged_id, self).flags.set_relaxed(true);
 
+        for drop_id in merge {
+            get!(mut node drop_id, self).flags.set_deleted(true);
 
-        for (_, x) in merge.iter() {
-            self.viz_data.merged[x.0] = true;
-            self.viz_data.groups.entry(merged_id)
-                .and_modify(|v| v.push(*x))
-                .or_insert(vec![*x]);
-        }
+            foreach!(edge of drop_id, self, |edge: Edge| {
+                let src   = get!(node edge.from, self).state.as_ref();
+                let dst   = get!(node edge.to,   self).state.as_ref();
+                let rcost = input.relaxation.relax(src, dst, merged.as_ref(), edge.decision, edge.cost);
 
-        for (drop_k, drop_v) in merge {
-            let mut edge_id = self.nodes[drop_v.0].inbound;
-            while let Some(eid) = edge_id {
-                let edge = self.edges[eid.0];
-                let src = &self.prev_l[&edge.from];
-
-                let rcost = input
-                    .relaxation
-                    .relax(src, drop_k, &merged, edge.decision, edge.cost);
-
-                let new_eid = EdgeId(self.edges.len());
-                let new_edge = Edge {
-                    //my_id: new_eid,
+                append_edge_to!(self, merged_id, Edge {
                     from: edge.from,
-                    //to   : merged_id,
+                    to: merged_id,
                     decision: edge.decision,
-                    cost: rcost,
-                    next: self.nodes[merged_id.0].inbound,
-                };
-                self.edges.push(new_edge);
-                self.nodes[merged_id.0].inbound = Some(new_eid);
-
-                let new_value = self.nodes[edge.from.0].value.saturating_add(rcost);
-                if new_value >= self.nodes[merged_id.0].value {
-                    self.nodes[merged_id.0].best = Some(new_eid);
-                    self.nodes[merged_id.0].value = new_value;
-                }
-
-                edge_id = edge.next;
-            }
+                    cost: rcost
+                });
+            });
         }
 
         if recycled.is_some() {
             curr_l.truncate(input.max_width);
+            let saved_id = curr_l[input.max_width - 1];
+            self.nodes[saved_id.0].flags.set_deleted(false);
         } else {
             curr_l.truncate(input.max_width - 1);
-            curr_l.push((merged, merged_id));
-        }
-    }
-
-    fn compute_local_bounds(&mut self) {
-        if !self.exact {
-            // if it's exact, there is nothing to be done
-            let mut visit = vec![];
-            let mut next_v = vec![];
-
-            // all the nodes from the last layer have a lp_from_bot of 0
-            for id in self.next_l.values().copied() {
-                self.nodes[id.0].value_bot = 0;
-                self.nodes[id.0].flags.set_marked(true);
-                visit.push(id);
-            }
-
-            while !visit.is_empty() {
-                std::mem::swap(&mut visit, &mut next_v);
-
-                for id in next_v.drain(..) {
-                    let mut inbound = self.nodes[id.0].inbound;
-                    while let Some(edge_id) = inbound {
-                        let edge = self.edges[edge_id.0];
-
-                        let lp_from_bot_using_edge =
-                            self.nodes[id.0].value_bot.saturating_add(edge.cost);
-
-                        self.nodes[edge.from.0].value_bot = self.nodes[edge.from.0]
-                            .value_bot
-                            .max(lp_from_bot_using_edge);
-
-                        if !self.nodes[edge.from.0].flags.is_marked() {
-                            self.nodes[edge.from.0].flags.set_marked(true);
-                            if !self.nodes[edge.from.0].flags.is_cutset() {
-                                visit.push(edge.from);
-                            }
-                        }
-
-                        inbound = edge.next;
-                    }
-                }
-            }
+            curr_l.push(merged_id);
         }
     }
 }
 
 
-// ############################################################################
-// #### TESTS #################################################################
-// ############################################################################
 
 
-#[cfg(test)]
-mod test_default_mdd {
-    use std::cmp::Ordering;
-    use std::sync::Arc;
 
-    use rustc_hash::FxHashMap;
 
-    use ddo::*;
+/// This is how you configure the output visualisation e.g.
+/// if you want to see the RUB, LocB and the nodes that have been merged
+#[derive(Debug, Builder)]
+pub struct VizConfig {
+    /// This flag must be true (default) if you want to see the value of
+    /// each node (length of the longest path)
+    #[builder(default="true")]
+    show_value: bool,
+    /// This flag must be true (default) if you want to see the locb of
+    /// each node (length of the longest path from the bottom)
+    #[builder(default="true")]
+    show_locb: bool,
+    /// This flag must be true (default) if you want to see the rub of
+    /// each node (fast upper bound)
+    #[builder(default="true")]
+    show_rub: bool,
+    /// This flag must be true (default) if you want to see all nodes that
+    /// have been deleted because of restrict or relax operations
+    #[builder(default="false")]
+    show_deleted: bool,
+}
 
-    use crate::viz_mdd::VizMdd;
+impl <T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}> 
+where T: Debug + Eq + PartialEq + Hash + Clone {
 
-    #[test]
-    fn by_default_the_mdd_type_is_exact() {
-        let mdd = VizMdd::<usize>::new();
+    /// This is the method you will want to use in order to create the output image you would like.
+    /// Note: the output is going to be a string of (not compiled) 'dot'. This makes it easier for
+    /// me to code and gives you the freedom to fiddle with the graph if needed.
+    pub fn as_graphviz(&self, config: &VizConfig) -> String {
+        let mut out = String::new();
 
-        assert!(mdd.is_exact());
-    }
+        out.push_str("digraph {\n\tranksep = 3;\n\n");
 
-    #[test]
-    fn root_remembers_the_pa_from_the_frontier_node() {
-        let mut input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  3,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 1, value: 42}), 
-                value: 42, 
-                path:  vec![Decision{variable: Variable(0), value: 42}], 
-                ub:    isize::MAX
+        // Show all nodes
+        for (id, _) in self.nodes.iter().enumerate() {
+            let node = get!(node NodeId(id), self);
+            if !config.show_deleted && node.flags.is_deleted() {
+                continue;
             }
-        };
-
-        let mut mdd = VizMdd::new();
-        assert!(mdd.compile(&input).is_ok());
-        assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
-
-        input.comp_type = CompilationType::Relaxed;
-        assert!(mdd.compile(&input).is_ok());
-        assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
-
-        input.comp_type = CompilationType::Restricted;
-        assert!(mdd.compile(&input).is_ok());
-        assert_eq!(mdd.root_pa, vec![Decision{variable: Variable(0), value: 42}]);
-    }
-    
-    // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
-    #[test]
-    fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-
-        assert!(mdd.compile(&input).is_ok());
-        assert!(mdd.best_solution().is_some());
-        assert_eq!(mdd.best_value(), Some(6));
-        assert_eq!(mdd.best_solution().unwrap(),
-                   vec![
-                       Decision{variable: Variable(2), value: 2},
-                       Decision{variable: Variable(1), value: 2},
-                       Decision{variable: Variable(0), value: 2},
-                   ]
-        );
-    }
-
-    #[test]
-    fn restricted_drops_the_less_interesting_nodes() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Restricted,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-
-        assert!(mdd.compile(&input).is_ok());
-        assert!(mdd.best_solution().is_some());
-        assert_eq!(mdd.best_value().unwrap(), 6);
-        assert_eq!(mdd.best_solution().unwrap(),
-                   vec![
-                       Decision{variable: Variable(2), value: 2},
-                       Decision{variable: Variable(1), value: 2},
-                       Decision{variable: Variable(0), value: 2},
-                   ]
-        );
-    }
-
-    #[test]
-    fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-
-        assert!(result.is_ok());
-        let completion = result.unwrap();
-        assert_eq!(completion.is_exact  , mdd.is_exact());
-        assert_eq!(completion.best_value, mdd.best_value());
-    }
-    #[test]
-    fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Restricted,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        
-        assert!(result.is_ok());
-        let completion = result.unwrap();
-        assert_eq!(completion.is_exact  , mdd.is_exact());
-        assert_eq!(completion.best_value, mdd.best_value());
-    }
-    #[test]
-    fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        
-        assert!(result.is_ok());
-        let completion = result.unwrap();
-        assert_eq!(completion.is_exact  , mdd.is_exact());
-        assert_eq!(completion.best_value, mdd.best_value());
-    }
-    
-    #[derive(Debug, Clone, Copy)]
-    struct CutoffAlways;
-    impl Cutoff for CutoffAlways {
-        fn must_stop(&self) -> bool { true }
-    }
-    #[test]
-    fn exact_fails_with_cutoff_when_cutoff_occurs() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &CutoffAlways,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_err());
-        assert_eq!(Some(Reason::CutoffOccurred), result.err());
-    }
-
-    #[test]
-    fn restricted_fails_with_cutoff_when_cutoff_occurs() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Restricted,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &CutoffAlways,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_err());
-        assert_eq!(Some(Reason::CutoffOccurred), result.err());
-    }
-    #[test]
-    fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &CutoffAlways,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_err());
-        assert_eq!(Some(Reason::CutoffOccurred), result.err());
-    }
-
-    #[test]
-    fn relaxed_merges_the_less_interesting_nodes() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-
-        assert!(result.is_ok());
-        assert!(mdd.best_solution().is_some());
-        assert_eq!(mdd.best_value().unwrap(), 24);
-        assert_eq!(mdd.best_solution().unwrap(),
-                   vec![
-                       Decision{variable: Variable(2), value: 2},
-                       Decision{variable: Variable(1), value: 0}, // that's a relaxed edge
-                       Decision{variable: Variable(0), value: 2},
-                   ]
-        );
-    }
-
-    #[test]
-    fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        
-        let mut cutset = vec![];
-        mdd.drain_cutset(|n| cutset.push(n));
-        assert_eq!(cutset.len(), 3); // L1 was not squashed even though it was 3 wide
-    }
-
-    #[test]
-    fn an_exact_mdd_must_be_exact() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        
-        assert_eq!(true, mdd.is_exact())
-    }
-
-    #[test]
-    fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  10,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        
-        assert_eq!(true, mdd.is_exact())
-    }
-
-    #[test]
-    fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        
-        assert_eq!(false, mdd.is_exact())
-    }
-    #[test]
-    fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Restricted,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  10,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        
-        assert_eq!(true, mdd.is_exact())
-    }
-    #[test]
-    fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  1,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        
-        assert_eq!(false, mdd.is_exact())
-    }
-    #[test]
-    fn when_the_problem_is_infeasible_there_is_no_solution() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyInfeasibleProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  usize::MAX,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        assert!(mdd.best_solution().is_none())
-    }
-    #[test]
-    fn when_the_problem_is_infeasible_there_is_no_best_value() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyInfeasibleProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  usize::MAX,
-            best_lb:    isize::MIN,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        assert!(mdd.best_value().is_none())
-    }
-    #[test]
-    fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Exact,
-            problem:    &DummyInfeasibleProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  usize::MAX,
-            best_lb:    1000,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        assert!(mdd.best_solution().is_none())
-    }
-    #[test]
-    fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &DummyInfeasibleProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  usize::MAX,
-            best_lb:    1000,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        assert!(mdd.best_solution().is_none())
-    }
-    #[test]
-    fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Restricted,
-            problem:    &DummyInfeasibleProblem,
-            relaxation: &DummyRelax,
-            ranking:    &DummyRanking,
-            cutoff:     &NoCutoff,
-            max_width:  usize::MAX,
-            best_lb:    1000,
-            residual: SubProblem { 
-                state: Arc::new(DummyState{depth: 0, value: 0}), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-        assert!(mdd.best_solution().is_none())
-    }
-
-    /// The example problem and relaxation for the local bounds should generate
-    /// the following relaxed MDD in which the layer 'a','b' is the LEL.
-    ///
-    /// ```plain
-    ///                      r
-    ///                   /     \
-    ///                10        7
-    ///               /           |
-    ///             a              b
-    ///             |     +--------+-------+
-    ///             |     |        |       |
-    ///             2     3        6       5
-    ///              \   /         |       |
-    ///                M           e       f
-    ///                |           |     /   \
-    ///                4           0   1      2
-    ///                |           |  /        \
-    ///                g            h           i
-    ///                |            |           |
-    ///                0            0           0
-    ///                +------------+-----------+
-    ///                             t
-    /// ```
-    ///
-    #[derive(Copy, Clone)]
-    struct LocBoundsExamplePb;
-    impl Problem for LocBoundsExamplePb {
-        type State = char;
-        fn nb_variables (&self) -> usize {  3  }
-        fn initial_state(&self) -> char  { 'r' }
-        fn initial_value(&self) -> isize {  0  }
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
-            match next_layer.next().copied().unwrap_or('z') {
-                'r' => Some(Variable(0)),
-                'a' => Some(Variable(1)),
-                'b' => Some(Variable(1)),
-                // c, d are merged into M
-                'c' => Some(Variable(2)),
-                'd' => Some(Variable(2)),
-                'M' => Some(Variable(2)),
-                'e' => Some(Variable(2)),
-                'f' => Some(Variable(2)),
-                _   => None,
-            }
-        }
-        fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback) {
-            /* do nothing, just consider that all domains are empty */
-            (match *state {
-                'r' => vec![10, 7],
-                'a' => vec![2],
-                'b' => vec![3, 6, 5],
-                // c, d are merged into M
-                'M' => vec![4],
-                'e' => vec![0],
-                'f' => vec![1, 2],
-                _   => vec![],
-            })
-            .iter()
-            .copied()
-            .for_each(&mut |value| f.apply(Decision{variable, value}))
+            out.push_str(&self.node(id, config));
+            out.push_str(&self.edges_of(id));
         }
 
-        fn transition(&self, state: &char, d: Decision) -> char {
-            match (*state, d.value) {
-                ('r', 10) => 'a',
-                ('r',  7) => 'b',
-                ('a',  2) => 'c', // merged into M
-                ('b',  3) => 'd', // merged into M
-                ('b',  6) => 'e',
-                ('b',  5) => 'f',
-                ('M',  4) => 'g',
-                ('e',  0) => 'h',
-                ('f',  1) => 'h',
-                ('f',  2) => 'i',
-                _         => 't'
-            }
-        }
+        // Finish the graph with a terminal node
+        out.push_str(&self.add_terminal_node());
 
-        fn transition_cost(&self, _: &char, d: Decision) -> isize {
-            d.value
-        }
+        out.push_str("}\n");
+        out
     }
 
-    #[derive(Copy, Clone)]
-    struct LocBoundExampleRelax;
-    impl Relaxation for LocBoundExampleRelax {
-        type State = char;
-        fn merge(&self, _: &mut dyn Iterator<Item=&char>) -> char {
-            'M'
-        }
-
-        fn relax(&self, _: &char, _: &char, _: &char, _: Decision, cost: isize) -> isize {
-            cost
-        }
+    /// Creates a string representation of one single node
+    fn node(&self, id: usize, config: &VizConfig) -> String {
+        let attributes = self.node_attributes(id, config);
+        format!("\t{id} [{attributes}];\n")
     }
-
-    #[derive(Clone, Copy)]
-    struct CmpChar;
-    impl StateRanking for CmpChar {
-        type State = char;
-        fn compare(&self, a: &char, b: &char) -> Ordering {
-            a.cmp(b)
-        }
+    /// Creates a string representation of the edges incident to one node
+    fn edges_of(&self, id: usize) -> String {
+        let mut out = String::new();
+        foreach!(edge of NodeId(id), self, |edge: Edge| {
+            let Edge{from, to, decision, cost} = edge;
+            let best = get!(node NodeId(id), self).best;
+            let best = best.map(|eid| *get!(edge eid, self));
+            out.push_str(&Self::edge(from.0, to.0, decision, cost, Some(edge) == best));
+        });
+        out
     }
+    /// Adds a terminal node (if the DD is feasible) and draws the edges entering that node from
+    /// all the nodes of the terminal layer.
+    fn add_terminal_node(&self) -> String {
+        let mut out = String::new();
+        let Layer{from, to} = self.layers.last().copied().unwrap();
+        if from != to {
+            let terminal = "\tterminal [shape=\"circle\", label=\"\", style=\"filled\", color=\"black\", group=\"terminal\"];\n";
+            out.push_str(terminal);
 
-    #[test]
-    fn relaxed_computes_local_bounds() {
-        let input = CompilationInput {
-            comp_type: CompilationType::Relaxed,
-            problem:    &LocBoundsExamplePb,
-            relaxation: &LocBoundExampleRelax,
-            ranking:    &CmpChar,
-            cutoff:     &NoCutoff,
-            max_width:  3,
-            best_lb:    0,
-            residual: SubProblem { 
-                state: Arc::new('r'), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX
-            }
-        };
-        let mut mdd = VizMdd::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-
-        assert_eq!(false,    mdd.is_exact());
-        assert_eq!(Some(16), mdd.best_value());
-
-        let mut v = FxHashMap::<char, isize>::default();
-        mdd.drain_cutset(|n| {v.insert(*n.state, n.ub);});
-
-        assert_eq!(16, v[&'a']);
-        assert_eq!(14, v[&'b']);
-    }
-
-    #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-    struct DummyState {
-        value: isize,
-        depth: usize,
-    }
-
-    #[derive(Copy, Clone)]
-    struct DummyProblem;
-    impl Problem for DummyProblem {
-        type State = DummyState;
-
-        fn nb_variables(&self)  -> usize { 3 }
-        fn initial_value(&self) -> isize { 0 }
-        fn initial_state(&self) -> Self::State {
-            DummyState {
-                value: 0,
-                depth: 0,
-            }
-        }
-
-        fn transition(&self, state: &Self::State, decision: Decision) -> Self::State {
-            DummyState {
-                value: state.value + decision.value,
-                depth: 1 + state.depth
-            }
-        }
-
-        fn transition_cost(&self, _: &Self::State, decision: Decision) -> isize {
-            decision.value
-        }
-
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
-            -> Option<Variable> {
-            next_layer.next()
-                .map(|x| x.depth)
-                .filter(|d| *d < self.nb_variables())
-                .map(Variable)
-        }
-
-        fn for_each_in_domain(&self, var: Variable, _: &Self::State, f: &mut dyn DecisionCallback) {
-            for d in 0..=2 {
-                f.apply(Decision {variable: var, value: d})
-            }
-        }
-    }
-
-    #[derive(Clone,Copy)]
-    struct DummyInfeasibleProblem;
-    impl Problem for DummyInfeasibleProblem {
-        type State = DummyState;
-
-        fn nb_variables(&self)  -> usize { 3 }
-        fn initial_value(&self) -> isize { 0 }
-        fn initial_state(&self) -> Self::State {
-            DummyState {
-                value: 0,
-                depth: 0,
-            }
-        }
-
-        fn transition(&self, state: &Self::State, decision: Decision) -> Self::State {
-            DummyState {
-                value: state.value + decision.value,
-                depth: 1 + state.depth
-            }
-        }
-
-        fn transition_cost(&self, _: &Self::State, decision: Decision) -> isize {
-            decision.value
-        }
-
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
-            -> Option<Variable> {
-            next_layer.next()
-                .map(|x| x.depth)
-                .filter(|d| *d < self.nb_variables())
-                .map(Variable)
-        }
-
-        fn for_each_in_domain(&self, _: Variable, _: &Self::State, _: &mut dyn DecisionCallback) {
-            /* do nothing, just consider that all domains are empty */
-        }
-    }
-
-    #[derive(Copy, Clone)]
-    struct DummyRelax;
-    impl Relaxation for DummyRelax {
-        type State = DummyState;
-
-        fn merge(&self, s: &mut dyn Iterator<Item=&Self::State>) -> Self::State {
-            s.next().map(|s| {
-                DummyState {
-                    value: 100,
-                    depth: s.depth
+            let terminal = &self.nodes[from..to];
+            let vmax = terminal.iter().map(|n| n.value_top).max().unwrap_or(isize::MAX);
+            for (id, term) in terminal.iter().enumerate() {
+                let value = term.value_top;
+                if value == vmax {
+                    out.push_str(&format!("\t{} -> terminal [penwidth=3];\n", id+from));
+                } else {
+                    out.push_str(&format!("\t{} -> terminal;\n", id+from));
                 }
-            }).unwrap()
+            }
         }
-        fn relax(&self, _: &Self::State, _: &Self::State, _: &Self::State, _: Decision, _: isize) -> isize {
-            20
-        }
-        fn fast_upper_bound(&self, _state: &Self::State) -> isize {
-            50
+        out
+    }
+    /// Creates a string representation of one edge
+    fn edge(from: usize, to: usize, decision: Decision, cost: isize, is_best: bool) -> String {
+        let width = if is_best { 3 } else { 1 };
+        let variable = decision.variable.0;
+        let value = decision.value;
+        let label = format!("(x{variable} = {value})\\ncost = {cost}");
+
+        format!("\t{from} -> {to} [penwidth={width},label=\"{label}\"];\n")
+    }
+    /// Creates the list of attributes that are used to configure one node
+    fn node_attributes(&self, id: usize, config: &VizConfig) -> String {
+        let node = &self.nodes[id];
+        let merged = node.flags.is_relaxed();
+        let state = node.state.as_ref();
+        let restricted= node.flags.is_deleted();
+
+        let shape = Self::node_shape(merged, restricted);
+        let color = Self::node_color(node, merged);
+        let peripheries = Self::node_peripheries(node);
+        let group = self.node_group(node);
+        let label = Self::node_label(node, state, config);
+
+        format!("shape={shape},style=filled,color={color},peripheries={peripheries},group=\"{group}\",label=\"{label}\"")
+    }
+    /// Determines the group of a node based on the last branching decicion leading to it
+    fn node_group(&self, node: &Node<T>) -> String {
+        if let Some(eid) = node.best {
+            let edge = self.edges[eid.0];
+            format!("{}", edge.decision.variable.0)
+        } else {
+            "root".to_string()
         }
     }
+    /// Determines the shape to use when displaying a node
+    fn node_shape(merged: bool, restricted: bool) -> &'static str {
+        if merged || restricted {
+            "square"
+        } else {
+            "circle"
+        }
+    }
+    /// Determines the number of peripheries to draw when displaying a node.
+    fn node_peripheries(node: &Node<T>) -> usize {
+        if node.flags.is_cutset() {
+            4
+        } else {
+            1
+        }
+    }
+    /// Determines the color of peripheries to draw when displaying a node.
+    fn node_color(node: &Node<T>, merged: bool) -> &str {
+        if node.flags.is_exact() {
+            "\"#99ccff\""
+        } else if merged {
+            "yellow"
+        } else {
+            "lightgray"
+        }
+    }
+    /// Creates text label to place inside of the node when displaying it
+    fn node_label(node: &Node<T>, state: &T, config: &VizConfig) -> String {
+        let mut out = format!("{:?}", state);
 
-    #[derive(Copy, Clone)]
-    struct DummyRanking;
-    impl StateRanking for DummyRanking {
-        type State = DummyState;
+        if config.show_value {
+            out.push_str(&format!("\\nval: {}", node.value_top));
+        }
+        if config.show_locb {
+        out.push_str(&format!("\\nlocb: {}", Self::extreme(node.value_bot)));
+        }
+        if config.show_rub {
+            out.push_str(&format!("\\nrub: {}", Self::extreme(node.rub)));
+        }
 
-        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
-            a.value.cmp(&b.value).reverse()
+        out
+    }
+    /// An utility method to replace extreme values with +inf and -inf
+    fn extreme(x: isize) -> String {
+        match x {
+            isize::MAX => "+inf".to_string(),
+            isize::MIN => "-inf".to_string(),
+            _ => format!("{x}")
         }
     }
 }
