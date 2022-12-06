@@ -55,8 +55,8 @@ where T: Hash + Eq {
         }
     }
 
-    fn get_threshold(&self, state: Arc<T>, depth: usize) -> Option<Threshold> {
-        self.thresholds_by_layer[depth].get(state.as_ref()).as_deref().copied()
+    fn get_threshold(&self, state: &T, depth: usize) -> Option<Threshold> {
+        self.thresholds_by_layer[depth].get(state).as_deref().copied()
     }
 
     fn update_threshold(&self, state: Arc<T>, depth: usize, value: isize, explored: bool) {

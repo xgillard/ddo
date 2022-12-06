@@ -451,7 +451,7 @@ where
     fn filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.retain(|node_id| {
             let node = &mut self.nodes[node_id.0];
-            let threshold = input.barrier.get_threshold(node.state.clone(), node.depth);
+            let threshold = input.barrier.get_threshold(node.state.as_ref(), node.depth);
             if let Some(threshold) = threshold {
                 if node.value > threshold.value {
                     true
@@ -1528,26 +1528,26 @@ mod test_default_mdd {
         assert_eq!(14, v[&'b']);
         assert_eq!(2, v.len());
 
-        assert!(barrier.get_threshold(Arc::new('r'), 0).is_some());
-        assert!(barrier.get_threshold(Arc::new('a'), 1).is_some());
-        assert!(barrier.get_threshold(Arc::new('b'), 1).is_some());
-        assert!(barrier.get_threshold(Arc::new('M'), 2).is_none());
-        assert!(barrier.get_threshold(Arc::new('e'), 2).is_none());
-        assert!(barrier.get_threshold(Arc::new('f'), 2).is_none());
-        assert!(barrier.get_threshold(Arc::new('g'), 3).is_none());
-        assert!(barrier.get_threshold(Arc::new('h'), 3).is_none());
-        assert!(barrier.get_threshold(Arc::new('i'), 3).is_none());
-        assert!(barrier.get_threshold(Arc::new('t'), 4).is_none());
+        assert!(barrier.get_threshold(&'r', 0).is_some());
+        assert!(barrier.get_threshold(&'a', 1).is_some());
+        assert!(barrier.get_threshold(&'b', 1).is_some());
+        assert!(barrier.get_threshold(&'M', 2).is_none());
+        assert!(barrier.get_threshold(&'e', 2).is_none());
+        assert!(barrier.get_threshold(&'f', 2).is_none());
+        assert!(barrier.get_threshold(&'g', 3).is_none());
+        assert!(barrier.get_threshold(&'h', 3).is_none());
+        assert!(barrier.get_threshold(&'i', 3).is_none());
+        assert!(barrier.get_threshold(&'t', 4).is_none());
 
-        let mut threshold = barrier.get_threshold(Arc::new('r'), 0).unwrap();
+        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
         assert_eq!(0, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('a'), 1).unwrap();
+        threshold = barrier.get_threshold(&'a', 1).unwrap();
         assert_eq!(10, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('b'), 1).unwrap();
+        threshold = barrier.get_threshold(&'b', 1).unwrap();
         assert_eq!(7, threshold.value);
         assert!(!threshold.explored);
     }
@@ -1589,42 +1589,42 @@ mod test_default_mdd {
         assert_eq!(14, v[&'i']);
         assert_eq!(4, v.len());
 
-        assert!(barrier.get_threshold(Arc::new('r'), 0).is_some());
-        assert!(barrier.get_threshold(Arc::new('a'), 1).is_some());
-        assert!(barrier.get_threshold(Arc::new('b'), 1).is_some());
-        assert!(barrier.get_threshold(Arc::new('M'), 2).is_none());
-        assert!(barrier.get_threshold(Arc::new('e'), 2).is_some());
-        assert!(barrier.get_threshold(Arc::new('f'), 2).is_some());
-        assert!(barrier.get_threshold(Arc::new('g'), 3).is_none());
-        assert!(barrier.get_threshold(Arc::new('h'), 3).is_some());
-        assert!(barrier.get_threshold(Arc::new('i'), 3).is_some());
-        assert!(barrier.get_threshold(Arc::new('t'), 4).is_none());
+        assert!(barrier.get_threshold(&'r', 0).is_some());
+        assert!(barrier.get_threshold(&'a', 1).is_some());
+        assert!(barrier.get_threshold(&'b', 1).is_some());
+        assert!(barrier.get_threshold(&'M', 2).is_none());
+        assert!(barrier.get_threshold(&'e', 2).is_some());
+        assert!(barrier.get_threshold(&'f', 2).is_some());
+        assert!(barrier.get_threshold(&'g', 3).is_none());
+        assert!(barrier.get_threshold(&'h', 3).is_some());
+        assert!(barrier.get_threshold(&'i', 3).is_some());
+        assert!(barrier.get_threshold(&'t', 4).is_none());
 
-        let mut threshold = barrier.get_threshold(Arc::new('r'), 0).unwrap();
+        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
         assert_eq!(0, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('a'), 1).unwrap();
+        threshold = barrier.get_threshold(&'a', 1).unwrap();
         assert_eq!(10, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('b'), 1).unwrap();
+        threshold = barrier.get_threshold(&'b', 1).unwrap();
         assert_eq!(7, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('e'), 2).unwrap();
+        threshold = barrier.get_threshold(&'e', 2).unwrap();
         assert_eq!(13, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('f'), 2).unwrap();
+        threshold = barrier.get_threshold(&'f', 2).unwrap();
         assert_eq!(12, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('h'), 3).unwrap();
+        threshold = barrier.get_threshold(&'h', 3).unwrap();
         assert_eq!(13, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('i'), 3).unwrap();
+        threshold = barrier.get_threshold(&'i', 3).unwrap();
         assert_eq!(14, threshold.value);
         assert!(!threshold.explored);
     }
@@ -1664,42 +1664,42 @@ mod test_default_mdd {
         assert_eq!(14, v[&'b']);
         assert_eq!(2, v.len());
 
-        assert!(barrier.get_threshold(Arc::new('r'), 0).is_some());
-        assert!(barrier.get_threshold(Arc::new('a'), 1).is_some());
-        assert!(barrier.get_threshold(Arc::new('b'), 1).is_some());
-        assert!(barrier.get_threshold(Arc::new('M'), 2).is_none());
-        assert!(barrier.get_threshold(Arc::new('e'), 2).is_some());
-        assert!(barrier.get_threshold(Arc::new('f'), 2).is_some());
-        assert!(barrier.get_threshold(Arc::new('g'), 3).is_none());
-        assert!(barrier.get_threshold(Arc::new('h'), 3).is_some());
-        assert!(barrier.get_threshold(Arc::new('i'), 3).is_some());
-        assert!(barrier.get_threshold(Arc::new('t'), 4).is_none());
+        assert!(barrier.get_threshold(&'r', 0).is_some());
+        assert!(barrier.get_threshold(&'a', 1).is_some());
+        assert!(barrier.get_threshold(&'b', 1).is_some());
+        assert!(barrier.get_threshold(&'M', 2).is_none());
+        assert!(barrier.get_threshold(&'e', 2).is_some());
+        assert!(barrier.get_threshold(&'f', 2).is_some());
+        assert!(barrier.get_threshold(&'g', 3).is_none());
+        assert!(barrier.get_threshold(&'h', 3).is_some());
+        assert!(barrier.get_threshold(&'i', 3).is_some());
+        assert!(barrier.get_threshold(&'t', 4).is_none());
 
-        let mut threshold = barrier.get_threshold(Arc::new('r'), 0).unwrap();
+        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
         assert_eq!(0, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('a'), 1).unwrap();
+        threshold = barrier.get_threshold(&'a', 1).unwrap();
         assert_eq!(10, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('b'), 1).unwrap();
+        threshold = barrier.get_threshold(&'b', 1).unwrap();
         assert_eq!(8, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('e'), 2).unwrap();
+        threshold = barrier.get_threshold(&'e', 2).unwrap();
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('f'), 2).unwrap();
+        threshold = barrier.get_threshold(&'f', 2).unwrap();
         assert_eq!(13, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('h'), 3).unwrap();
+        threshold = barrier.get_threshold(&'h', 3).unwrap();
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(Arc::new('i'), 3).unwrap();
+        threshold = barrier.get_threshold(&'i', 3).unwrap();
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
     }

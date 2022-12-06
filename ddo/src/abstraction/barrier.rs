@@ -30,7 +30,7 @@ pub trait Barrier {
     /// Returns true if the subproblem still must be explored,
     /// given the thresholds contained in the barrier.
     fn must_explore(&self, subproblem: &SubProblem<Self::State>) -> bool {
-        let threshold = self.get_threshold(subproblem.state.clone(), subproblem.depth);
+        let threshold = self.get_threshold(subproblem.state.as_ref(), subproblem.depth);
         if let Some(threshold) = threshold {
             subproblem.value > threshold.value || (subproblem.value == threshold.value && !threshold.explored)
         } else {
@@ -42,7 +42,7 @@ pub trait Barrier {
     fn initialize(&mut self, problem: &dyn Problem<State = Self::State>);
 
     /// Returns the threshold currently associated with the given state, if any.
-    fn get_threshold(&self, state: Arc<Self::State>, depth: usize) -> Option<Threshold>;
+    fn get_threshold(&self, state: &Self::State, depth: usize) -> Option<Threshold>;
 
     /// Updates the threshold associated with the given state, only if it is increased.
     fn update_threshold(&self, state: Arc<Self::State>, depth: usize, value: isize, explored: bool);

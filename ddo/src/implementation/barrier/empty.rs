@@ -51,7 +51,7 @@ impl<T> Barrier for EmptyBarrier<T> {
     fn initialize(&mut self, _: &dyn Problem<State = Self::State>) {}
 
     #[inline(always)]
-    fn get_threshold(&self, _: Arc<T>, _: usize) -> Option<Threshold> {
+    fn get_threshold(&self, _: &T, _: usize) -> Option<Threshold> {
         None
     }
 
