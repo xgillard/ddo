@@ -6,7 +6,7 @@ use std::{sync::Arc, hash::Hash, collections::hash_map::Entry, fmt::Debug};
 use derive_builder::Builder;
 use fxhash::FxHashMap;
 
-use ddo::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem};
+use ddo::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem, Solution, FRONTIER};
 
 /// The identifier of a node: it indicates the position of the referenced node 
 /// in the ’nodes’ vector of the mdd structure.
@@ -228,13 +228,13 @@ where
         self._best_value()
     }
 
-    fn best_solution(&self) -> Option<ddo::Solution> {
+    fn best_solution(&self) -> Option<Solution> {
         self._best_solution()
     }
 
     fn drain_cutset<F>(&mut self, func: F)
     where
-        F: FnMut(ddo::SubProblem<Self::State>) {
+        F: FnMut(SubProblem<Self::State>) {
         self._drain_cutset(func)
     }
 }
@@ -430,13 +430,48 @@ where
     }
 
     fn _finalize_cutset(&mut self, input: &CompilationInput<T>) {
-        // TODO frontier cutset
-        if input.comp_type == CompilationType::Relaxed && CUTSET_TYPE == LAST_EXACT_LAYER {
-            if let Some(lel) = self.lel {
-                let Layer { from, to } = *get!(layer lel, self);
-                for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
-                    self.cutset.push(NodeId(id));
-                    node.flags.set_cutset(true);
+        if input.comp_type == CompilationType::Relaxed {
+            match CUTSET_TYPE {
+                LAST_EXACT_LAYER => {
+                    if let Some(lel) = self.lel {
+                        self._compute_last_exact_layer_cutset(lel);
+                    }
+                },
+                FRONTIER => {
+                    if let Some(lel) = self.lel {
+                        self._compute_frontier_cutset(lel);
+                    }
+                },
+                _ => {
+                    panic!("Only LAST_EXACT_LAYER and FRONTIER are supported so far")
+                }
+            }
+        }
+    }
+
+    fn _compute_last_exact_layer_cutset(&mut self, lel: LayerId) {
+        let Layer { from, to } = *get!(layer lel, self);
+        for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
+            self.cutset.push(NodeId(id));
+            node.flags.set_cutset(true);
+        }
+    }
+
+    fn _compute_frontier_cutset(&mut self, lel: LayerId) {
+        // traverse bottom-up
+        for Layer{from, to} in self.layers.iter().skip(lel.0).rev().copied() {
+            for id in from..to {
+                let id = NodeId(id);
+                let node = get!(node id, self);
+                
+                if !node.flags.is_exact() {
+                    foreach!(edge of id, self, |edge: Edge| {
+                        let parent = get!(mut node edge.from, self);
+                        if parent.flags.is_exact() && !parent.flags.is_cutset() {
+                            self.cutset.push(edge.from);
+                            parent.flags.set_cutset(true);
+                        }
+                    });
                 }
             }
         }
@@ -798,7 +833,9 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
     }
     /// Determines the color of peripheries to draw when displaying a node.
     fn node_color(node: &Node<T>, merged: bool) -> &str {
-        if node.flags.is_exact() {
+        if node.flags.is_cutset() {
+            "red"
+        } else if node.flags.is_exact() {
             "\"#99ccff\""
         } else if merged {
             "yellow"

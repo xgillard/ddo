@@ -5,7 +5,7 @@ use std::{sync::Arc, hash::Hash, collections::hash_map::Entry};
 
 use fxhash::FxHashMap;
 
-use crate::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem};
+use crate::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem, FRONTIER, Solution};
 
 /// The identifier of a node: it indicates the position of the referenced node 
 /// in the ’nodes’ vector of the mdd structure.
@@ -59,7 +59,7 @@ struct Node<T> {
 
 /// Materializes one edge a.k.a arc from the decision diagram. It logically 
 /// connects two nodes and annotates the link with a decision and a cost.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Edge {
     /// The identifier of the node at the ∗∗source∗∗ of this edge.
     from: NodeId,
@@ -227,13 +227,13 @@ where
         self._best_value()
     }
 
-    fn best_solution(&self) -> Option<crate::Solution> {
+    fn best_solution(&self) -> Option<Solution> {
         self._best_solution()
     }
 
     fn drain_cutset<F>(&mut self, func: F)
     where
-        F: FnMut(crate::SubProblem<Self::State>) {
+        F: FnMut(SubProblem<Self::State>) {
         self._drain_cutset(func)
     }
 }
@@ -429,13 +429,48 @@ where
     }
 
     fn _finalize_cutset(&mut self, input: &CompilationInput<T>) {
-        // TODO frontier cutset
-        if input.comp_type == CompilationType::Relaxed && CUTSET_TYPE == LAST_EXACT_LAYER {
-            if let Some(lel) = self.lel {
-                let Layer { from, to } = *get!(layer lel, self);
-                for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
-                    self.cutset.push(NodeId(id));
-                    node.flags.set_cutset(true);
+        if input.comp_type == CompilationType::Relaxed {
+            match CUTSET_TYPE {
+                LAST_EXACT_LAYER => {
+                    if let Some(lel) = self.lel {
+                        self._compute_last_exact_layer_cutset(lel);
+                    }
+                },
+                FRONTIER => {
+                    if let Some(lel) = self.lel {
+                        self._compute_frontier_cutset(lel);
+                    }
+                },
+                _ => {
+                    panic!("Only LAST_EXACT_LAYER and FRONTIER are supported so far")
+                }
+            }
+        }
+    }
+
+    fn _compute_last_exact_layer_cutset(&mut self, lel: LayerId) {
+        let Layer { from, to } = *get!(layer lel, self);
+        for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
+            self.cutset.push(NodeId(id));
+            node.flags.set_cutset(true);
+        }
+    }
+
+    fn _compute_frontier_cutset(&mut self, lel: LayerId) {
+        // traverse bottom-up
+        for Layer{from, to} in self.layers.iter().skip(lel.0).rev().copied() {
+            for id in from..to {
+                let id = NodeId(id);
+                let node = get!(node id, self);
+                
+                if !node.flags.is_exact() {
+                    foreach!(edge of id, self, |edge: Edge| {
+                        let parent = get!(mut node edge.from, self);
+                        if parent.flags.is_exact() && !parent.flags.is_cutset() {
+                            self.cutset.push(edge.from);
+                            parent.flags.set_cutset(true);
+                        }
+                    });
                 }
             }
         }

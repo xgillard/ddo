@@ -290,7 +290,7 @@ fn main() {
         barrier: &EmptyBarrier::default(),
     };
 
-    let mut clean = ddo_viz::Mdd::<KnapsackState, {LAST_EXACT_LAYER}>::new();
+    let mut clean = ddo_viz::Mdd::<KnapsackState, {FRONTIER}>::new();
     let Completion{best_value, is_exact} = clean.compile(&input).unwrap();
 
     let config = VizConfigBuilder::default()
