@@ -26,5 +26,11 @@ pub use sequential::*;
 use crate::{DefaultMDDLEL, EmptyBarrier, SimpleBarrier, DefaultMDDFC};
 
 /// A type alias to emphasize that this is the solver that should be used by default.
-pub type DefaultSolver<'a, State> = ParallelSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;
-pub type DefaultBarrierSolver<'a, State> = ParallelSolver<'a, State, DefaultMDDFC<State>, SimpleBarrier<State>>;
+pub type DefaultSolver<'a, State>        = NoBarrierSolverLel<'a, State>;
+pub type DefaultBarrierSolver<'a, State> = BarrierSolverFC<'a, State>;
+
+pub type NoBarrierSolverLel<'a, State>   =  ParallelSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;
+pub type NoBarrierSolverFc<'a, State>    =  ParallelSolver<'a, State, DefaultMDDFC<State>,  EmptyBarrier<State>>;
+
+pub type BarrierSolverLel<'a, State>     = ParallelSolver<'a, State, DefaultMDDLEL<State>, SimpleBarrier<State>>;
+pub type BarrierSolverFC<'a, State>      = ParallelSolver<'a, State, DefaultMDDFC<State>,  SimpleBarrier<State>>;

@@ -674,7 +674,11 @@ mod test_default_mdd {
 
     use fxhash::FxHashMap;
 
-    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, DefaultMDD, DefaultMDDLEL, DefaultMDDFC};
+    use crate::{Variable, VectorBased, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, FRONTIER};
+
+    type DefaultMDD<State>    = DefaultMDDLEL<State>;
+    type DefaultMDDLEL<State> = VectorBased<State, {LAST_EXACT_LAYER}>;
+    type DefaultMDDFC<State>  = VectorBased<State, {FRONTIER}>;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
