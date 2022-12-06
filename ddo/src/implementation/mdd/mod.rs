@@ -27,10 +27,12 @@
 //! (MISP). If this is the problem you want to solve, you might want to stick with
 //! a previous version of ddo (<= 0.5.0).
 mod node_flags;
-mod vector_based;
+//mod vector_based;
+mod clean;
 
 pub use node_flags::*;
-pub use vector_based::*;
+//pub use vector_based::*;
+pub use clean::*;
 
 use crate::{LAST_EXACT_LAYER, FRONTIER};
 
@@ -44,11 +46,11 @@ pub type DefaultMDD<T> = DefaultMDDLEL<T>;
 /// So having a alias calling it the "default" DD implem seems to make sense.
 /// 
 /// This is the variant implementation that produces a last exact layer cutset when asked
-pub type DefaultMDDLEL<T> = VectorBased<T, {LAST_EXACT_LAYER}>;
+pub type DefaultMDDLEL<T> = Mdd<T, {LAST_EXACT_LAYER}>;
 
 /// By default, the mdd implementation which you will want to use is the vector based
 /// implementation. In most cases, it is faster than everything else I have tried.
 /// So having a alias calling it the "default" DD implem seems to make sense.
 /// 
 /// This is the variant implementation that produces a frontier cutset when asked
-pub type DefaultMDDFC<T> = VectorBased<T, {FRONTIER}>;
+pub type DefaultMDDFC<T> = Mdd<T, {LAST_EXACT_LAYER}>;//VectorBased<T, {FRONTIER}>;
