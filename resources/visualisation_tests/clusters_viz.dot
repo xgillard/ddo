@@ -28,6 +28,11 @@ digraph {
         9 -> 11 [penwidth=1,label="(x0 = 0)\ncost = 0"];
         10 -> 11 [penwidth=3,label="(x0 = 0)\ncost = 0"];
         8 -> 11 [penwidth=1,label="(x0 = 0)\ncost = 0"];
+        subgraph cluster_2 {
+                style=filled;
+                color=purple;
+                3;4;7
+        };
         terminal [shape="circle", label="", style="filled", color="black", group="terminal"];
         11 -> terminal [penwidth=3];
 }

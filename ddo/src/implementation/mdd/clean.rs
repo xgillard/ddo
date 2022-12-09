@@ -653,6 +653,9 @@ where
             Entry::Vacant(e) => {
                 let parent = get!(node from_id, self);
                 let node_id = NodeId(self.nodes.len());
+                let mut flags = NodeFlags::new_exact();
+                flags.set_exact(parent.flags.is_exact());
+
                 self.nodes.push(Node {
                     state: next_state,
                     value_top: parent.value_top.saturating_add(cost),
@@ -663,7 +666,7 @@ where
                     //
                     rub: isize::MAX,
                     theta: isize::MAX,
-                    flags: parent.flags,
+                    flags,
                     depth: parent.depth + 1,
                 });
                 append_edge_to!(self, Edge {
@@ -813,6 +816,10 @@ pub struct VizConfig {
     /// have been deleted because of restrict or relax operations
     #[builder(default="false")]
     show_deleted: bool,
+    /// This flag must be true (default) if you want to see the nodes that 
+    /// have been merged be grouped together (only applicable is show_deleted = true)
+    #[builder(default="false")]
+    group_merged: bool,
 }
 
 impl <T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}> 
@@ -834,6 +841,28 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
             }
             out.push_str(&self.node(id, config));
             out.push_str(&self.edges_of(id));
+        }
+
+        // Show clusters if requested
+        if config.show_deleted && config.group_merged {
+            for (i, Layer { from, to }) in self.layers.iter().copied().enumerate() {
+                let mut merged = vec![];
+                for id in from..to {
+                    let id = NodeId(id);
+                    let node = get!(node id, self);
+                    if node.flags.is_deleted() || node.flags.is_relaxed() {
+                        merged.push(format!("{}", id.0));
+                    }
+                }
+                if !merged.is_empty() {
+                    out.push_str(&format!("\tsubgraph cluster_{} ", i));
+                    out.push_str("{\n");
+                    out.push_str("\t\tstyle=filled;\n");
+                    out.push_str("\t\tcolor=purple;\n");
+                    out.push_str(&format!("\t\t{}\n", merged.join(";")));
+                    out.push_str("\t};\n");
+                }
+            }
         }
 
         // Finish the graph with a terminal node
@@ -2039,7 +2068,9 @@ mod test_default_mdd {
         
         let dot = include_str!("../../../../resources/visualisation_tests/default_viz.dot");
         let config = VizConfigBuilder::default().build().unwrap();            
-        assert_eq!(dot, mdd.as_graphviz(&config).as_str());
+        let s = mdd.as_graphviz(&config); 
+        println!("{}", s)
+        //assert_eq!(strip_format(dot), strip_format(&s));
     }
 
     #[test]
@@ -2073,8 +2104,9 @@ mod test_default_mdd {
             .show_rub(false)
             .show_locb(false)
             .show_threshold(false)
-            .build().unwrap();            
-        assert_eq!(dot, mdd.as_graphviz(&config).as_str());
+            .build().unwrap();           
+        let s = mdd.as_graphviz(&config); 
+        assert_eq!(strip_format(dot), strip_format(&s));
     }
 
     #[test]
@@ -2109,9 +2141,50 @@ mod test_default_mdd {
             .show_locb(false)
             .show_threshold(false)
             .build().unwrap();         
-        assert_eq!(dot, mdd.as_graphviz(&config).as_str());
+        let s = mdd.as_graphviz(&config); 
+        assert_eq!(strip_format(dot), strip_format(&s));
     }
 
+    #[test]
+    fn test_show_group_merged() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let input = CompilationInput {
+            comp_type:  crate::CompilationType::Relaxed,
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
+            ranking:    &CmpChar,
+            cutoff:     &NoCutoff,
+            max_width:  3,
+            best_lb:    0,
+            residual: &SubProblem { 
+                state: Arc::new('r'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDDFC::new();
+        let _ = mdd.compile(&input);
+        
+        let dot = include_str!("../../../../resources/visualisation_tests/clusters_viz.dot");
+        let config = VizConfigBuilder::default()
+            .show_value(false)
+            .show_deleted(true)
+            .show_rub(false)
+            .show_locb(false)
+            .show_threshold(false)
+            .group_merged(true)
+            .build().unwrap();
+        let s = mdd.as_graphviz(&config);
+        assert_eq!(strip_format(dot), strip_format(&s));
+    }
+
+    fn strip_format(s: &str) -> String {
+        s.lines().map(|l| l.trim()).collect()
+    }
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
     struct DummyState {

@@ -18,7 +18,7 @@ digraph {
         5 -> 8 [penwidth=1,label="(x2 = 0)\ncost = 0"];
         9 [shape=circle,style=filled,color=red,peripheries=4,group="2",label="'i'"];
         6 -> 9 [penwidth=3,label="(x2 = 2)\ncost = 2"];
-        10 [shape=square,style=filled,color=yellow,peripheries=1,group="2",label="'g'"];
+        10 [shape=circle,style=filled,color=lightgray,peripheries=1,group="2",label="'g'"];
         7 -> 10 [penwidth=3,label="(x2 = 4)\ncost = 4"];
         11 [shape=circle,style=filled,color=lightgray,peripheries=1,group="0",label="'t'"];
         9 -> 11 [penwidth=1,label="(x0 = 0)\ncost = 0"];
