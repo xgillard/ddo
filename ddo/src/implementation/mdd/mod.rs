@@ -27,11 +27,9 @@
 //! (MISP). If this is the problem you want to solve, you might want to stick with
 //! a previous version of ddo (<= 0.5.0).
 mod node_flags;
-mod vector_based;
 mod clean;
 
 pub use node_flags::*;
-pub use vector_based::*;
 pub use clean::*;
 
 use crate::{LAST_EXACT_LAYER, FRONTIER};

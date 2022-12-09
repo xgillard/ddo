@@ -1,5 +1,9 @@
 //! This is an adaptation of the vector based architecture which implements all
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
+//! It also implements the techniques we proposed in 
+//! 
+//! ``Branch-and-Bound with Barrier: Dominance and Suboptimality Detection for 
+//!   DD-Based Branch-and-Bound''.
 
 use std::{sync::Arc, hash::Hash, collections::hash_map::Entry};
 
