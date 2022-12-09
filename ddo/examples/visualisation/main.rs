@@ -17,14 +17,12 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This example show how to implement a solver for the knapsack problem using ddo.
-//! It is a fairly simple example but  features most of the aspects you will want to
-//! copy when implementing your own solver.
+//! This example show how to visualize a decision diagram you have compiled. It does
+//! so by using the knapsack example that has already been used over and over..
 use std::{path::{Path, PathBuf}, fs::File, io::{BufReader, BufRead}, num::ParseIntError, sync::Arc};
 
 use clap::Parser;
 use ddo::*;
-use ddo_viz::{VizConfig, VizConfigBuilder};
 
 /// In our DP model, we consider a state that simply consists of the remaining 
 /// capacity in the knapsack. Additionally, we also consider the *depth* (number
@@ -290,7 +288,7 @@ fn main() {
         barrier: &EmptyBarrier::default(),
     };
 
-    let mut clean = ddo_viz::Mdd::<KnapsackState, {FRONTIER}>::new();
+    let mut clean = Mdd::<KnapsackState, {FRONTIER}>::new();
     let Completion{best_value, is_exact} = clean.compile(&input).unwrap();
 
     let config = VizConfigBuilder::default()

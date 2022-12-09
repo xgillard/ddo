@@ -18,6 +18,7 @@ exclude          = ["examples/tests/resources/*" ]
 fxhash           = "0.2"
 binary-heap-plus = "0.5"
 dashmap          = "5.4"
+derive_builder   = "0.12"
 
 # -- going parallel --------
 num_cpus         = "1.14"

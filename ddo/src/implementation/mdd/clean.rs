@@ -5,8 +5,9 @@
 //! ``Branch-and-Bound with Barrier: Dominance and Suboptimality Detection for 
 //!   DD-Based Branch-and-Bound''.
 
-use std::{sync::Arc, hash::Hash, collections::hash_map::Entry};
+use std::{sync::Arc, hash::Hash, collections::hash_map::Entry, fmt::Debug};
 
+use derive_builder::Builder;
 use fxhash::FxHashMap;
 
 use crate::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem, FRONTIER, Solution};
@@ -785,7 +786,190 @@ where
     }
 }
 
+// ############################################################################
+// #### VISUALISATION #########################################################
+// ############################################################################
+/// This is how you configure the output visualisation e.g.
+/// if you want to see the RUB, LocB and the nodes that have been merged
+#[derive(Debug, Builder)]
+pub struct VizConfig {
+    /// This flag must be true (default) if you want to see the value of
+    /// each node (length of the longest path)
+    #[builder(default="true")]
+    show_value: bool,
+    /// This flag must be true (default) if you want to see the locb of
+    /// each node (length of the longest path from the bottom)
+    #[builder(default="true")]
+    show_locb: bool,
+    /// This flag must be true (default) if you want to see the rub of
+    /// each node (fast upper bound)
+    #[builder(default="true")]
+    show_rub: bool,
+    /// This flag must be true (default) if you want to see the threshold
+    /// associated to the exact nodes
+    #[builder(default="true")]
+    show_threshold: bool,
+    /// This flag must be true (default) if you want to see all nodes that
+    /// have been deleted because of restrict or relax operations
+    #[builder(default="false")]
+    show_deleted: bool,
+}
 
+impl <T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}> 
+where T: Debug + Eq + PartialEq + Hash + Clone {
+
+    /// This is the method you will want to use in order to create the output image you would like.
+    /// Note: the output is going to be a string of (not compiled) 'dot'. This makes it easier for
+    /// me to code and gives you the freedom to fiddle with the graph if needed.
+    pub fn as_graphviz(&self, config: &VizConfig) -> String {
+        let mut out = String::new();
+
+        out.push_str("digraph {\n\tranksep = 3;\n\n");
+
+        // Show all nodes
+        for (id, _) in self.nodes.iter().enumerate() {
+            let node = get!(node NodeId(id), self);
+            if !config.show_deleted && node.flags.is_deleted() {
+                continue;
+            }
+            out.push_str(&self.node(id, config));
+            out.push_str(&self.edges_of(id));
+        }
+
+        // Finish the graph with a terminal node
+        out.push_str(&self.add_terminal_node());
+
+        out.push_str("}\n");
+        out
+    }
+
+    /// Creates a string representation of one single node
+    fn node(&self, id: usize, config: &VizConfig) -> String {
+        let attributes = self.node_attributes(id, config);
+        format!("\t{id} [{attributes}];\n")
+    }
+    /// Creates a string representation of the edges incident to one node
+    fn edges_of(&self, id: usize) -> String {
+        let mut out = String::new();
+        foreach!(edge of NodeId(id), self, |edge: Edge| {
+            let Edge{from, to, decision, cost} = edge;
+            let best = get!(node NodeId(id), self).best;
+            let best = best.map(|eid| *get!(edge eid, self));
+            out.push_str(&Self::edge(from.0, to.0, decision, cost, Some(edge) == best));
+        });
+        out
+    }
+    /// Adds a terminal node (if the DD is feasible) and draws the edges entering that node from
+    /// all the nodes of the terminal layer.
+    fn add_terminal_node(&self) -> String {
+        let mut out = String::new();
+        let Layer{from, to} = self.layers.last().copied().unwrap();
+        if from != to {
+            let terminal = "\tterminal [shape=\"circle\", label=\"\", style=\"filled\", color=\"black\", group=\"terminal\"];\n";
+            out.push_str(terminal);
+
+            let terminal = &self.nodes[from..to];
+            let vmax = terminal.iter().map(|n| n.value_top).max().unwrap_or(isize::MAX);
+            for (id, term) in terminal.iter().enumerate() {
+                let value = term.value_top;
+                if value == vmax {
+                    out.push_str(&format!("\t{} -> terminal [penwidth=3];\n", id+from));
+                } else {
+                    out.push_str(&format!("\t{} -> terminal;\n", id+from));
+                }
+            }
+        }
+        out
+    }
+    /// Creates a string representation of one edge
+    fn edge(from: usize, to: usize, decision: Decision, cost: isize, is_best: bool) -> String {
+        let width = if is_best { 3 } else { 1 };
+        let variable = decision.variable.0;
+        let value = decision.value;
+        let label = format!("(x{variable} = {value})\\ncost = {cost}");
+
+        format!("\t{from} -> {to} [penwidth={width},label=\"{label}\"];\n")
+    }
+    /// Creates the list of attributes that are used to configure one node
+    fn node_attributes(&self, id: usize, config: &VizConfig) -> String {
+        let node = &self.nodes[id];
+        let merged = node.flags.is_relaxed();
+        let state = node.state.as_ref();
+        let restricted= node.flags.is_deleted();
+
+        let shape = Self::node_shape(merged, restricted);
+        let color = Self::node_color(node, merged);
+        let peripheries = Self::node_peripheries(node);
+        let group = self.node_group(node);
+        let label = Self::node_label(node, state, config);
+
+        format!("shape={shape},style=filled,color={color},peripheries={peripheries},group=\"{group}\",label=\"{label}\"")
+    }
+    /// Determines the group of a node based on the last branching decicion leading to it
+    fn node_group(&self, node: &Node<T>) -> String {
+        if let Some(eid) = node.best {
+            let edge = self.edges[eid.0];
+            format!("{}", edge.decision.variable.0)
+        } else {
+            "root".to_string()
+        }
+    }
+    /// Determines the shape to use when displaying a node
+    fn node_shape(merged: bool, restricted: bool) -> &'static str {
+        if merged || restricted {
+            "square"
+        } else {
+            "circle"
+        }
+    }
+    /// Determines the number of peripheries to draw when displaying a node.
+    fn node_peripheries(node: &Node<T>) -> usize {
+        if node.flags.is_cutset() {
+            4
+        } else {
+            1
+        }
+    }
+    /// Determines the color of peripheries to draw when displaying a node.
+    fn node_color(node: &Node<T>, merged: bool) -> &str {
+        if node.flags.is_cutset() {
+            "red"
+        } else if node.flags.is_exact() {
+            "\"#99ccff\""
+        } else if merged {
+            "yellow"
+        } else {
+            "lightgray"
+        }
+    }
+    /// Creates text label to place inside of the node when displaying it
+    fn node_label(node: &Node<T>, state: &T, config: &VizConfig) -> String {
+        let mut out = format!("{:?}", state);
+
+        if config.show_value {
+            out.push_str(&format!("\\nval: {}", node.value_top));
+        }
+        if config.show_locb {
+        out.push_str(&format!("\\nlocb: {}", Self::extreme(node.value_bot)));
+        }
+        if config.show_rub {
+            out.push_str(&format!("\\nrub: {}", Self::extreme(node.rub)));
+        }
+        if config.show_threshold {
+            out.push_str(&format!("\\ntheta: {}", Self::extreme(node.theta)));
+        }
+
+        out
+    }
+    /// An utility method to replace extreme values with +inf and -inf
+    fn extreme(x: isize) -> String {
+        match x {
+            isize::MAX => "+inf".to_string(),
+            isize::MIN => "-inf".to_string(),
+            _ => format!("{x}")
+        }
+    }
+}
 
 // ############################################################################
 // #### TESTS #################################################################
@@ -799,7 +983,7 @@ mod test_default_mdd {
 
     use fxhash::FxHashMap;
 
-    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, Mdd, FRONTIER};
+    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, Mdd, FRONTIER, VizConfigBuilder};
 
     type DefaultMDD<State>    = DefaultMDDLEL<State>;
     type DefaultMDDLEL<State> = Mdd<State, {LAST_EXACT_LAYER}>;
@@ -1828,6 +2012,106 @@ mod test_default_mdd {
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
     }
+
+    #[test]
+    fn test_default_visualisation() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let input = CompilationInput {
+            comp_type:  crate::CompilationType::Relaxed,
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
+            ranking:    &CmpChar,
+            cutoff:     &NoCutoff,
+            max_width:  3,
+            best_lb:    0,
+            residual: &SubProblem { 
+                state: Arc::new('r'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDDFC::new();
+        let _ = mdd.compile(&input);
+        
+        let dot = include_str!("../../../../resources/visualisation_tests/default_viz.dot");
+        let config = VizConfigBuilder::default().build().unwrap();            
+        assert_eq!(dot, mdd.as_graphviz(&config).as_str());
+    }
+
+    #[test]
+    fn test_terse_visualisation() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let input = CompilationInput {
+            comp_type:  crate::CompilationType::Relaxed,
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
+            ranking:    &CmpChar,
+            cutoff:     &NoCutoff,
+            max_width:  3,
+            best_lb:    0,
+            residual: &SubProblem { 
+                state: Arc::new('r'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDDFC::new();
+        let _ = mdd.compile(&input);
+        
+        let dot = include_str!("../../../../resources/visualisation_tests/terse_viz.dot");
+        let config = VizConfigBuilder::default()
+            .show_value(false)
+            .show_deleted(false)
+            .show_rub(false)
+            .show_locb(false)
+            .show_threshold(false)
+            .build().unwrap();            
+        assert_eq!(dot, mdd.as_graphviz(&config).as_str());
+    }
+
+    #[test]
+    fn test_show_deleted_viz() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let input = CompilationInput {
+            comp_type:  crate::CompilationType::Relaxed,
+            problem:    &LocBoundsAndThresholdsExamplePb,
+            relaxation: &LocBoundsAndThresholdsExampleRelax,
+            ranking:    &CmpChar,
+            cutoff:     &NoCutoff,
+            max_width:  3,
+            best_lb:    0,
+            residual: &SubProblem { 
+                state: Arc::new('r'), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDDFC::new();
+        let _ = mdd.compile(&input);
+        
+        let dot = include_str!("../../../../resources/visualisation_tests/deleted_viz.dot");
+        let config = VizConfigBuilder::default()
+            .show_value(false)
+            .show_deleted(true)
+            .show_rub(false)
+            .show_locb(false)
+            .show_threshold(false)
+            .build().unwrap();         
+        assert_eq!(dot, mdd.as_graphviz(&config).as_str());
+    }
+
 
     #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
     struct DummyState {

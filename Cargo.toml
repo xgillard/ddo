@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "ddo",
-    "ddo-viz",
     #"py_ddo",
     #
     "xtask",
