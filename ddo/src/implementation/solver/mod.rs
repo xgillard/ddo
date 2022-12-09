@@ -26,11 +26,18 @@ pub use sequential::*;
 use crate::{DefaultMDDLEL, EmptyBarrier, SimpleBarrier, DefaultMDDFC};
 
 /// A type alias to emphasize that this is the solver that should be used by default.
-pub type DefaultSolver<'a, State>        = NoBarrierSolverLel<'a, State>;
-pub type DefaultBarrierSolver<'a, State> = BarrierSolverFc<'a, State>;
+pub type DefaultSolver<'a, State>        = ParNoBarrierSolverLel<'a, State>;
+pub type DefaultBarrierSolver<'a, State> = ParBarrierSolverFc<'a, State>;
 
-pub type NoBarrierSolverLel<'a, State>   = ParallelSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;
-pub type NoBarrierSolverFc<'a, State>    = ParallelSolver<'a, State, DefaultMDDFC<State>,  EmptyBarrier<State>>;
+pub type ParNoBarrierSolverLel<'a, State>= ParallelSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;
+pub type ParNoBarrierSolverFc<'a, State> = ParallelSolver<'a, State, DefaultMDDFC<State>,  EmptyBarrier<State>>;
 
-pub type BarrierSolverLel<'a, State>     = ParallelSolver<'a, State, DefaultMDDLEL<State>, SimpleBarrier<State>>;
-pub type BarrierSolverFc<'a, State>      = ParallelSolver<'a, State, DefaultMDDFC<State>,  SimpleBarrier<State>>;
+pub type ParBarrierSolverLel<'a, State>  = ParallelSolver<'a, State, DefaultMDDLEL<State>, SimpleBarrier<State>>;
+pub type ParBarrierSolverFc<'a, State>   = ParallelSolver<'a, State, DefaultMDDFC<State>,  SimpleBarrier<State>>;
+
+
+pub type SeqNoBarrierSolverLel<'a, State>= SequentialSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;
+pub type SeqNoBarrierSolverFc<'a, State> = SequentialSolver<'a, State, DefaultMDDFC<State>,  EmptyBarrier<State>>;
+
+pub type SeqBarrierSolverLel<'a, State>  = SequentialSolver<'a, State, DefaultMDDLEL<State>, SimpleBarrier<State>>;
+pub type SeqBarrierSolverFc<'a, State>   = SequentialSolver<'a, State, DefaultMDDFC<State>,  SimpleBarrier<State>>;

@@ -2069,8 +2069,8 @@ mod test_default_mdd {
         let dot = include_str!("../../../../resources/visualisation_tests/default_viz.dot");
         let config = VizConfigBuilder::default().build().unwrap();            
         let s = mdd.as_graphviz(&config); 
-        println!("{}", s)
-        //assert_eq!(strip_format(dot), strip_format(&s));
+        //println!("{}", s)
+        assert_eq!(strip_format(dot), strip_format(&s));
     }
 
     #[test]
