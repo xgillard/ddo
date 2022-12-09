@@ -242,17 +242,6 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
     Ok(Knapsack { capacity: capa, profit, weight })
 }
 
-/// An utility function to return an max width heuristic that can either be a fixed width
-/// policy (if w is fixed) or an adaptative policy returning the number of unassigned variables
-/// in the overall problem.
-fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> + Send + Sync> {
-    if let Some(w) = w {
-        Box::new(FixedWidth(w))
-    } else {
-        Box::new(NbUnassignedWitdh(nb_vars))
-    }
-}
-
 fn locate(id: &str) -> PathBuf {
     PathBuf::new()
         .join(env!("CARGO_MANIFEST_DIR"))
@@ -268,30 +257,35 @@ fn main() {
     let problem = read_instance(fname).unwrap();
     let relaxation = KPRelax{pb: &problem};
     let ranking = KPranking;
+    let mut barrier = SimpleBarrier::default();
 
-    let mut residual = SubProblem { 
+    barrier.initialize(&problem);
+
+    let residual = SubProblem { 
         state: Arc::new(problem.initial_state()), 
         value: 0, 
         path: vec![], 
         ub: isize::MAX, 
         depth: 0
      };
-    let mut input = CompilationInput {
+    let input = CompilationInput {
         comp_type: CompilationType::Relaxed,
         problem: &problem,
         relaxation: &relaxation,
         ranking: &ranking,
         cutoff: &NoCutoff,
-        max_width: 10,
+        max_width: 5,
         residual: &residual,
         best_lb: isize::MIN,
-        barrier: &EmptyBarrier::default(),
+        barrier: &barrier,
     };
 
     let mut clean = Mdd::<KnapsackState, {FRONTIER}>::new();
-    let Completion{best_value, is_exact} = clean.compile(&input).unwrap();
+    _ = clean.compile(&input);
 
     let config = VizConfigBuilder::default()
+        .show_deleted(true)
+        .group_merged(true)
         .build()
         .unwrap();
     
