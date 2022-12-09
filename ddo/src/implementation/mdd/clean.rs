@@ -184,17 +184,17 @@ macro_rules! foreach {
 
 /// This macro appends an edge to the list of edges adjacent to a given node
 macro_rules! append_edge_to {
-    ($dd:expr, $id:expr, $edge:expr) => {
+    ($dd:expr, $edge:expr) => {
         let new_eid = EdgeId($dd.edges.len());
         let lst_id  = EdgesListId($dd.edgelists.len());
         $dd.edges.push($edge);
-        $dd.edgelists.push(EdgesList::Cons { head: new_eid, tail: get!(node $id, $dd).inbound });
+        $dd.edgelists.push(EdgesList::Cons { head: new_eid, tail: get!(node $edge.to, $dd).inbound });
         
         let parent = get!(node $edge.from, $dd);
         let parent_exact = parent.flags.is_exact();
         let value = parent.value_top.saturating_add($edge.cost);
         
-        let node = get!(mut node $id, $dd);
+        let node = get!(mut node $edge.to, $dd);
         let exact = parent_exact & node.flags.is_exact();
         node.flags.set_exact(exact);
         node.inbound = lst_id;
@@ -437,7 +437,53 @@ where
     }
 
     fn _compute_thresholds(&mut self, input: &CompilationInput<T>) {
-        // TODO: make it understandable
+        if input.comp_type == CompilationType::Relaxed {
+            let best_known  = input.best_lb;
+            for Layer{from, to} in self.layers.iter().rev().copied() {
+                for id in from..to {
+                    let id = NodeId(id);
+                    let node = get!(mut node id, self);
+
+                    if node.flags.is_deleted() {
+                        continue;
+                    }
+
+                    // ATTENTION: YOU WANT TO PROPAGATE THETA EVEN IF THE NODE WAS PRUNED BY BARRIER
+                    if !node.flags.is_pruned_by_barrier() {
+                        let tot_rub = node.value_top.saturating_add(node.rub);
+                        if tot_rub <= best_known {
+                            node.theta = best_known.saturating_sub(node.rub);
+                        } else if node.flags.is_cutset() {
+                            let tot_locb = node.value_top.saturating_add(node.value_bot);
+                            if tot_locb <= best_known {
+                                node.theta = node.theta.min(best_known.saturating_sub(node.value_bot));
+                            } else {
+                                node.theta = node.value_top;
+                            }
+                        }
+
+                        Self::_maybe_update_barrier(node, input);
+                    }
+
+                    let my_theta = node.theta;
+                    foreach!(edge of id, self, |edge: Edge| {
+                        let parent = get!(mut node edge.from, self);
+                        parent.theta = parent.theta.min(my_theta.saturating_sub(edge.cost));
+                    });
+                }
+            }
+        }
+    }
+
+    fn _maybe_update_barrier(node: &Node<T>, input: &CompilationInput<T>) {
+        // A node can only be added to the barrier if it belongs to the cutset or is above it
+        if node.flags.is_above_cutset() {
+            input.barrier.update_threshold(
+                node.state.clone(), 
+                node.depth, 
+                node.theta, 
+                !node.flags.is_cutset()) // if it is in the cutset it has not been expored !
+        }
     }
 
     fn _finalize_cutset(&mut self, input: &CompilationInput<T>) {
@@ -449,8 +495,8 @@ where
                     }
                 },
                 FRONTIER => {
-                    if let Some(lel) = self.lel {
-                        self._compute_frontier_cutset(lel);
+                    if self.lel.is_some() {
+                        self._compute_frontier_cutset();
                     }
                 },
                 _ => {
@@ -464,18 +510,29 @@ where
         let Layer { from, to } = *get!(layer lel, self);
         for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
             self.cutset.push(NodeId(id));
-            node.flags.set_cutset(true);
+            node.flags.add(NodeFlags::F_CUTSET | NodeFlags::F_ABOVE_CUTSET);
+        }
+
+        // traverse bottom up to set the above cutset for all nodes in layers above LEL
+        for Layer{from, to} in self.layers.iter().take(lel.0).rev().copied() {
+            for id in from..to {
+                let id = NodeId(id);
+                let node = get!(mut node id, self);
+                node.flags.set_above_cutset(true);
+            }
         }
     }
 
-    fn _compute_frontier_cutset(&mut self, lel: LayerId) {
+    fn _compute_frontier_cutset(&mut self) {
         // traverse bottom-up
-        for Layer{from, to} in self.layers.iter().skip(lel.0).rev().copied() {
+        for Layer{from, to} in self.layers.iter().rev().copied() {
             for id in from..to {
                 let id = NodeId(id);
-                let node = get!(node id, self);
+                let node = get!(mut node id, self);
                 
-                if !node.flags.is_exact() {
+                if node.flags.is_exact() {
+                    node.flags.set_above_cutset(true);
+                } else {
                     foreach!(edge of id, self, |edge: Edge| {
                         let parent = get!(mut node edge.from, self);
                         if parent.flags.is_exact() && !parent.flags.is_cutset() {
@@ -541,7 +598,7 @@ where
             self.layers.push(Layer { from: 0, to: 0 });
             false
         } else {
-            if self.layers.len() > 1 {
+            if !self.layers.is_empty() {
                 self._filter_with_barrier(input, curr_l);
             }
 
@@ -604,7 +661,7 @@ where
                     flags: parent.flags,
                     depth: parent.depth + 1,
                 });
-                append_edge_to!(self, node_id, Edge {
+                append_edge_to!(self, Edge {
                     from: from_id,
                     to  : node_id,
                     decision,
@@ -614,7 +671,7 @@ where
             }
             Entry::Occupied(e) => {
                 let node_id = *e.get();
-                append_edge_to!(self, node_id, Edge {
+                append_edge_to!(self, Edge {
                     from: from_id,
                     to  : node_id,
                     decision,
@@ -704,7 +761,7 @@ where
                 let dst   = get!(node edge.to,   self).state.as_ref();
                 let rcost = input.relaxation.relax(src, dst, merged.as_ref(), edge.decision, edge.cost);
 
-                append_edge_to!(self, merged_id, Edge {
+                append_edge_to!(self, Edge {
                     from: edge.from,
                     to: merged_id,
                     decision: edge.decision,

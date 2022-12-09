@@ -60,11 +60,9 @@ where T: Hash + Eq {
     }
 
     fn update_threshold(&self, state: Arc<T>, depth: usize, value: isize, explored: bool) {
-        let mut current = self.thresholds_by_layer[depth]
-            .entry(state)
-            .or_insert(Threshold { value: isize::MIN, explored: false });
-        let new = Threshold { value, explored };
-        *current.value_mut() = new.max(*current.value());
+        self.thresholds_by_layer[depth].entry(state)
+            .and_modify(|e| *e = Threshold { value, explored }.max(*e))
+            .or_insert(Threshold { value, explored });
     }
 
     fn clear_layer(&self, depth: usize) {
