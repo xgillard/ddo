@@ -10,7 +10,7 @@ digraph {
         2 -> 5 [penwidth=3,label="(x1 = 6)\ncost = 6"];
         6 [shape=circle,style=filled,color="#99ccff",peripheries=1,group="1",label="'f'\nval: 12\nlocb: 2\nrub: 10\ntheta: 12"];
         2 -> 6 [penwidth=3,label="(x1 = 5)\ncost = 5"];
-        7 [shape=square,style=filled,color=yellow,peripheries=1,group="1",label="'M'\nval: 12\nlocb: 4\nrub: 10\ntheta: 9223372036854775803"];
+        7 [shape=square,style=filled,color=yellow,peripheries=1,group="1",label="'M'\nval: 12\nlocb: 4\nrub: 10\ntheta: +inf"];
         2 -> 7 [penwidth=1,label="(x1 = 3)\ncost = 3"];
         1 -> 7 [penwidth=3,label="(x1 = 2)\ncost = 2"];
         8 [shape=circle,style=filled,color=red,peripheries=4,group="2",label="'h'\nval: 13\nlocb: 0\nrub: 0\ntheta: 13"];

@@ -58,7 +58,7 @@ struct Node<T> {
     /// 
     /// ### Note
     /// This field is only ever populated after the MDD has been fully unrolled.
-    theta: isize,
+    theta: Option<isize>,
     /// A group of flag telling if the node is an exact node, if it is a relaxed
     /// node (helps to determine if the best path is an exact path) and if the
     /// node is reachable in a backwards traversal of the MDD starting at the
@@ -362,7 +362,7 @@ where
             best: None, 
             inbound: NIL, 
             rub: input.residual.ub, 
-            theta: isize::MAX,
+            theta: None,
             flags: NodeFlags::new_exact(), 
             depth: input.residual.depth,
         };
@@ -457,24 +457,27 @@ where
                     if !node.flags.is_pruned_by_barrier() {
                         let tot_rub = node.value_top.saturating_add(node.rub);
                         if tot_rub <= best_known {
-                            node.theta = best_known.saturating_sub(node.rub);
+                            node.theta = Some(best_known.saturating_sub(node.rub));
                         } else if node.flags.is_cutset() {
                             let tot_locb = node.value_top.saturating_add(node.value_bot);
                             if tot_locb <= best_known {
-                                node.theta = node.theta.min(best_known.saturating_sub(node.value_bot));
+                                let theta = node.theta.unwrap_or(isize::MAX);
+                                node.theta = Some(theta.min(best_known.saturating_sub(node.value_bot)));
                             } else {
-                                node.theta = node.value_top;
+                                node.theta = Some(node.value_top);
                             }
                         }
 
                         Self::_maybe_update_barrier(node, input);
                     }
-
-                    let my_theta = node.theta;
-                    foreach!(edge of id, self, |edge: Edge| {
-                        let parent = get!(mut node edge.from, self);
-                        parent.theta = parent.theta.min(my_theta.saturating_sub(edge.cost));
-                    });
+                    // only propagate if you have an actual threshold
+                    if let Some(my_theta) = node.theta {
+                        foreach!(edge of id, self, |edge: Edge| {
+                            let parent = get!(mut node edge.from, self);
+                            let theta  = parent.theta.unwrap_or(isize::MAX); 
+                            parent.theta = Some(theta.min(my_theta.saturating_sub(edge.cost)));
+                        });
+                    }
                 }
             }
         }
@@ -482,12 +485,14 @@ where
 
     fn _maybe_update_barrier(node: &Node<T>, input: &CompilationInput<T>) {
         // A node can only be added to the barrier if it belongs to the cutset or is above it
-        if node.flags.is_above_cutset() {
-            input.barrier.update_threshold(
-                node.state.clone(), 
-                node.depth, 
-                node.theta, 
-                !node.flags.is_cutset()) // if it is in the cutset it has not been expored !
+        if let Some(theta) = node.theta {
+            if node.flags.is_above_cutset() {
+                input.barrier.update_threshold(
+                    node.state.clone(), 
+                    node.depth, 
+                    theta, 
+                    !node.flags.is_cutset()) // if it is in the cutset it has not been expored !
+            }
         }
     }
 
@@ -630,7 +635,7 @@ where
                     true
                 } else {
                     node.flags.set_pruned_by_barrier(true);
-                    node.theta = threshold.value; // set theta for later propagation
+                    node.theta = Some(threshold.value); // set theta for later propagation
                     false
                 }
             } else {
@@ -665,7 +670,7 @@ where
                     inbound: NIL,
                     //
                     rub: isize::MAX,
-                    theta: isize::MAX,
+                    theta: None,
                     flags,
                     depth: parent.depth + 1,
                 });
@@ -752,7 +757,7 @@ where
                 inbound: NIL,  // yet
                 //
                 rub: isize::MAX,
-                theta: isize::MAX,
+                theta: None,
                 flags: NodeFlags::new_relaxed(),
                 depth: get!(node merge[0], self).depth,
             });
@@ -985,7 +990,7 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
             out.push_str(&format!("\\nrub: {}", Self::extreme(node.rub)));
         }
         if config.show_threshold {
-            out.push_str(&format!("\\ntheta: {}", Self::extreme(node.theta)));
+            out.push_str(&format!("\\ntheta: {}", Self::extreme(node.theta.unwrap_or(isize::MAX))));
         }
 
         out
