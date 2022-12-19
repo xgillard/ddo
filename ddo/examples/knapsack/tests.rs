@@ -19,11 +19,11 @@
 
 //! This module is meant to tests the correctness of our knapsack example
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use ddo::*;
 
-use crate::{KPRelax, KPranking, read_instance};
+use crate::{KPRelax, KPranking, read_instance, heugre::HeuGre};
 
 fn locate(id: &str) -> PathBuf {
     PathBuf::new()
@@ -39,14 +39,16 @@ pub fn solve_id(id: &str) -> isize {
     
     let problem = read_instance(fname).unwrap();
     let relaxation = KPRelax{pb: &problem};
-    let ranking = KPranking;
+    //@Mohsen -- change this line to run the test w/o heugre
+    //let ranking = KPranking;
+    let ranking = HeuGre::new(&problem, Arc::new(Default::default()));
 
     let width = NbUnassignedWitdh(problem.nb_variables());
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultSolver::new(
         &problem, 
         &relaxation, 
         &ranking, 

@@ -20,11 +20,14 @@
 //! This example show how to implement a solver for the knapsack problem using ddo.
 //! It is a fairly simple example but  features most of the aspects you will want to
 //! copy when implementing your own solver.
-use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Instant}, num::ParseIntError};
+use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Instant}, num::ParseIntError, sync::Arc};
 
 use clap::Parser;
 use ddo::*;
 
+use crate::heugre::HeuGre;
+
+mod heugre;
 #[cfg(test)]
 mod tests;
 
@@ -160,8 +163,9 @@ pub struct KPranking;
 impl StateRanking for KPranking {
     type State = KnapsackState;
 
-    fn compare(&self, _: isize, a: &Self::State, _: isize, b: &Self::State) -> std::cmp::Ordering {
-        a.capacity.cmp(&b.capacity)
+    fn compare(&self, va: isize, a: &Self::State, vb: isize, b: &Self::State) -> std::cmp::Ordering {
+        va.cmp(&vb)
+            .then_with(|| a.capacity.cmp(&b.capacity))
     }
 }
 
@@ -263,15 +267,17 @@ fn main() {
     let args = Args::parse();
     let problem = read_instance(&args.fname).unwrap();
     let relaxation= KPRelax{pb: &problem};
-    let heuristic= KPranking;
+    // @Mohsen -- Just change the following two lines to enable/disable HeuGre
+    //let ranking= KPranking;
+    let ranking= HeuGre::new(&problem, Arc::new(Default::default()));
     let width = max_width(problem.nb_variables(), args.width);
-    let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
-    let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
+    let cutoff = TimeBudget::new(Duration::from_secs(args.duration));//NoCutoff;
+    let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
 
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultSolver::new(
         &problem, 
         &relaxation, 
-        &heuristic, 
+        &ranking, 
         width.as_ref(), 
         &cutoff, 
         &mut fringe,
