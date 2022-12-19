@@ -720,11 +720,12 @@ where
 
     fn _restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            get!(node a, self).value_top
-                .cmp(&get!(node b, self).value_top)
-                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
-                .reverse()
-        }); // reverse because greater means more likely to be kept
+            let a = get!(node a, self);
+            let b = get!(node b, self);
+
+            // reverse because greater means more likely to be kept
+            input.ranking.compare(a.value_top, a.state.as_ref(), b.value_top, b.state.as_ref()).reverse()
+        }); 
 
         for drop_id in curr_l.iter().skip(input.max_width).copied() {
             get!(mut node drop_id, self).flags.set_deleted(true);
@@ -735,11 +736,12 @@ where
 
     fn _relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
-            get!(node a, self).value_top
-                .cmp(&get!(node b, self).value_top)
-                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
-                .reverse()
-        }); // reverse because greater means more likely to be kept
+            let a = get!(node a, self);
+            let b = get!(node b, self);
+
+            // reverse because greater means more likely to be kept
+            input.ranking.compare(a.value_top, a.state.as_ref(), b.value_top, b.state.as_ref()).reverse()
+        }); 
 
         //--
         let (keep, merge) = curr_l.split_at_mut(input.max_width - 1);
@@ -1831,7 +1833,7 @@ mod test_default_mdd {
     struct CmpChar;
     impl StateRanking for CmpChar {
         type State = char;
-        fn compare(&self, a: &char, b: &char) -> Ordering {
+        fn compare(&self, va: isize, a: &char, vb: isize, b: &char) -> Ordering {
             a.cmp(b)
         }
     }
@@ -2301,7 +2303,7 @@ mod test_default_mdd {
     impl StateRanking for DummyRanking {
         type State = DummyState;
 
-        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+        fn compare(&self, va: isize, a: &Self::State, vb: isize, b: &Self::State) -> Ordering {
             a.value.cmp(&b.value).reverse()
         }
     }

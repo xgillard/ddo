@@ -529,7 +529,7 @@ mod test_no_dup_fringe {
     impl StateRanking for UsizeRanking {
         type State = usize;
 
-        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+        fn compare(&self, _: isize, a: &Self::State, _: isize, b: &Self::State) -> Ordering {
             a.cmp(b)
         }
     }

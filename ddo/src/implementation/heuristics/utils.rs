@@ -92,7 +92,7 @@ mod test {
     impl StateRanking for CharRanking {
         type State = char;
 
-        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+        fn compare(&self, _: isize, a: &Self::State, _: isize, b: &Self::State) -> Ordering {
             a.cmp(b)
         }
     }
@@ -100,7 +100,7 @@ mod test {
         type State = char;
 
         fn compare(&self, a: &SubProblem<char>, b: &SubProblem<char>) -> Ordering {
-            <Self as StateRanking>::compare(self, a.state.deref(), b.state.deref())
+            <Self as StateRanking>::compare(self, a.value, a.state.deref(), b.value, b.state.deref())
         }
     }
 

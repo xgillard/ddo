@@ -160,7 +160,7 @@ pub struct KPranking;
 impl StateRanking for KPranking {
     type State = KnapsackState;
 
-    fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
+    fn compare(&self, _: isize, a: &Self::State, _: isize, b: &Self::State) -> std::cmp::Ordering {
         a.capacity.cmp(&b.capacity)
     }
 }

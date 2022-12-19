@@ -78,7 +78,7 @@ pub trait StateRanking {
 
     /// This method compares two states and determines which is the most 
     /// desirable to keep. In this ordering, 
-    fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering;
+    fn compare(&self, value_a: isize, state_a: &Self::State, value_b: isize, b: &Self::State) -> Ordering;
 }
 
 /// A subproblem ranking is an heuristic that imposes a partial order on

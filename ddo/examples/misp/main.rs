@@ -20,12 +20,14 @@
 //! This example show how to implement a solver for the maximum independent set problem 
 //! using ddo. It is a fairly simple example but it features most of the aspects you will
 //! want to copy when implementing your own solver.
-use std::{cell::RefCell, path::Path, fs::File, io::{BufReader, BufRead}, num::ParseIntError, time::{Duration, Instant}};
+use std::{cell::RefCell, path::Path, fs::File, io::{BufReader, BufRead}, num::ParseIntError, time::{Duration, Instant}, sync::Arc};
 
 use bit_set::BitSet;
 use clap::Parser;
 use ddo::*;
 use regex::Regex;
+
+mod heugre;
 
 #[cfg(test)]
 mod tests;
@@ -198,12 +200,16 @@ impl Relaxation for MispRelax<'_> {
 /// solver is a `StateRanking`. This is an heuristic which is used to select the most
 /// and least promising nodes as a means to only delete/merge the *least* promising nodes
 /// when compiling restricted and relaxed DDs.
+/// 
+/// # Note:
+/// This last ranking replaced with HeuGre to implement Mohsen's strategy
 pub struct MispRanking;
 impl StateRanking for MispRanking {
     type State = BitSet;
 
-    fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
-        a.len().cmp(&b.len())
+    fn compare(&self, va: isize, a: &Self::State, vb: isize, b: &Self::State) -> std::cmp::Ordering {
+        va.cmp(&vb)
+            .then_with(|| a.len().cmp(&b.len()))
             .then_with(|| a.cmp(b))
     }
 }
@@ -343,14 +349,16 @@ fn main() {
     let fname = &args.fname;
     let problem = read_instance(fname).unwrap();
     let relaxation = MispRelax {pb: &problem};
-    let ranking = MispRanking;
+    // @Mohsen: uncomment this line to revert back to the default implementation
+    // let ranking = MispRanking; 
+    let ranking = heugre::HeuGre::new(&problem, Arc::new(Default::default()));
 
     let width = max_width(&problem, args.width);
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = ParNoBarrierSolverLel::custom(
+    let mut solver = ParNoBarrierSolverFc::custom(
         &problem, 
         &relaxation, 
         &ranking, 

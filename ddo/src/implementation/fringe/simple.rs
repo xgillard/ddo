@@ -73,7 +73,7 @@ mod test_simple_fringe {
     impl StateRanking for CharRanking {
         type State = char;
 
-        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+        fn compare(&self, _: isize, a: &Self::State, _: isize, b: &Self::State) -> Ordering {
             a.cmp(b)
         }
     }

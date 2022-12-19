@@ -19,11 +19,11 @@
 
 //! This module is meant to tests the correctness of our misp example
 
-use std::{path::PathBuf};
+use std::{path::PathBuf, sync::Arc};
 
 use ddo::*;
 
-use crate::{read_instance, MispRelax, MispRanking};
+use crate::{read_instance, MispRelax, heugre::HeuGre};
 
 
 fn locate(id: &str) -> PathBuf {
@@ -40,7 +40,7 @@ pub fn solve_id(id: &str) -> isize {
     
     let problem = read_instance(fname).unwrap();
     let relaxation = MispRelax {pb: &&problem};
-    let ranking = MispRanking;
+    let ranking = HeuGre::new(&problem, Arc::new(Default::default()));
 
     let width = NbUnassignedWitdh(problem.nb_variables());
     let cutoff = NoCutoff;

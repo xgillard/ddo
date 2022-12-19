@@ -86,7 +86,7 @@ impl<O: StateRanking> SubProblemRanking for MaxUB<'_, O> {
     fn compare(&self, l: &SubProblem<O::State>, r: &SubProblem<O::State>) -> Ordering {
         l.ub.cmp(&r.ub)
             .then_with(|| l.value.cmp(&r.value))
-            .then_with(|| self.0.compare(&l.state, &r.state))
+            .then_with(|| self.0.compare(l.value, &l.state, r.value, &r.state))
     }
 }
 
@@ -107,7 +107,7 @@ mod test_maxub {
     impl StateRanking for CharRanking {
         type State = char;
 
-        fn compare(&self, a: &Self::State, b: &Self::State) -> Ordering {
+        fn compare(&self, _: isize, a: &Self::State, _: isize, b: &Self::State) -> Ordering {
             a.cmp(b)
         }
     }
