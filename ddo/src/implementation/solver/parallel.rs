@@ -88,8 +88,11 @@ struct Shared<'a, State, B> where B : Barrier<State = State> + Send + Sync + Def
     /// The relaxation used when a DD layer grows too large
     relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
     /// The ranking heuristic used to discriminate the most promising from
-    /// the least promising states
-    ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+    /// the least promising states when compiling **relaxed** DDs
+    relaxation_ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+    /// The ranking heuristic used to discriminate the most promising from
+    /// the least promising states when compiling **restricted** DDs
+    restriction_ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
     /// The maximum width heuristic used to enforce a given maximum memory
     /// usage when compiling mdds
     width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
@@ -279,18 +282,20 @@ where
     pub fn new(
         problem: &'a (dyn Problem<State = State> + Send + Sync),
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
-        ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+        relaxation_ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+        restriction_ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width: &'a (dyn WidthHeuristic<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync), 
         fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
     ) -> Self {
-        Self::custom(problem, relaxation, ranking, width, cutoff, fringe, num_cpus::get())
+        Self::custom(problem, relaxation, relaxation_ranking, restriction_ranking, width, cutoff, fringe, num_cpus::get())
     }
 
     pub fn custom(
         problem: &'a (dyn Problem<State = State> + Send + Sync),
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
-        ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+        relaxation_ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
+        restriction_ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync),
         fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
@@ -300,7 +305,8 @@ where
             shared: Shared {
                 problem,
                 relaxation,
-                ranking,
+                relaxation_ranking,
+                restriction_ranking,
                 width_heu,
                 cutoff,
                 barrier: B::default(),
@@ -375,7 +381,7 @@ where
             max_width: width,
             problem: shared.problem,
             relaxation: shared.relaxation,
-            ranking: shared.ranking,
+            ranking: shared.restriction_ranking,
             cutoff: shared.cutoff,
             residual: &node,
             //
@@ -392,6 +398,7 @@ where
         // 2. RELAXATION
         let best_lb = Self::best_lb(shared);
         compilation.comp_type = CompilationType::Relaxed;
+        compilation.ranking = shared.relaxation_ranking;
         compilation.best_lb = best_lb;
 
         let Completion{is_exact, ..} = mdd.compile(&compilation)?;
@@ -636,6 +643,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -659,6 +667,7 @@ mod test_solver {
         let solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -684,6 +693,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -708,6 +718,7 @@ mod test_solver {
         let mut solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -735,6 +746,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -757,6 +769,7 @@ mod test_solver {
         let solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -810,6 +823,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -833,6 +847,7 @@ mod test_solver {
         let solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -858,6 +873,7 @@ mod test_solver {
         let mut solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -896,6 +912,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -932,6 +949,7 @@ mod test_solver {
         let mut solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -974,6 +992,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -1014,6 +1033,7 @@ mod test_solver {
         let mut solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -1056,6 +1076,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -1096,6 +1117,7 @@ mod test_solver {
         let mut solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,
@@ -1143,6 +1165,7 @@ mod test_solver {
             &problem,
             &relax,
             &ranking,
+            &ranking,
             &width,
             &cutoff,
             &mut fringe,
@@ -1166,6 +1189,7 @@ mod test_solver {
         let mut solver = DDLEL::custom(
             &problem,
             &relax,
+            &ranking,
             &ranking,
             &width,
             &cutoff,

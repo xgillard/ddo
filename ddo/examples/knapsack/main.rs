@@ -22,7 +22,7 @@
 //! copy when implementing your own solver.
 use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Instant}, num::ParseIntError, sync::Arc};
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use ddo::*;
 
 use crate::heugre::HeuGre;
@@ -184,6 +184,9 @@ impl StateRanking for KPranking {
 struct Args {
     /// The path to the instance file
     fname: String,
+    /// This flag controls the usage of heugre or not
+    #[clap(short='m', long, value_enum, default_value = "restricted-only")]
+    heugre_mode: HeugreMode, 
     /// The number of concurrent threads
     #[clap(short, long, default_value = "8")]
     threads: usize,
@@ -194,6 +197,14 @@ struct Args {
     /// as many nodes in a layer as there are unassigned variables in the global problem.
     #[clap(short, long)]
     width: Option<usize>,
+}
+/// This enum is used as a flag to decide when to use heugre
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum HeugreMode {
+    Disabled,
+    Both,
+    RestrictedOnly,
+    RelaxedOnly
 }
 
 /// This enumeration simply groups the kind of errors that might occur when parsing a
@@ -261,23 +272,51 @@ fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> +
     }
 }
 
+fn relax_ranking<'a, T, U, H>(mode: HeugreMode, usual: &'a U, heugre: &'a H) -> &'a (dyn StateRanking<State = T> + Send + Sync)
+where U: StateRanking<State = T> + Send + Sync,
+      H: StateRanking<State = T> + Send + Sync,
+{
+    match mode {
+        HeugreMode::Disabled => usual,
+        HeugreMode::Both => heugre,
+        HeugreMode::RestrictedOnly => usual,
+        HeugreMode::RelaxedOnly => heugre,
+    }
+}
+
+fn restrict_ranking<'a, T, U, H>(mode: HeugreMode, usual: &'a U, heugre: &'a H) -> &'a (dyn StateRanking<State = T> + Send + Sync)
+where U: StateRanking<State = T> + Send + Sync,
+      H: StateRanking<State = T> + Send + Sync,
+{
+    match mode {
+        HeugreMode::Disabled => usual,
+        HeugreMode::Both => heugre,
+        HeugreMode::RestrictedOnly => heugre,
+        HeugreMode::RelaxedOnly => usual,
+    }
+}
+
 /// This is your executable's entry point. It is the place where all the pieces are put together
 /// to create a fast an effectuve solver for the knapsack problem.
 fn main() {
     let args = Args::parse();
     let problem = read_instance(&args.fname).unwrap();
     let relaxation= KPRelax{pb: &problem};
-    // @Mohsen -- Just change the following two lines to enable/disable HeuGre
-    //let ranking= KPranking;
-    let ranking= HeuGre::new(&problem, Arc::new(Default::default()));
+    
+    let usual_ranking = KPranking;
+    let heugre_ranking = HeuGre::new(&problem, Arc::new(Default::default()));
+    let relax_ranking= relax_ranking(args.heugre_mode, &usual_ranking, &heugre_ranking);
+    let restrict_ranking = restrict_ranking(args.heugre_mode, &usual_ranking, &heugre_ranking);
+
     let width = max_width(problem.nb_variables(), args.width);
     let cutoff = TimeBudget::new(Duration::from_secs(args.duration));//NoCutoff;
-    let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
+    let mut fringe = SimpleFringe::new(MaxUB::new(&usual_ranking));
 
     let mut solver = DefaultSolver::new(
         &problem, 
         &relaxation, 
-        &ranking, 
+        relax_ranking, 
+        restrict_ranking, 
         width.as_ref(), 
         &cutoff, 
         &mut fringe,

@@ -23,7 +23,7 @@
 use std::{cell::RefCell, path::Path, fs::File, io::{BufReader, BufRead}, num::ParseIntError, time::{Duration, Instant}, sync::Arc};
 
 use bit_set::BitSet;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use ddo::*;
 use regex::Regex;
 
@@ -230,6 +230,9 @@ impl StateRanking for MispRanking {
 struct Args {
     /// The path to the instance file
     fname: String,
+    /// This flag controls the usage of heugre or not
+    #[clap(short='m', long, value_enum, default_value = "restricted-only")]
+    heugre_mode: HeugreMode, 
     /// The number of concurrent threads
     #[clap(short, long, default_value = "8")]
     threads: usize,
@@ -239,6 +242,15 @@ struct Args {
     /// The maximum number of nodes per layer
     #[clap(short, long)]
     width: Option<usize>,
+}
+
+/// This enum is used as a flag to decide when to use heugre
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum HeugreMode {
+    Disabled,
+    Both,
+    RestrictedOnly,
+    RelaxedOnly
 }
 
 /// This enumeration simply groups the kind of errors that might occur when parsing a
@@ -342,6 +354,32 @@ fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {
     }
 }
 
+
+fn relax_ranking<'a, T, U, H>(mode: HeugreMode, usual: &'a U, heugre: &'a H) -> &'a (dyn StateRanking<State = T> + Send + Sync)
+where U: StateRanking<State = T> + Send + Sync,
+      H: StateRanking<State = T> + Send + Sync,
+{
+    match mode {
+        HeugreMode::Disabled => usual,
+        HeugreMode::Both => heugre,
+        HeugreMode::RestrictedOnly => usual,
+        HeugreMode::RelaxedOnly => heugre,
+    }
+}
+
+fn restrict_ranking<'a, T, U, H>(mode: HeugreMode, usual: &'a U, heugre: &'a H) -> &'a (dyn StateRanking<State = T> + Send + Sync)
+where U: StateRanking<State = T> + Send + Sync,
+      H: StateRanking<State = T> + Send + Sync,
+{
+    match mode {
+        HeugreMode::Disabled => usual,
+        HeugreMode::Both => heugre,
+        HeugreMode::RestrictedOnly => heugre,
+        HeugreMode::RelaxedOnly => usual,
+    }
+}
+
+
 /// This is your executable's entry point. It is the place where all the pieces are put together
 /// to create a fast an effective solver for the misp problem.
 fn main() {
@@ -349,19 +387,22 @@ fn main() {
     let fname = &args.fname;
     let problem = read_instance(fname).unwrap();
     let relaxation = MispRelax {pb: &problem};
-    // @Mohsen: uncomment this line to revert back to the default implementation
-    // let ranking = MispRanking; 
-    let ranking = heugre::HeuGre::new(&problem, Arc::new(Default::default()));
+
+    let usual_ranking = MispRanking;
+    let heugre_ranking = heugre::HeuGre::new(&problem, Arc::new(Default::default()));
+    let relax_ranking= relax_ranking(args.heugre_mode, &usual_ranking, &heugre_ranking);
+    let restrict_ranking = restrict_ranking(args.heugre_mode, &usual_ranking, &heugre_ranking);
 
     let width = max_width(&problem, args.width);
     let cutoff = cutoff(args.duration);
-    let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
+    let mut fringe = NoDupFringe::new(MaxUB::new(&usual_ranking));
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
     let mut solver = DefaultSolver::custom(
         &problem, 
         &relaxation, 
-        &ranking, 
+        relax_ranking,
+        restrict_ranking,
         width.as_ref(),
         cutoff.as_ref(), 
         &mut fringe,

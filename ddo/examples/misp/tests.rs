@@ -51,6 +51,7 @@ pub fn solve_id(id: &str) -> isize {
         &problem, 
         &relaxation, 
         &ranking, 
+        &ranking, 
         &width, 
         &cutoff, 
         &mut fringe,
