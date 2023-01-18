@@ -109,11 +109,13 @@ impl Problem for Psp {
         }
     }
 
-    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+    fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>)
         -> Option<ddo::Variable> {
-        next_layer.next()
-            .filter(|s| s.time > 0)
-            .map(|s| Variable((s.time - 1) as usize))
+        if depth < self.horizon {
+            Some(Variable(self.horizon - depth - 1))
+        } else {
+            None
+        }
     }
 
     fn for_each_in_domain(&self, variable: ddo::Variable, state: &Self::State, f: &mut dyn ddo::DecisionCallback) {

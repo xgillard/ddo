@@ -51,9 +51,10 @@ pub trait Problem {
     /// Any problem needs to be able to specify an ordering on the variables
     /// in order to decide which variable should be assigned next. This choice
     /// is an **heuristic** choice. The variable ordering does not need to be
-    /// fixed either. It may depend on the nodes constitutive of the next layer.
-    /// These nodes are made accessible to this method as an iterator.
-    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+    /// fixed either. It may simply depend on the depth of the next layer or
+    /// on the nodes that constitute it. These nodes are made accessible to this
+    /// method as an iterator.
+    fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>)
         -> Option<Variable>;
     /// This method calls the function `f` for any value in the domain of 
     /// variable `var` when in state `state`.  The function `f` is a function
@@ -167,7 +168,7 @@ mod tests {
         fn transition_cost(&self, _: &Self::State, _: Decision) -> isize {
             todo!()
         }
-        fn next_variable(&self, _: &mut dyn Iterator<Item = &Self::State>)
+        fn next_variable(&self, _: usize, _: &mut dyn Iterator<Item = &Self::State>)
             -> Option<crate::Variable> {
             todo!()
         }

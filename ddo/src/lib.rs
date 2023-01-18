@@ -151,9 +151,13 @@
 //!     // This method is used to determine the order in which the variables will be branched
 //!     // on when solving the knapsack. In this case, we implement a basic scheme telling that
 //!     // the variables are selected in order (0, 1, 2, ... , N).
-//!     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+//!     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 //!         let n = self.nb_variables();
-//!         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+//!         if depth < n {
+//!             Some(Variable(depth))
+//!         } else {
+//!             None
+//!         }
 //!     }
 //!     // If you followed this example until now, you might be surprised not to have seen
 //!     // any mention of the domain of the variables. Search no more. This function is 
@@ -224,9 +228,13 @@
 //! #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 //! #         self.profit[dec.variable.id()] as isize * dec.value
 //! #     }
-//! #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+//! #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 //! #         let n = self.nb_variables();
-//! #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+//! #         if depth < n {
+//! #             Some(Variable(depth))
+//! #         } else {
+//! #             None
+//! #         }
 //! #     }
 //! #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 //! #     {
@@ -343,9 +351,13 @@
 //! #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 //! #         self.profit[dec.variable.id()] as isize * dec.value
 //! #     }
-//! #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+//! #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 //! #         let n = self.nb_variables();
-//! #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+//! #         if depth < n {
+//! #             Some(Variable(depth))
+//! #         } else {
+//! #             None
+//! #         }
 //! #     }
 //! #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 //! #     {

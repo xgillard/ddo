@@ -106,7 +106,7 @@ impl Problem for Misp {
     /// here is to limit the max width as much as possible when developing the layers since all 
     /// nodes that are not impacted by the change on the selectd vertex are simply copied over to the
     /// next layer.
-    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+    fn next_variable(&self, _: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
         // The thread local stuff is possibly one of the most surprising bits of this code. It declares
         // a static variable called VAR_HEURISTIC storing the counts of each vertex in the next layer.
         // The fact that it is static means that it will not be re-created (re allocated) upon each

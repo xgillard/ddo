@@ -329,6 +329,7 @@ impl Problem for Max2Sat {
 
     fn next_variable(
         &self,
+        _: usize,
         next_layer: &mut dyn Iterator<Item = &Self::State>,
     ) -> Option<Variable> {
         if let Some(s) = next_layer.next() {
