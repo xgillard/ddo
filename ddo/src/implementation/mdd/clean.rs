@@ -413,7 +413,7 @@ where
     }
 
     fn _compute_local_bounds(&mut self, input: &CompilationInput<T>) {
-        if !self.is_exact && input.comp_type == CompilationType::Relaxed {
+        if self.lel.unwrap().0 < self.layers.len() && input.comp_type == CompilationType::Relaxed {
             // initialize last layer
             let Layer { from, to } = *get!(layer LayerId(self.layers.len()-1), self);
             for node in &mut self.nodes[from..to] {
@@ -497,17 +497,16 @@ where
     }
 
     fn _finalize_cutset(&mut self, input: &CompilationInput<T>) {
+        if self.lel.is_none() {
+            self.lel = Some(LayerId(self.layers.len())); // all nodes of the DD are above cutset
+        }
         if input.comp_type == CompilationType::Relaxed {
             match CUTSET_TYPE {
                 LAST_EXACT_LAYER => {
-                    if let Some(lel) = self.lel {
-                        self._compute_last_exact_layer_cutset(lel);
-                    }
+                    self._compute_last_exact_layer_cutset(self.lel.unwrap());
                 },
                 FRONTIER => {
-                    if self.lel.is_some() {
-                        self._compute_frontier_cutset();
-                    }
+                    self._compute_frontier_cutset();
                 },
                 _ => {
                     panic!("Only LAST_EXACT_LAYER and FRONTIER are supported so far")
@@ -517,10 +516,12 @@ where
     }
 
     fn _compute_last_exact_layer_cutset(&mut self, lel: LayerId) {
-        let Layer { from, to } = *get!(layer lel, self);
-        for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
-            self.cutset.push(NodeId(id));
-            node.flags.add(NodeFlags::F_CUTSET | NodeFlags::F_ABOVE_CUTSET);
+        if lel.0 < self.layers.len() {
+            let Layer { from, to } = *get!(layer lel, self);
+            for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
+                self.cutset.push(NodeId(id));
+                node.flags.add(NodeFlags::F_CUTSET | NodeFlags::F_ABOVE_CUTSET);
+            }
         }
 
         // traverse bottom up to set the above cutset for all nodes in layers above LEL
