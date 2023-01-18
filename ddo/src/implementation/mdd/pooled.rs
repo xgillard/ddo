@@ -5,12 +5,11 @@
 //! ``Branch-and-Bound with Barrier: Dominance and Suboptimality Detection for 
 //!   DD-Based Branch-and-Bound''.
 
-use std::{sync::Arc, hash::Hash, collections::hash_map::Entry, fmt::Debug};
+use std::{sync::Arc, hash::Hash, collections::{hash_map::Entry, BTreeMap}, fmt::Debug};
 
-use derive_builder::Builder;
 use fxhash::FxHashMap;
 
-use crate::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem, FRONTIER, Solution};
+use crate::{NodeFlags, Decision, CompilationInput, Completion, Reason, CompilationType, Problem, DecisionDiagram, SubProblem, Solution, VizConfig, Variable};
 
 /// The identifier of a node: it indicates the position of the referenced node 
 /// in the ’nodes’ vector of the mdd structure.
@@ -65,6 +64,10 @@ struct Node<T> {
     /// terminal node.
     flags: NodeFlags,
     /// The number of decisions that have been made since the problem root
+    /// 
+    /// ### Note
+    /// In this DD version, it is set when the node is expanded because only at
+    /// that time do we know to which layer it belongs
     depth: usize,
 }
 
@@ -92,10 +95,9 @@ enum EdgesList {
 }
 
 /// Represents a 'layer' in the decision diagram
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Layer {
-    from: usize,
-    to: usize,
+    nodes: Vec<NodeId>
 }
 
 /// The decision diagram in itself. This structure essentially keeps track
@@ -112,13 +114,13 @@ struct Layer {
 /// - Relaxed: either the last exact layer of the frontier cutset can be chosen
 ///            within the CompilationInput
 #[derive(Debug, Clone)]
-pub struct Mdd<T, const CUTSET_TYPE: CutsetType>
+pub struct Pooled<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
-    /// This vector stores the information about the structure of all the layers
+    /// This map stores the information about the structure of all the layers
     /// in this decision diagram
-    layers: Vec<Layer>,
+    layers: BTreeMap<usize, Layer>,
     /// All the nodes composing this decision diagram. The vector comprises 
     /// nodes from all layers in the DD. A nice property is that all nodes
     /// belonging to one same layer form a sequence in the ‘nodes‘ vector.
@@ -130,23 +132,18 @@ where
     /// linked lists between edges
     edgelists: Vec<EdgesList>,
     
-    /// Contains the nodes of the layer which is currently being expanded.
-    /// This collection is only used during the unrolling of transition relation,
-    /// and when merging nodes of a relaxed DD.
-    prev_l: Vec<NodeId>,
-    /// The nodes from the next layer; those are the result of an application 
-    /// of the transition function to a node in ‘prev_l‘.
-    /// Note: next_l in itself is indexed on the state associated with nodes.
+    /// The id of the layer that must be expanded next
+    curr_l: LayerId,
+    /// The nodes that have not been expanded yet
+    /// Note: pool in itself is indexed on the state associated with nodes.
     /// The rationale being that two transitions to the same state in the same
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
-    next_l: FxHashMap<Arc<T>, NodeId>,
+    pool: FxHashMap<Arc<T>, NodeId>,
 
     /// Keeps track of the decisions that have been taken to reach the root
     /// of this DD, starting from the problem root.
     path_to_root: Vec<Decision>,
-    /// The identifier of the last exact layer (should this dd be inexact)
-    lel: Option<LayerId>,
     /// The cutset of the decision diagram (only maintained for relaxed dd)
     cutset: Vec<NodeId>,
     /// The identifier of the best terminal node of the diagram (None when the
@@ -171,8 +168,6 @@ macro_rules! get {
     (mut edge     $id:expr, $dd:expr) => {&mut $dd.edges   [$id.0]};
     (    edgelist $id:expr, $dd:expr) => {&    $dd.edgelists[$id.0]};
     (mut edgelist $id:expr, $dd:expr) => {&mut $dd.edgelists[$id.0]};
-    (    layer    $id:expr, $dd:expr) => {&    $dd.layers  [$id.0]};
-    (mut layer    $id:expr, $dd:expr) => {&mut $dd.layers  [$id.0]};
 }
 
 /// This macro performs an action for each edge of a given node in the dd
@@ -211,7 +206,7 @@ macro_rules! append_edge_to {
     };
 }
 
-impl<T, const CUTSET_TYPE: CutsetType> Default for Mdd<T, {CUTSET_TYPE}>
+impl<T> Default for Pooled<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -220,7 +215,7 @@ where
     }
 }
 
-impl<T, const CUTSET_TYPE: CutsetType> DecisionDiagram for Mdd<T, {CUTSET_TYPE}>
+impl<T> DecisionDiagram for Pooled<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
@@ -249,22 +244,21 @@ where
     }
 }
 
-impl<T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}>
+impl<T> Pooled<T>
 where
     T: Eq + PartialEq + Hash + Clone,
 {
     pub fn new() -> Self {
         Self {
-            layers: vec![],
+            layers: Default::default(),
             nodes: vec![],
             edges: vec![],
             edgelists: vec![],
             //
-            prev_l: vec![],
-            next_l: Default::default(),
+            curr_l: LayerId(0),
+            pool: Default::default(),
             //
             path_to_root: vec![],
-            lel: None,
             cutset: vec![],
             best_node: None,
             is_exact: true,
@@ -276,11 +270,9 @@ where
         self.nodes.clear();
         self.edges.clear();
         self.edgelists.clear();
-        self.prev_l.clear();
-        self.next_l.clear();
+        self.pool.clear();
         self.path_to_root.clear();
         self.cutset.clear();
-        self.lel = None;
         self.best_node = None;
         self.is_exact = true;
     }
@@ -316,17 +308,18 @@ where
     fn _compile(&mut self, input: &CompilationInput<T>) -> Result<Completion, Reason> {
         self._clear();
         self._initialize(input);
-        
-        let mut curr_l = vec![];
-        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|s| s.as_ref())) {
+
+        while let Some(var) = input.problem.next_variable(self.curr_l.0, &mut self.pool.keys().map(|s| s.as_ref())) {
             // Did the cutoff kick in ?
             if input.cutoff.must_stop() {
                 return Err(Reason::CutoffOccurred);
             }
-            
-            if !self._move_to_next_layer(input, &mut curr_l) {
+
+            if self.pool.is_empty() {
                 break;
             }
+
+            let curr_l = self._move_to_next_layer(input, var);
 
             for node_id in curr_l.iter() {
                 let state = self.nodes[node_id.0].state.clone();
@@ -339,6 +332,8 @@ where
                     })
                 }
             }
+
+            self.curr_l.0 += 1;
         }
 
         self._finalize(input);
@@ -368,15 +363,16 @@ where
         };
 
         self.nodes.push(root_node);
-        self.next_l.insert(input.residual.state.clone(), root_node_id);
+        self.pool.insert(input.residual.state.clone(), root_node_id);
         self.edgelists.push(EdgesList::Nil);
+        self.curr_l = LayerId(input.residual.depth);
     }
 
     fn _finalize(&mut self, input: &CompilationInput<T>) {
         self._finalize_layers();
         self._find_best_node();
         self._finalize_exact(input);
-        self._finalize_cutset(input);
+        self._compute_frontier_cutset(input);
         self._compute_local_bounds(input);
         self._compute_thresholds(input);
     }
@@ -413,19 +409,19 @@ where
     }
 
     fn _compute_local_bounds(&mut self, input: &CompilationInput<T>) {
-        if !self.is_exact && input.comp_type == CompilationType::Relaxed {
+        if !self.cutset.is_empty() && input.comp_type == CompilationType::Relaxed {
             // initialize last layer
-            let Layer { from, to } = *get!(layer LayerId(self.layers.len()-1), self);
-            for node in &mut self.nodes[from..to] {
+            let (_, Layer { nodes }) = self.layers.last_key_value().unwrap();
+            for id in nodes.iter() {
+                let node = get!(mut node id, self);
                 node.value_bot = 0;
                 node.flags.set_marked(true);
             }
 
             // traverse bottom-up
             // note: barrier requires that all nodes have an associated locb. not only those below cutset
-            for Layer{from, to} in self.layers.iter().rev().copied() {
-                for id in from..to {
-                    let id = NodeId(id);
+            for Layer { nodes } in self.layers.values().rev() {
+                for id in nodes.iter() {
                     let node = get!(node id, self);
                     let value = node.value_bot;
                     if node.flags.is_marked() {
@@ -444,9 +440,8 @@ where
     fn _compute_thresholds(&mut self, input: &CompilationInput<T>) {
         if input.comp_type == CompilationType::Relaxed {
             let best_known  = input.best_lb;
-            for Layer{from, to} in self.layers.iter().rev().copied() {
-                for id in from..to {
-                    let id = NodeId(id);
+            for Layer { nodes } in self.layers.values().rev() {
+                for id in nodes.iter() {
                     let node = get!(mut node id, self);
 
                     if node.flags.is_deleted() {
@@ -496,87 +491,55 @@ where
         }
     }
 
-    fn _finalize_cutset(&mut self, input: &CompilationInput<T>) {
+    fn _compute_frontier_cutset(&mut self, input: &CompilationInput<T>) {
         if input.comp_type == CompilationType::Relaxed {
-            match CUTSET_TYPE {
-                LAST_EXACT_LAYER => {
-                    if let Some(lel) = self.lel {
-                        self._compute_last_exact_layer_cutset(lel);
+            // traverse bottom-up
+            for Layer { nodes } in self.layers.values().rev() {
+                for id in nodes.iter() {
+                    let node = get!(mut node id, self);
+                    
+                    if node.flags.is_exact() {
+                        node.flags.set_above_cutset(true);
+                    } else {
+                        foreach!(edge of id, self, |edge: Edge| {
+                            let parent = get!(mut node edge.from, self);
+                            if parent.flags.is_exact() && !parent.flags.is_cutset() {
+                                if !self.is_exact {
+                                    self.cutset.push(edge.from);
+                                }
+                                parent.flags.set_cutset(true);
+                            }
+                        });
                     }
-                },
-                FRONTIER => {
-                    if self.lel.is_some() {
-                        self._compute_frontier_cutset();
-                    }
-                },
-                _ => {
-                    panic!("Only LAST_EXACT_LAYER and FRONTIER are supported so far")
-                }
-            }
-        }
-    }
-
-    fn _compute_last_exact_layer_cutset(&mut self, lel: LayerId) {
-        let Layer { from, to } = *get!(layer lel, self);
-        for (id, node) in self.nodes.iter_mut().enumerate().skip(from).take(to-from) {
-            self.cutset.push(NodeId(id));
-            node.flags.add(NodeFlags::F_CUTSET | NodeFlags::F_ABOVE_CUTSET);
-        }
-
-        // traverse bottom up to set the above cutset for all nodes in layers above LEL
-        for Layer{from, to} in self.layers.iter().take(lel.0).rev().copied() {
-            for id in from..to {
-                let id = NodeId(id);
-                let node = get!(mut node id, self);
-                node.flags.set_above_cutset(true);
-            }
-        }
-    }
-
-    fn _compute_frontier_cutset(&mut self) {
-        // traverse bottom-up
-        for Layer{from, to} in self.layers.iter().rev().copied() {
-            for id in from..to {
-                let id = NodeId(id);
-                let node = get!(mut node id, self);
-                
-                if node.flags.is_exact() {
-                    node.flags.set_above_cutset(true);
-                } else {
-                    foreach!(edge of id, self, |edge: Edge| {
-                        let parent = get!(mut node edge.from, self);
-                        if parent.flags.is_exact() && !parent.flags.is_cutset() {
-                            self.cutset.push(edge.from);
-                            parent.flags.set_cutset(true);
-                        }
-                    });
                 }
             }
         }
     }
 
     fn _finalize_layers(&mut self) {
-        if !self.next_l.is_empty() {
-            if self.layers.is_empty() {
-                self.layers.push(Layer { from: 0, to: self.nodes.len() });
-            } else {
-                let id = LayerId(self.layers.len()-1);
-                let layer = get!(layer id, self);
-                self.layers.push(Layer { from: layer.to, to: self.nodes.len() });
-            }
-        }
+        let mut last_l = vec![];
+        self.pool.drain().for_each(|(_,id)| {
+            let node = get!(mut node id, self);
+            last_l.push(id);
+            node.depth = self.curr_l.0;
+        });
+        self.layers.insert(self.curr_l.0, Layer { nodes: last_l });
     }
 
     fn _find_best_node(&mut self) {
         self.best_node = self
-            .next_l
-            .values()
+            .layers
+            .last_key_value()
+            .unwrap()
+            .1
+            .nodes
+            .iter()
             .copied()
             .max_by_key(|id| get!(node id, self).value_top);
     }
 
     fn _finalize_exact(&mut self, input: &CompilationInput<T>) {
-        self.is_exact = self.lel.is_none()
+        self.is_exact = self.is_exact
             || (matches!(input.comp_type, CompilationType::Relaxed) && self._has_exact_best_path(self.best_node));
     }
 
@@ -594,54 +557,58 @@ where
         }
     }
 
-    fn _move_to_next_layer(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) -> bool {
-        self.prev_l.clear();
-
-        for id in curr_l.drain(..) {
-            self.prev_l.push(id);
-        }
-        for (_, id) in self.next_l.drain() {
-            curr_l.push(id);
-        }
-
-        if curr_l.is_empty() {
-            self.layers.push(Layer { from: 0, to: 0 });
-            false
-        } else {
-            if !self.layers.is_empty() {
-                self._filter_with_barrier(input, curr_l);
-            }
-
-            self._squash_if_needed(input, curr_l);
-            
-            if self.layers.is_empty() {
-                self.layers.push(Layer { from: 0, to: self.nodes.len() });
-            } else {
-                let id = LayerId(self.layers.len()-1);
-                let layer = get!(layer id, self);
-                self.layers.push(Layer { from: layer.to, to: self.nodes.len() });
-            }
-            true
-        }
-    }
-
-    
-    fn _filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
-        curr_l.retain(|id| {
-            let node = get!(mut node id, self);
-            let threshold = input.barrier.get_threshold(node.state.as_ref(), node.depth);
-            if let Some(threshold) = threshold {
-                if node.value_top > threshold.value {
-                    true
-                } else {
-                    node.flags.set_pruned_by_barrier(true);
-                    node.theta = Some(threshold.value); // set theta for later propagation
-                    false
-                }
-            } else {
+    fn _move_to_next_layer(&mut self, input: &CompilationInput<T>, var: Variable) -> Vec<NodeId> {
+        let mut curr_l: Vec<NodeId> = self.pool.values().copied().collect();
+        let mut to_remove = vec![];
+        curr_l.retain(|node_id| {
+            let node = get!(mut node node_id, self);
+            let state = node.state.as_ref();
+            if input.problem.is_impacted_by(var, state) {
+                node.depth = self.curr_l.0;
+                to_remove.push(node.state.clone());
                 true
+            } else {
+                false
             }
         });
+
+        to_remove.drain(..).for_each(|s| { self.pool.remove(s.as_ref()); });
+        
+        let mut to_expand = curr_l.clone(); // need to preserve layer to remember nodes pruned by barrier
+        self._filter_with_barrier(input, &mut to_expand);
+
+        let len = self.nodes.len(); // but need to add the potential merged node
+        self._squash_if_needed(input, &mut to_expand);
+        if self.nodes.len() > len {
+            curr_l.push(NodeId(len));
+        }
+
+        if !curr_l.is_empty() {
+            self.layers.insert(self.curr_l.0, Layer { nodes: curr_l });
+        }
+
+        to_expand
+    }
+
+
+    fn _filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        if !self.layers.is_empty() {
+            curr_l.retain(|id| {
+                let node = get!(mut node id, self);
+                let threshold = input.barrier.get_threshold(node.state.as_ref(), node.depth);
+                if let Some(threshold) = threshold {
+                    if node.value_top > threshold.value {
+                        true
+                    } else {
+                        node.flags.set_pruned_by_barrier(true);
+                        node.theta = Some(threshold.value); // set theta for later propagation
+                        false
+                    }
+                } else {
+                    true
+                }
+            });
+        }
     }
 
     fn _branch_on(
@@ -654,7 +621,7 @@ where
         let next_state = Arc::new(problem.transition(state, decision));
         let cost = problem.transition_cost(state, decision);
 
-        match self.next_l.entry(next_state.clone()) {
+        match self.pool.entry(next_state.clone()) {
             Entry::Vacant(e) => {
                 let parent = get!(node from_id, self);
                 let node_id = NodeId(self.nodes.len());
@@ -672,7 +639,7 @@ where
                     rub: isize::MAX,
                     theta: None,
                     flags,
-                    depth: parent.depth + 1,
+                    depth: parent.depth + 1, // value will be updated when expanded
                 });
                 append_edge_to!(self, Edge {
                     from: from_id,
@@ -700,25 +667,19 @@ where
             CompilationType::Exact => { /* do nothing: you want to explore the complete DD */ }
             CompilationType::Restricted => {
                 if curr_l.len() > input.max_width {
-                    self._maybe_save_lel();
                     self._restrict(input, curr_l)
                 }
             },
             CompilationType::Relaxed => {
-                if curr_l.len() > input.max_width && self.layers.len() > 1 {
-                    self._maybe_save_lel();
+                if curr_l.len() > input.max_width && self.layers.len() >= 2 {
                     self._relax(input, curr_l)
                 }
             },
         }
     }
-    fn _maybe_save_lel(&mut self) {
-        if self.lel.is_none() {
-            self.lel = Some(LayerId(self.layers.len()-1)); // lel was the previous layer
-        }
-    }
 
     fn _restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        self.is_exact = false;
         curr_l.sort_unstable_by(|a, b| {
             get!(node a, self).value_top
                 .cmp(&get!(node b, self).value_top)
@@ -734,6 +695,7 @@ where
     }
 
     fn _relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        self.is_exact = false;
         curr_l.sort_unstable_by(|a, b| {
             get!(node a, self).value_top
                 .cmp(&get!(node b, self).value_top)
@@ -794,40 +756,7 @@ where
     }
 }
 
-// ############################################################################
-// #### VISUALISATION #########################################################
-// ############################################################################
-/// This is how you configure the output visualisation e.g.
-/// if you want to see the RUB, LocB and the nodes that have been merged
-#[derive(Debug, Builder)]
-pub struct VizConfig {
-    /// This flag must be true (default) if you want to see the value of
-    /// each node (length of the longest path)
-    #[builder(default="true")]
-    show_value: bool,
-    /// This flag must be true (default) if you want to see the locb of
-    /// each node (length of the longest path from the bottom)
-    #[builder(default="true")]
-    show_locb: bool,
-    /// This flag must be true (default) if you want to see the rub of
-    /// each node (fast upper bound)
-    #[builder(default="true")]
-    show_rub: bool,
-    /// This flag must be true (default) if you want to see the threshold
-    /// associated to the exact nodes
-    #[builder(default="true")]
-    show_threshold: bool,
-    /// This flag must be true (default) if you want to see all nodes that
-    /// have been deleted because of restrict or relax operations
-    #[builder(default="false")]
-    show_deleted: bool,
-    /// This flag must be true (default) if you want to see the nodes that 
-    /// have been merged be grouped together (only applicable is show_deleted = true)
-    #[builder(default="false")]
-    group_merged: bool,
-}
-
-impl <T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}> 
+impl <T> Pooled<T> 
 where T: Debug + Eq + PartialEq + Hash + Clone {
 
     /// This is the method you will want to use in order to create the output image you would like.
@@ -850,15 +779,17 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
 
         // Show clusters if requested
         if config.show_deleted && config.group_merged {
-            for (i, Layer { from, to }) in self.layers.iter().copied().enumerate() {
-                let mut merged = vec![];
-                for id in from..to {
-                    let id = NodeId(id);
-                    let node = get!(node id, self);
-                    if node.flags.is_deleted() || node.flags.is_relaxed() {
-                        merged.push(format!("{}", id.0));
-                    }
+            let mut merged_by_layer = BTreeMap::default();
+            for id in 0..self.nodes.len() {
+                let id = NodeId(id);
+                let node = get!(node id, self);
+                if node.flags.is_deleted() || node.flags.is_relaxed() {
+                    merged_by_layer.entry(node.depth)
+                        .or_insert(vec![])
+                        .push(format!("{}", id.0));
                 }
+            }
+            for (i, merged) in merged_by_layer.iter() {
                 if !merged.is_empty() {
                     out.push_str(&format!("\tsubgraph cluster_{} ", i));
                     out.push_str("{\n");
@@ -897,19 +828,18 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
     /// all the nodes of the terminal layer.
     fn add_terminal_node(&self) -> String {
         let mut out = String::new();
-        let Layer{from, to} = self.layers.last().copied().unwrap();
-        if from != to {
+        let (_, Layer { nodes }) = self.layers.last_key_value().unwrap();
+        if !nodes.is_empty() {
             let terminal = "\tterminal [shape=\"circle\", label=\"\", style=\"filled\", color=\"black\", group=\"terminal\"];\n";
             out.push_str(terminal);
 
-            let terminal = &self.nodes[from..to];
-            let vmax = terminal.iter().map(|n| n.value_top).max().unwrap_or(isize::MAX);
-            for (id, term) in terminal.iter().enumerate() {
-                let value = term.value_top;
+            let vmax = nodes.iter().map(|id| self.nodes[id.0].value_top).max().unwrap_or(isize::MAX);
+            for id in nodes.iter() {
+                let value = self.nodes[id.0].value_top;
                 if value == vmax {
-                    out.push_str(&format!("\t{} -> terminal [penwidth=3];\n", id+from));
+                    out.push_str(&format!("\t{} -> terminal [penwidth=3];\n", id.0));
                 } else {
-                    out.push_str(&format!("\t{} -> terminal;\n", id+from));
+                    out.push_str(&format!("\t{} -> terminal;\n", id.0));
                 }
             }
         }
@@ -1017,15 +947,13 @@ mod test_default_mdd {
 
     use fxhash::FxHashMap;
 
-    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, Mdd, FRONTIER, VizConfigBuilder};
+    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, Pooled, VizConfigBuilder};
 
-    type DefaultMDD<State>    = DefaultMDDLEL<State>;
-    type DefaultMDDLEL<State> = Mdd<State, {LAST_EXACT_LAYER}>;
-    type DefaultMDDFC<State>  = Mdd<State, {FRONTIER}>;
+    type DefaultMDD<State>    = Pooled<State>;
 
     #[test]
     fn by_default_the_mdd_type_is_exact() {
-        let mdd = Mdd::<usize, {LAST_EXACT_LAYER}>::new();
+        let mdd = Pooled::<usize>::new();
 
         assert!(mdd.is_exact());
     }
@@ -1740,7 +1668,7 @@ mod test_default_mdd {
         fn nb_variables (&self) -> usize {  4  }
         fn initial_state(&self) -> char  { 'r' }
         fn initial_value(&self) -> isize {  0  }
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+        fn next_variable(&self, _: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
             match next_layer.next().copied().unwrap_or('z') {
                 'r' => Some(Variable(0)),
                 'a' => Some(Variable(1)),
@@ -1837,7 +1765,7 @@ mod test_default_mdd {
     }
 
     #[test]
-    fn relaxed_computes_local_bounds_and_thresholds_1() {
+    fn relaxed_computes_local_bounds_and_thresholds() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
         let input = CompilationInput {
@@ -1857,66 +1785,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = DefaultMDDLEL::new();
-        let result = mdd.compile(&input);
-        assert!(result.is_ok());
-
-        assert_eq!(false,    mdd.is_exact());
-        assert_eq!(Some(16), mdd.best_value());
-
-        let mut v = FxHashMap::<char, isize>::default();
-        mdd.drain_cutset(|n| {v.insert(*n.state, n.ub);});
-
-        assert_eq!(16, v[&'a']);
-        assert_eq!(14, v[&'b']);
-        assert_eq!(2, v.len());
-
-        assert!(barrier.get_threshold(&'r', 0).is_some());
-        assert!(barrier.get_threshold(&'a', 1).is_some());
-        assert!(barrier.get_threshold(&'b', 1).is_some());
-        assert!(barrier.get_threshold(&'M', 2).is_none());
-        assert!(barrier.get_threshold(&'e', 2).is_none());
-        assert!(barrier.get_threshold(&'f', 2).is_none());
-        assert!(barrier.get_threshold(&'g', 3).is_none());
-        assert!(barrier.get_threshold(&'h', 3).is_none());
-        assert!(barrier.get_threshold(&'i', 3).is_none());
-        assert!(barrier.get_threshold(&'t', 4).is_none());
-
-        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
-        assert_eq!(0, threshold.value);
-        assert!(threshold.explored);
-
-        threshold = barrier.get_threshold(&'a', 1).unwrap();
-        assert_eq!(10, threshold.value);
-        assert!(!threshold.explored);
-
-        threshold = barrier.get_threshold(&'b', 1).unwrap();
-        assert_eq!(7, threshold.value);
-        assert!(!threshold.explored);
-    }
-
-    #[test]
-    fn relaxed_computes_local_bounds_and_thresholds_2() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
-        let input = CompilationInput {
-            comp_type: crate::CompilationType::Relaxed,
-            problem:    &LocBoundsAndThresholdsExamplePb,
-            relaxation: &LocBoundsAndThresholdsExampleRelax,
-            ranking:    &CmpChar,
-            cutoff:     &NoCutoff,
-            max_width:  3,
-            best_lb:    0,
-            residual: &SubProblem { 
-                state: Arc::new('r'), 
-                value: 0, 
-                path:  vec![], 
-                ub:    isize::MAX,
-                depth: 0,
-            },
-            barrier: &barrier,
-        };
-        let mut mdd = DefaultMDDFC::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
@@ -1993,7 +1862,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = DefaultMDDFC::new();
+        let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
@@ -2068,7 +1937,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = DefaultMDDFC::new();
+        let mut mdd = DefaultMDD::new();
         let _ = mdd.compile(&input);
         
         let dot = include_str!("../../../../resources/visualisation_tests/default_viz.dot");
@@ -2099,7 +1968,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = DefaultMDDFC::new();
+        let mut mdd = DefaultMDD::new();
         let _ = mdd.compile(&input);
         
         let dot = include_str!("../../../../resources/visualisation_tests/terse_viz.dot");
@@ -2135,7 +2004,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = DefaultMDDFC::new();
+        let mut mdd = DefaultMDD::new();
         let _ = mdd.compile(&input);
         
         let dot = include_str!("../../../../resources/visualisation_tests/deleted_viz.dot");
@@ -2171,7 +2040,7 @@ mod test_default_mdd {
             },
             barrier: &barrier,
         };
-        let mut mdd = DefaultMDDFC::new();
+        let mut mdd = DefaultMDD::new();
         let _ = mdd.compile(&input);
         
         let dot = include_str!("../../../../resources/visualisation_tests/clusters_viz.dot");
@@ -2222,12 +2091,13 @@ mod test_default_mdd {
             decision.value
         }
 
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+        fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>)
             -> Option<crate::Variable> {
-            next_layer.next()
-                .map(|x| x.depth)
-                .filter(|d| *d < self.nb_variables())
-                .map(Variable)
+            if depth < self.nb_variables() {
+                Some(Variable(depth))
+            } else {
+                None
+            }
         }
 
         fn for_each_in_domain(&self, var: crate::Variable, _: &Self::State, f: &mut dyn DecisionCallback) {
@@ -2262,12 +2132,13 @@ mod test_default_mdd {
             decision.value
         }
 
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+        fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>)
             -> Option<crate::Variable> {
-            next_layer.next()
-                .map(|x| x.depth)
-                .filter(|d| *d < self.nb_variables())
-                .map(Variable)
+            if depth < self.nb_variables() {
+                Some(Variable(depth))
+            } else {
+                None
+            }
         }
 
         fn for_each_in_domain(&self, _: crate::Variable, _: &Self::State, _: &mut dyn DecisionCallback) {

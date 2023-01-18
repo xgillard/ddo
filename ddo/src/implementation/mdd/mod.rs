@@ -28,9 +28,11 @@
 //! a previous version of ddo (<= 0.5.0).
 mod node_flags;
 mod clean;
+mod pooled;
 
 pub use node_flags::*;
 pub use clean::*;
+pub use pooled::*;
 
 use crate::{LAST_EXACT_LAYER, FRONTIER};
 

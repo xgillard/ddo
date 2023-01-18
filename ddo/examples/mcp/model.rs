@@ -85,14 +85,10 @@ impl Problem for Mcp {
         }
     }
 
-    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+    fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>)
             -> Option<Variable> {
-        let depth = next_layer.next()
-            .map(|x| x.depth)
-            .unwrap_or(u16::MAX);
-        
-        if depth < self.nb_variables() as u16 {
-            Some(Variable(depth as usize))
+        if depth < self.nb_variables() {
+            Some(Variable(depth))
         } else {
             None
         }

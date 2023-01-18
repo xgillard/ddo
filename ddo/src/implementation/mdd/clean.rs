@@ -141,6 +141,8 @@ where
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
     next_l: FxHashMap<Arc<T>, NodeId>,
+    /// The depth of the layer currently being expanded
+    curr_depth: usize,
 
     /// Keeps track of the decisions that have been taken to reach the root
     /// of this DD, starting from the problem root.
@@ -262,6 +264,7 @@ where
             //
             prev_l: vec![],
             next_l: Default::default(),
+            curr_depth: 0,
             //
             path_to_root: vec![],
             lel: None,
@@ -318,7 +321,7 @@ where
         self._initialize(input);
         
         let mut curr_l = vec![];
-        while let Some(var) = input.problem.next_variable(&mut self.next_l.keys().map(|s| s.as_ref())) {
+        while let Some(var) = input.problem.next_variable(self.curr_depth, &mut self.next_l.keys().map(|s| s.as_ref())) {
             // Did the cutoff kick in ?
             if input.cutoff.must_stop() {
                 return Err(Reason::CutoffOccurred);
@@ -339,6 +342,8 @@ where
                     })
                 }
             }
+
+            self.curr_depth += 1;
         }
 
         self._finalize(input);
@@ -370,6 +375,7 @@ where
         self.nodes.push(root_node);
         self.next_l.insert(input.residual.state.clone(), root_node_id);
         self.edgelists.push(EdgesList::Nil);
+        self.curr_depth = input.residual.depth;
     }
 
     fn _finalize(&mut self, input: &CompilationInput<T>) {
@@ -804,27 +810,27 @@ pub struct VizConfig {
     /// This flag must be true (default) if you want to see the value of
     /// each node (length of the longest path)
     #[builder(default="true")]
-    show_value: bool,
+    pub show_value: bool,
     /// This flag must be true (default) if you want to see the locb of
     /// each node (length of the longest path from the bottom)
     #[builder(default="true")]
-    show_locb: bool,
+    pub show_locb: bool,
     /// This flag must be true (default) if you want to see the rub of
     /// each node (fast upper bound)
     #[builder(default="true")]
-    show_rub: bool,
+    pub show_rub: bool,
     /// This flag must be true (default) if you want to see the threshold
     /// associated to the exact nodes
     #[builder(default="true")]
-    show_threshold: bool,
+    pub show_threshold: bool,
     /// This flag must be true (default) if you want to see all nodes that
     /// have been deleted because of restrict or relax operations
     #[builder(default="false")]
-    show_deleted: bool,
+    pub show_deleted: bool,
     /// This flag must be true (default) if you want to see the nodes that 
     /// have been merged be grouped together (only applicable is show_deleted = true)
     #[builder(default="false")]
-    group_merged: bool,
+    pub group_merged: bool,
 }
 
 impl <T, const CUTSET_TYPE: CutsetType> Mdd<T, {CUTSET_TYPE}> 
@@ -1740,7 +1746,7 @@ mod test_default_mdd {
         fn nb_variables (&self) -> usize {  4  }
         fn initial_state(&self) -> char  { 'r' }
         fn initial_value(&self) -> isize {  0  }
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+        fn next_variable(&self, _: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
             match next_layer.next().copied().unwrap_or('z') {
                 'r' => Some(Variable(0)),
                 'a' => Some(Variable(1)),
@@ -2222,12 +2228,13 @@ mod test_default_mdd {
             decision.value
         }
 
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+        fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>)
             -> Option<crate::Variable> {
-            next_layer.next()
-                .map(|x| x.depth)
-                .filter(|d| *d < self.nb_variables())
-                .map(Variable)
+            if depth < self.nb_variables() {
+                Some(Variable(depth))
+            } else {
+                None
+            }
         }
 
         fn for_each_in_domain(&self, var: crate::Variable, _: &Self::State, f: &mut dyn DecisionCallback) {
@@ -2262,12 +2269,13 @@ mod test_default_mdd {
             decision.value
         }
 
-        fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+        fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>)
             -> Option<crate::Variable> {
-            next_layer.next()
-                .map(|x| x.depth)
-                .filter(|d| *d < self.nb_variables())
-                .map(Variable)
+            if depth < self.nb_variables() {
+                Some(Variable(depth))
+            } else {
+                None
+            }
         }
 
         fn for_each_in_domain(&self, _: crate::Variable, _: &Self::State, _: &mut dyn DecisionCallback) {

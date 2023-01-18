@@ -87,9 +87,13 @@ use crate::{WidthHeuristic, SubProblem};
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
@@ -203,9 +207,13 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
@@ -288,9 +296,13 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
@@ -414,9 +426,13 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
@@ -499,9 +515,13 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
@@ -626,9 +646,13 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
@@ -710,9 +734,13 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
-/// #     fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
+/// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
 /// #         let n = self.nb_variables();
-/// #         next_layer.filter(|s| s.depth < n).next().map(|s| Variable(s.depth))
+/// #         if depth < n {
+/// #             Some(Variable(depth))
+/// #         } else {
+/// #             None
+/// #         }
 /// #     }
 /// #     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback)
 /// #     {
