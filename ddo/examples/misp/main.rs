@@ -84,7 +84,7 @@ impl Problem for Misp {
         res
     }
 
-    fn transition_cost(&self, _: &Self::State, decision: Decision) -> isize {
+    fn transition_cost(&self, _: &Self::State, decision: Decision, _: &Self::State) -> isize {
         if decision.value == NO {
             0
         } else {

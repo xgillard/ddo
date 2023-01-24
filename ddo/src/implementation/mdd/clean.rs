@@ -659,7 +659,7 @@ where
     ) {
         let state = get!(node from_id, self).state.as_ref();
         let next_state = Arc::new(problem.transition(state, decision));
-        let cost = problem.transition_cost(state, decision);
+        let cost = problem.transition_cost(state, decision, next_state.as_ref());
 
         match self.next_l.entry(next_state.clone()) {
             Entry::Vacant(e) => {
@@ -1800,7 +1800,7 @@ mod test_default_mdd {
             }
         }
 
-        fn transition_cost(&self, _: &char, d: Decision) -> isize {
+        fn transition_cost(&self, _: &char, d: Decision, _: &char) -> isize {
             d.value
         }
     }
@@ -2225,7 +2225,7 @@ mod test_default_mdd {
             }
         }
 
-        fn transition_cost(&self, _: &Self::State, decision: crate::Decision) -> isize {
+        fn transition_cost(&self, _: &Self::State, decision: crate::Decision, _: &Self::State) -> isize {
             decision.value
         }
 
@@ -2266,7 +2266,7 @@ mod test_default_mdd {
             }
         }
 
-        fn transition_cost(&self, _: &Self::State, decision: crate::Decision) -> isize {
+        fn transition_cost(&self, _: &Self::State, decision: crate::Decision, _: &Self::State) -> isize {
             decision.value
         }
 

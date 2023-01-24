@@ -90,7 +90,7 @@ impl Problem for Psp {
         ret
     }
 
-    fn transition_cost(&self, state: &Self::State, decision: ddo::Decision) -> isize {
+    fn transition_cost(&self, state: &Self::State, decision: ddo::Decision, _successor: &Self::State) -> isize {
         if decision.value == IDLE {
             0
         } else {

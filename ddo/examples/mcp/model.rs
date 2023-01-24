@@ -77,7 +77,7 @@ impl Problem for Mcp {
         McpState {depth: 1 + state.depth, benef: benefits}
     }
 
-    fn transition_cost(&self, state: &McpState, d: Decision) -> isize {
+    fn transition_cost(&self, state: &McpState, d: Decision, _successor: &McpState) -> isize {
         match d.value {
             S => if state.depth == 0 { 0 } else { self.branch_on_s(state, d) },
             T => if state.depth == 0 { 0 } else { self.branch_on_t(state, d) },
