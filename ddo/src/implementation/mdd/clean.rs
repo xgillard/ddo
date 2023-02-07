@@ -307,12 +307,14 @@ where
         edges: &[Edge],
     ) -> Vec<Decision> {
         let mut sol = root_pa.to_owned();
+        let mut suffix = vec![];
         let mut edge_id = nodes[id.0].best;
         while let Some(eid) = edge_id {
             let edge = edges[eid.0];
-            sol.push(edge.decision);
+            suffix.push(edge.decision);
             edge_id = nodes[edge.from.0].best;
         }
+        suffix.drain(..).rev().for_each(|d| sol.push(d));
         sol
     }
 
