@@ -791,7 +791,7 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
             }
             for (i, merged) in merged_by_layer.iter() {
                 if !merged.is_empty() {
-                    out.push_str(&format!("\tsubgraph cluster_{} ", i));
+                    out.push_str(&format!("\tsubgraph cluster_{i} "));
                     out.push_str("{\n");
                     out.push_str("\t\tstyle=filled;\n");
                     out.push_str("\t\tcolor=purple;\n");
@@ -908,7 +908,7 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
     }
     /// Creates text label to place inside of the node when displaying it
     fn node_label(node: &Node<T>, state: &T, config: &VizConfig) -> String {
-        let mut out = format!("{:?}", state);
+        let mut out = format!("{state:?}");
 
         if config.show_value {
             out.push_str(&format!("\\nval: {}", node.value_top));

@@ -53,7 +53,7 @@ class Knapsack:
         else:
             return [0]
     
-    def next_variable(self, next_layer):
+    def next_variable(self, depth, next_layer):
         if len(next_layer) == 0:
             return None
         else:

@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, SequentialSolver, Solver, Completion, DefaultMDD, CutsetType, EmptyBarrier, Barrier, SimpleBarrier};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, Solver, Completion, SeqNoBarrierSolverLel, SeqBarrierSolverLel, SeqBarrierSolverFc, SeqNoBarrierSolverFc};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -44,6 +44,7 @@ pub struct Solution {
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 fn maximize(
     pb         : PyObject, 
     relax      : PyObject,
@@ -59,20 +60,18 @@ fn maximize(
         let relax = PyRelax {gil, obj: relax};
         let ranking = PyRanking {gil, obj: ranking};
         let max_width = max_width(problem.nb_variables(), width);
-        let cutset = cutset(lel);
         let cutoff = cutoff(timeout);
         let mut fringe = fringe(dedup, &ranking);
-        let barrier = barrier(use_barrier, problem.nb_variables());
 
-        let mut solver = SequentialSolver::<PyState, DefaultMDD<PyState>>::custom(
+        let mut solver = solver(
             &problem, 
             &relax, 
             &ranking, 
             max_width.as_ref(), 
-            cutset,
             cutoff.as_ref(), 
             fringe.as_mut(),
-            barrier.as_ref(),
+            lel,
+            use_barrier
         );
 
         let start = Instant::now();
@@ -97,6 +96,29 @@ fn maximize(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn solver<'a, 'b>(
+    problem    : &'a PyProblem<'b>, 
+    relaxation : &'a PyRelax<'b>, 
+    ranking    : &'a PyRanking<'b>, 
+    width_heu  : &'a dyn WidthHeuristic<PyState<'b>>, 
+    cutoff     : &'a dyn Cutoff, 
+    fringe     : &'a mut dyn Fringe<State = PyState<'b>>, 
+    lel        : bool,
+    use_barrier: bool,
+) -> Box<dyn Solver + 'a> {
+    match (lel, use_barrier) {
+        (true, true) => 
+            Box::new(SeqBarrierSolverLel::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+        (true, false) => 
+            Box::new(SeqNoBarrierSolverLel::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+        (false, true) => 
+            Box::new(SeqBarrierSolverFc::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+        (false, false) => 
+            Box::new(SeqNoBarrierSolverFc::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+    }
+}
+
 fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff> {
     if let Some(timeout) = timeout {
         Box::new(TimeBudget::new(Duration::from_secs(timeout)))
@@ -118,22 +140,6 @@ fn max_width<'a>(n: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<PyState<'
         Box::new(FixedWidth(w))
     } else {
         Box::new(NbUnassignedWitdh(n))
-    }
-}
-
-fn cutset(lel: bool) -> CutsetType {
-    if lel {
-        CutsetType::LastExactLayer
-    } else {
-        CutsetType::Frontier
-    }
-}
-
-fn barrier<'a>(barrier: bool, nb_variables: usize) -> Box<dyn Barrier<State = PyState<'a>> + 'a> {
-    if barrier {
-        Box::new(SimpleBarrier::new(nb_variables))
-    } else {
-        Box::new(EmptyBarrier::new())
     }
 }
 
@@ -208,11 +214,11 @@ impl <'a> Problem for PyProblem<'a> {
             .unwrap()
     }
 
-    fn next_variable(&self, next_layer: &mut dyn Iterator<Item = &Self::State>)
+    fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>)
         -> Option<::ddo::Variable> {
         let next_layer = next_layer.map(|x| &x.obj).collect::<Vec<_>>();
         
-        let res = self.obj.call_method(self.gil, "next_variable", (next_layer,), None)
+        let res = self.obj.call_method(self.gil, "next_variable", (depth, next_layer,), None)
             .unwrap();
         if res.is_none(self.gil) {
             None
