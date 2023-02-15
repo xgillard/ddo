@@ -399,9 +399,8 @@ where
         compilation.best_lb = best_lb;
 
         let Completion{is_exact, ..} = mdd.compile(&compilation)?;
-        if is_exact {
-            Self::maybe_update_best(mdd, shared);
-        } else {
+        Self::maybe_update_best(mdd, shared);
+        if !is_exact {
             Self::enqueue_cutset(mdd, shared, node_ub);
         }
 
@@ -417,10 +416,10 @@ where
     /// bounds.
     fn maybe_update_best(mdd: &D, shared: &Shared<'a, State, B>) {
         let mut shared = shared.critical.lock();
-        let dd_best_value = mdd.best_value().unwrap_or(isize::MIN);
+        let dd_best_value = mdd.best_exact_value().unwrap_or(isize::MIN);
         if dd_best_value > shared.best_lb {
             shared.best_lb = dd_best_value;
-            shared.best_sol = mdd.best_solution();
+            shared.best_sol = mdd.best_exact_solution();
         }
     }
     /// If necessary, thightens the bound of nodes in the cutset of `mdd` and

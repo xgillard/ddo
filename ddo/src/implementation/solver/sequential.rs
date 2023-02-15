@@ -352,9 +352,8 @@ where
         };
 
         let Completion{is_exact, ..} = self.mdd.compile(&compilation)?;
-        if is_exact {
-            self.maybe_update_best();
-        } else {
+        self.maybe_update_best();
+        if !is_exact {
             self.enqueue_cutset(node_ub);
         }
 
@@ -365,10 +364,10 @@ where
     /// case the best value of the current `mdd` expansion improves the current
     /// bounds.
     fn maybe_update_best(&mut self) {
-        let dd_best_value = self.mdd.best_value().unwrap_or(isize::MIN);
+        let dd_best_value = self.mdd.best_exact_value().unwrap_or(isize::MIN);
         if dd_best_value > self.best_lb {
             self.best_lb = dd_best_value;
-            self.best_sol = self.mdd.best_solution();
+            self.best_sol = self.mdd.best_exact_solution();
         }
     }
     /// If necessary, thightens the bound of nodes in the cutset of `mdd` and
