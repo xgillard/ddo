@@ -461,6 +461,7 @@ where
             }
         }
 
+        self.best_sol.as_mut().map(|sol| sol.sort_unstable_by_key(|d| d.variable.0));
         Completion { is_exact: self.abort_proof.is_none(), best_value: self.best_sol.as_ref().map(|_| self.best_lb) }
     }
 

@@ -572,7 +572,8 @@ where
             }
         });
 
-        let critical = self.shared.critical.lock();
+        let mut critical = self.shared.critical.lock();
+        critical.best_sol.as_mut().map(|sol| sol.sort_unstable_by_key(|d| d.variable.0));
         Completion { is_exact: critical.abort_proof.is_none(), best_value: critical.best_sol.as_ref().map(|_| critical.best_lb) }
     }
 
