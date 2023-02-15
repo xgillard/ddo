@@ -91,6 +91,15 @@ pub trait DecisionDiagram {
     /// maximizing the objective value. When no feasible solution exists in the
     /// approximate DD, it returns the value None instead.
     fn best_solution(&self) -> Option<Solution>;
+    /// Returns the value of the objective function for the best exact node in the DD
+    /// or None when no feasible solution has been identified (no r-t path) either because
+    /// the subproblem at the root of this DD is infeasible or because restriction/relaxation
+    /// has removed all feasible paths that could potentially have been found.
+    fn best_exact_value(&self) -> Option<isize>;
+    /// Returns the best exact solution of this subproblem as a sequence of decision
+    /// maximizing the objective value. When no feasible solution exists in the
+    /// approximate DD, it returns the value None instead.
+    fn best_exact_solution(&self) -> Option<Solution>;
     /// Iteratively applies the given function `func` to each element of the
     /// exact cutset that was computed during DD compilation.
     ///

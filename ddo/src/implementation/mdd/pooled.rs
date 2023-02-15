@@ -149,9 +149,15 @@ where
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
     best_node: Option<NodeId>,
+    /// The identifier of the best exact terminal node of the diagram (None when
+    /// no terminal node is exact)
+    best_exact_node: Option<NodeId>,
+    /// A flag set to true when no layer of the decision diagram has been
+    /// restricted or relaxed
+    is_exact: bool,
     /// A flag set to true when the longest r-t path of this decision diagram
     /// traverses no merged node (Exact Best Path Optimization aka EBPO).
-    is_exact: bool,
+    has_exact_best_path: bool,
 }
 
 const NIL: EdgesListId = EdgesListId(0);
@@ -226,7 +232,7 @@ where
     }
 
     fn is_exact(&self) -> bool {
-        self.is_exact
+        self.is_exact || self.has_exact_best_path
     }
 
     fn best_value(&self) -> Option<isize> {
@@ -235,6 +241,14 @@ where
 
     fn best_solution(&self) -> Option<Solution> {
         self._best_solution()
+    }
+
+    fn best_exact_value(&self) -> Option<isize> {
+        self._best_exact_value()
+    }
+
+    fn best_exact_solution(&self) -> Option<Solution> {
+        self._best_exact_solution()
     }
 
     fn drain_cutset<F>(&mut self, func: F)
@@ -261,7 +275,9 @@ where
             path_to_root: vec![],
             cutset: vec![],
             best_node: None,
+            best_exact_node: None,
             is_exact: true,
+            has_exact_best_path: false,
         }
     }
     
@@ -274,7 +290,9 @@ where
         self.path_to_root.clear();
         self.cutset.clear();
         self.best_node = None;
+        self.best_exact_node = None;
         self.is_exact = true;
+        self.has_exact_best_path = false;
     }
 
     fn _best_value(&self) -> Option<isize> {
@@ -283,6 +301,14 @@ where
 
     fn _best_solution(&self) -> Option<Vec<Decision>> {
         self.best_node.map(|id| self._best_path(id))
+    }
+
+    fn _best_exact_value(&self) -> Option<isize> {
+        self.best_exact_node.map(|id| get!(node id, self).value_top)
+    }
+
+    fn _best_exact_solution(&self) -> Option<Vec<Decision>> {
+        self.best_exact_node.map(|id| self._best_path(id))
     }
 
     fn _best_path(&self, id: NodeId) -> Vec<Decision> {
@@ -339,7 +365,7 @@ where
         self._finalize(input);
 
         Ok(Completion { 
-            is_exact: self.is_exact, 
+            is_exact: self.is_exact(), 
             best_value: self.best_node.map(|n| get!(node n, self).value_top) 
         })
     }
@@ -438,8 +464,21 @@ where
     }
 
     fn _compute_thresholds(&mut self, input: &CompilationInput<T>) {
-        if input.comp_type == CompilationType::Relaxed {
-            let best_known  = input.best_lb;
+        if input.comp_type == CompilationType::Relaxed || self.is_exact {
+            let mut best_known = input.best_lb;
+
+            if let Some(id) = self.best_exact_node {
+                let best_exact_value = get!(mut node id, self).value_top;
+                best_known = best_known.max(best_exact_value);
+
+                for id in self.pool.values() {
+                    if self.nodes[id.0].flags.is_exact() {
+                        self.nodes[id.0].theta = Some(best_exact_value);
+                    }
+                }
+            }
+
+
             for Layer { nodes } in self.layers.values().rev() {
                 for id in nodes.iter() {
                     let node = get!(mut node id, self);
@@ -492,7 +531,7 @@ where
     }
 
     fn _compute_frontier_cutset(&mut self, input: &CompilationInput<T>) {
-        if input.comp_type == CompilationType::Relaxed {
+        if input.comp_type == CompilationType::Relaxed || self.is_exact {
             // traverse bottom-up
             for Layer { nodes } in self.layers.values().rev() {
                 for id in nodes.iter() {
@@ -518,7 +557,7 @@ where
 
     fn _finalize_layers(&mut self) {
         let mut last_l = vec![];
-        self.pool.drain().for_each(|(_,id)| {
+        self.pool.values().copied().for_each(|id| {
             let node = get!(mut node id, self);
             last_l.push(id);
             node.depth = self.curr_l.0;
@@ -528,19 +567,24 @@ where
 
     fn _find_best_node(&mut self) {
         self.best_node = self
-            .layers
-            .last_key_value()
-            .unwrap()
-            .1
-            .nodes
-            .iter()
+            .pool
+            .values()
+            .copied()
+            .max_by_key(|id| get!(node id, self).value_top);
+        self.best_exact_node = self
+            .pool
+            .values()
+            .filter(|id| get!(node id, self).flags.is_exact())
             .copied()
             .max_by_key(|id| get!(node id, self).value_top);
     }
 
     fn _finalize_exact(&mut self, input: &CompilationInput<T>) {
-        self.is_exact = self.is_exact
-            || (matches!(input.comp_type, CompilationType::Relaxed) && self._has_exact_best_path(self.best_node));
+        self.has_exact_best_path = matches!(input.comp_type, CompilationType::Relaxed) && self._has_exact_best_path(self.best_node);
+
+        if self.has_exact_best_path {
+            self.best_exact_node = self.best_node;
+        }
     }
 
     fn _has_exact_best_path(&self, node: Option<NodeId>) -> bool {
@@ -947,7 +991,7 @@ mod test_default_mdd {
 
     use fxhash::FxHashMap;
 
-    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, Pooled, VizConfigBuilder};
+    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, Pooled, VizConfigBuilder, Threshold};
 
     type DefaultMDD<State>    = Pooled<State>;
 
@@ -1637,6 +1681,210 @@ mod test_default_mdd {
         assert!(mdd.best_solution().is_none())
     }
 
+    #[test]
+    fn restricted_mdd_computes_thresholds_when_exact() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Restricted,
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  10,
+            best_lb:    isize::MIN,
+            residual:  &SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDD::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        
+        assert_eq!(true, mdd.is_exact());
+
+        let expected = vec![
+            (DummyState{depth: 0, value: 0}, Some(Threshold {value: 0, explored: true})),
+            (DummyState{depth: 1, value: 0}, Some(Threshold {value: 2, explored: true})),
+            (DummyState{depth: 1, value: 1}, Some(Threshold {value: 2, explored: true})),
+            (DummyState{depth: 1, value: 2}, Some(Threshold {value: 2, explored: true})),
+            (DummyState{depth: 2, value: 0}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 1}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 2}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 3}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 4}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 3, value: 0}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 1}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 2}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 3}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 4}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 5}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 6}, Some(Threshold {value: 6, explored: true})),
+        ];
+
+        for (state, threshold) in expected.iter().copied() {
+            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+        }
+    }
+
+    #[test]
+    fn relaxed_mdd_computes_thresholds_when_exact() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Relaxed,
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  10,
+            best_lb:    isize::MIN,
+            residual:  &SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDD::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        
+        assert_eq!(true, mdd.is_exact());
+
+        let expected = vec![
+            (DummyState{depth: 0, value: 0}, Some(Threshold {value: 0, explored: true})),
+            (DummyState{depth: 1, value: 0}, Some(Threshold {value: 2, explored: true})),
+            (DummyState{depth: 1, value: 1}, Some(Threshold {value: 2, explored: true})),
+            (DummyState{depth: 1, value: 2}, Some(Threshold {value: 2, explored: true})),
+            (DummyState{depth: 2, value: 0}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 1}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 2}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 3}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 2, value: 4}, Some(Threshold {value: 4, explored: true})),
+            (DummyState{depth: 3, value: 0}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 1}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 2}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 3}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 4}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 5}, Some(Threshold {value: 6, explored: true})),
+            (DummyState{depth: 3, value: 6}, Some(Threshold {value: 6, explored: true})),
+        ];
+
+        for (state, threshold) in expected.iter().copied() {
+            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+        }
+    }
+
+    #[test]
+    fn restricted_mdd_computes_thresholds_when_all_pruned() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Restricted,
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  10,
+            best_lb:    15,
+            residual:  &SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDD::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        
+        assert_eq!(true, mdd.is_exact());
+
+        let expected = vec![
+            (DummyState{depth: 0, value: 0}, Some(Threshold {value: 1, explored: true})),
+            (DummyState{depth: 1, value: 0}, Some(Threshold {value: 3, explored: true})),
+            (DummyState{depth: 1, value: 1}, Some(Threshold {value: 3, explored: true})),
+            (DummyState{depth: 1, value: 2}, Some(Threshold {value: 3, explored: true})),
+            (DummyState{depth: 2, value: 0}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 1}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 2}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 3}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 4}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 3, value: 0}, None),
+            (DummyState{depth: 3, value: 1}, None),
+            (DummyState{depth: 3, value: 2}, None),
+            (DummyState{depth: 3, value: 3}, None),
+            (DummyState{depth: 3, value: 4}, None),
+            (DummyState{depth: 3, value: 5}, None),
+            (DummyState{depth: 3, value: 6}, None),
+        ];
+
+        for (state, threshold) in expected.iter().copied() {
+            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+        }
+    }
+
+    #[test]
+    fn relaxed_mdd_computes_thresholds_when_all_pruned() {
+        let mut barrier = SimpleBarrier::default();
+        barrier.initialize(&DummyProblem);
+        let input = CompilationInput {
+            comp_type: crate::CompilationType::Relaxed,
+            problem:    &DummyProblem,
+            relaxation: &DummyRelax,
+            ranking:    &DummyRanking,
+            cutoff:     &NoCutoff,
+            max_width:  10,
+            best_lb:    15,
+            residual:  &SubProblem { 
+                state: Arc::new(DummyState{depth: 0, value: 0}), 
+                value: 0, 
+                path:  vec![], 
+                ub:    isize::MAX,
+                depth: 0,
+            },
+            barrier: &barrier,
+        };
+        let mut mdd = DefaultMDD::new();
+        let result = mdd.compile(&input);
+        assert!(result.is_ok());
+        
+        assert_eq!(true, mdd.is_exact());
+
+        let expected = vec![
+            (DummyState{depth: 0, value: 0}, Some(Threshold {value: 1, explored: true})),
+            (DummyState{depth: 1, value: 0}, Some(Threshold {value: 3, explored: true})),
+            (DummyState{depth: 1, value: 1}, Some(Threshold {value: 3, explored: true})),
+            (DummyState{depth: 1, value: 2}, Some(Threshold {value: 3, explored: true})),
+            (DummyState{depth: 2, value: 0}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 1}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 2}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 3}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 2, value: 4}, Some(Threshold {value: 5, explored: true})),
+            (DummyState{depth: 3, value: 0}, None),
+            (DummyState{depth: 3, value: 1}, None),
+            (DummyState{depth: 3, value: 2}, None),
+            (DummyState{depth: 3, value: 3}, None),
+            (DummyState{depth: 3, value: 4}, None),
+            (DummyState{depth: 3, value: 5}, None),
+            (DummyState{depth: 3, value: 6}, None),
+        ];
+
+        for (state, threshold) in expected.iter().copied() {
+            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+        }
+    }
+
     /// The example problem and relaxation for the local bounds should generate
     /// the following relaxed MDD in which the layer 'a','b' is the LEL.
     ///
@@ -2162,8 +2410,8 @@ mod test_default_mdd {
         fn relax(&self, _: &Self::State, _: &Self::State, _: &Self::State, _: Decision, _: isize) -> isize {
             20
         }
-        fn fast_upper_bound(&self, _state: &Self::State) -> isize {
-            50
+        fn fast_upper_bound(&self, state: &Self::State) -> isize {
+            (DummyProblem.nb_variables() - state.depth) as isize * 10
         }
     }
 
