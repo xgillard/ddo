@@ -30,6 +30,7 @@ mod solver;
 mod fringe;
 mod mdd;
 mod barrier;
+mod dominance;
 
 pub use dp::*;
 pub use heuristics::*;
@@ -37,3 +38,4 @@ pub use solver::*;
 pub use fringe::*;
 pub use mdd::*;
 pub use barrier::*;
+pub use dominance::*;

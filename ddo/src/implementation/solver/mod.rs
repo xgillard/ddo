@@ -23,19 +23,19 @@ mod sequential;
 pub use parallel::*;
 pub use sequential::*;
 
-use crate::{DefaultMDDLEL, EmptyBarrier, SimpleBarrier, DefaultMDDFC, Pooled};
+use crate::{DefaultMDDLEL, EmptyBarrier, SimpleBarrier, DefaultMDDFC, Pooled, EmptyDominanceChecker};
 
 /// A type alias to emphasize that this is the solver that should be used by default.
 pub type DefaultSolver<'a, State>        = ParNoBarrierSolverLel<'a, State>;
 pub type DefaultBarrierSolver<'a, State> = ParBarrierSolverFc<'a, State>;
 
-pub type ParNoBarrierSolverLel<'a, State>   = ParallelSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;
-pub type ParNoBarrierSolverFc<'a, State>    = ParallelSolver<'a, State, DefaultMDDFC<State>,  EmptyBarrier<State>>;
-pub type ParNoBarrierSolverPooled<'a, State>= ParallelSolver<'a, State, Pooled<State>,        EmptyBarrier<State>>;
+pub type ParNoBarrierSolverLel<'a, State>   = ParallelSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>, EmptyDominanceChecker<State>>;
+pub type ParNoBarrierSolverFc<'a, State>    = ParallelSolver<'a, State, DefaultMDDFC<State>,  EmptyBarrier<State>, EmptyDominanceChecker<State>>;
+pub type ParNoBarrierSolverPooled<'a, State>= ParallelSolver<'a, State, Pooled<State>,        EmptyBarrier<State>, EmptyDominanceChecker<State>>;
 
-pub type ParBarrierSolverLel<'a, State>   = ParallelSolver<'a, State, DefaultMDDLEL<State>, SimpleBarrier<State>>;
-pub type ParBarrierSolverFc<'a, State>    = ParallelSolver<'a, State, DefaultMDDFC<State>,  SimpleBarrier<State>>;
-pub type ParBarrierSolverPooled<'a, State>= ParallelSolver<'a, State, Pooled<State>,        SimpleBarrier<State>>;
+pub type ParBarrierSolverLel<'a, State>   = ParallelSolver<'a, State, DefaultMDDLEL<State>, SimpleBarrier<State>, EmptyDominanceChecker<State>>;
+pub type ParBarrierSolverFc<'a, State>    = ParallelSolver<'a, State, DefaultMDDFC<State>,  SimpleBarrier<State>, EmptyDominanceChecker<State>>;
+pub type ParBarrierSolverPooled<'a, State>= ParallelSolver<'a, State, Pooled<State>,        SimpleBarrier<State>, EmptyDominanceChecker<State>>;
 
 
 pub type SeqNoBarrierSolverLel<'a, State>   = SequentialSolver<'a, State, DefaultMDDLEL<State>, EmptyBarrier<State>>;

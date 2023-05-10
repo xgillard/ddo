@@ -262,8 +262,8 @@ fn main() {
     let relaxation = KPRelax{pb: &problem};
     let ranking = KPranking;
     let mut barrier = SimpleBarrier::default();
-
     barrier.initialize(&problem);
+    let dominance = EmptyDominanceChecker::default();
 
     let residual = SubProblem { 
         state: Arc::new(problem.initial_state()), 
@@ -282,6 +282,7 @@ fn main() {
         residual: &residual,
         best_lb: isize::MIN,
         barrier: &barrier,
+        dominance: &dominance,
     };
 
     let mut clean = Mdd::<KnapsackState, {FRONTIER}>::new();

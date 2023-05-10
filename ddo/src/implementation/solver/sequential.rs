@@ -28,7 +28,7 @@
 use std::clone::Clone;
 use std::{sync::Arc, hash::Hash};
 
-use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Barrier, EmptyBarrier, DefaultMDDLEL};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Barrier, EmptyBarrier, DefaultMDDLEL, DominanceChecker, EmptyDominanceChecker};
 
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -177,9 +177,10 @@ enum WorkLoad<T> {
 ///     }
 /// }
 /// ```
-pub struct SequentialSolver<'a, State, D = DefaultMDDLEL<State>, B = EmptyBarrier<State>> 
+pub struct SequentialSolver<'a, State, D = DefaultMDDLEL<State>, B = EmptyBarrier<State>, DC = EmptyDominanceChecker<State>> 
 where D: DecisionDiagram<State = State> + Default,
       B: Barrier<State = State> + Default,
+      DC: DominanceChecker<State = State> + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
     problem: &'a (dyn Problem<State = State>),
@@ -229,13 +230,15 @@ where D: DecisionDiagram<State = State> + Default,
     mdd: D,
     /// Data structure containing info about past compilations used to prune the search
     barrier: B,
+    dominance: DC,
 }
 
-impl<'a, State, D, B>  SequentialSolver<'a, State, D, B>
+impl<'a, State, D, B, DC>  SequentialSolver<'a, State, D, B, DC>
 where 
     State: Eq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
     B: Barrier<State = State> + Default,
+    DC: DominanceChecker<State = State> + Default,
 {
     pub fn new(
         problem: &'a (dyn Problem<State = State>),
@@ -273,6 +276,7 @@ where
             abort_proof: None,
             mdd: D::default(),
             barrier: B::default(),
+            dominance: DC::default(),
         }
     }
 
@@ -325,6 +329,7 @@ where
             ranking: self.ranking,
             cutoff: self.cutoff,
             barrier: &self.barrier,
+            dominance: &self.dominance,
             residual: &node,
             //
             best_lb,
@@ -346,6 +351,7 @@ where
             ranking: self.ranking,
             cutoff: self.cutoff,
             barrier: &self.barrier,
+            dominance: &self.dominance,
             residual: &node,
             //
             best_lb,
