@@ -21,14 +21,14 @@ dashmap          = "5.4"
 derive_builder   = "0.12"
 
 # -- going parallel --------
-num_cpus         = "1.14"
+num_cpus         = "1.15"
 parking_lot      = "0.12"
 compare          = "0.1"
 
 [dev-dependencies]
 thiserror        = "1.0"
-regex            = "1.6"
-clap             = {version = "4.0", features = ["derive"]}
+regex            = "1.8"
+clap             = {version = "4.2", features = ["derive"]}
 bit-vec          = "0.6"
 bit-set          = "0.5"
-smallbitset      = "0.5"
+smallbitset      = "0.7.1"

@@ -154,11 +154,11 @@ impl <'a> PspRelax<'a> {
         let mut mem = Set32::empty();
         for (i, d) in state.prev_demands.iter().copied().enumerate() {
             if d >= 0 {
-                mem = mem.insert(i as u8);
+                mem = mem.add(i);
             }
         }
         if state.next != -1 {
-            mem = mem.insert(state.next as u8);
+            mem = mem.add(state.next as usize);
         }
         mem
     }
@@ -200,10 +200,10 @@ impl Relaxation for PspRelax<'_> {
         let mut ww = 0;
         let mut items = BinaryHeap::new();
         for time in (0..state.time).rev() {
-            for i in 0..self.pb.n_items {
-                while prev_demands[i] >= time as isize {
-                    items.push((self.pb.stocking[i], prev_demands[i]));
-                    prev_demands[i] = self.pb.prev_demands[i][prev_demands[i] as usize];
+            for (i, demand) in prev_demands.iter_mut().enumerate() {
+                while *demand >= time as isize {
+                    items.push((self.pb.stocking[i], *demand));
+                    *demand = self.pb.prev_demands[i][*demand as usize];
                 }
             }
 

@@ -49,16 +49,16 @@ pub fn mst(members: Set32, changeover: &[Vec<usize>]) -> usize {
                 if a == b {
                     continue;
                 }
-                let edge = changeover[a as usize][b as usize];
-                let edge = edge.min(changeover[b as usize][a as usize]);
+                let edge = changeover[a][b];
+                let edge = edge.min(changeover[b][a]);
                 if edge < emin {
                     emin = edge;
                     bmin = b;
                 }
             }
             total += emin;
-            covered = covered.insert(a);
-            covered = covered.insert(bmin);
+            covered = covered.add(a);
+            covered = covered.add(bmin);
         }
         total
     }

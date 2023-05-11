@@ -10,8 +10,8 @@ enum Args {
     },
     Ci,
     Powerset,
-    BloatDeps,
-    BloatTime,
+    BloatDeps{package: String},
+    BloatTime{package: String},
     Docs,
 }
 
@@ -19,10 +19,10 @@ fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
     match args {
         Args::Coverage{dev_mode} => tasks::coverage(dev_mode),
-        Args::Ci                       => tasks::ci(),
-        Args::Powerset                 => tasks::powerset(),
-        Args::BloatDeps                => tasks::bloat_deps(),
-        Args::BloatTime                => tasks::bloat_time(),
-        Args::Docs                     => tasks::docs(),
+        Args::Ci                 => tasks::ci(),
+        Args::Powerset           => tasks::powerset(),
+        Args::BloatDeps{package} => tasks::bloat_deps(&package),
+        Args::BloatTime{package} => tasks::bloat_time(&package),
+        Args::Docs               => tasks::docs(),
     }
 }

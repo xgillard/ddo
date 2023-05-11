@@ -572,7 +572,7 @@ where
         });
 
         let mut critical = self.shared.critical.lock();
-        critical.best_sol.as_mut().map(|sol| sol.sort_unstable_by_key(|d| d.variable.0));
+        if let Some(sol) = critical.best_sol.as_mut() { sol.sort_unstable_by_key(|d| d.variable.0) }
         Completion { is_exact: critical.abort_proof.is_none(), best_value: critical.best_sol.as_ref().map(|_| critical.best_lb) }
     }
 
@@ -621,8 +621,8 @@ where
 mod test_solver {
     use crate::*;
     
-    type DDLEL<'a, T> = ParallelSolver<'a, T, DefaultMDDLEL<T>, EmptyBarrier<T>>;
-    type DDFC <'a, T> = ParallelSolver<'a, T, DefaultMDDFC<T>, SimpleBarrier<T>>;
+    type DdLel<'a, T> = ParallelSolver<'a, T, DefaultMDDLEL<T>, EmptyBarrier<T>>;
+    type DdFc <'a, T> = ParallelSolver<'a, T, DefaultMDDFC<T>, SimpleBarrier<T>>;
 
     #[test]
     fn by_default_best_lb_is_min_infinity() {
@@ -631,12 +631,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -655,12 +655,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -679,12 +679,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -704,12 +704,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -730,12 +730,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -753,12 +753,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -805,12 +805,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -829,12 +829,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -854,12 +854,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -891,12 +891,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDFC::custom(
+        let mut solver = DdFc::custom(
             &problem,
             &relax,
             &ranking,
@@ -928,12 +928,12 @@ mod test_solver {
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
             weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -969,12 +969,12 @@ mod test_solver {
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
             weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDFC::custom(
+        let mut solver = DdFc::custom(
             &problem,
             &relax,
             &ranking,
@@ -1010,12 +1010,12 @@ mod test_solver {
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
             weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -1051,12 +1051,12 @@ mod test_solver {
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
             weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDFC::custom(
+        let mut solver = DdFc::custom(
             &problem,
             &relax,
             &ranking,
@@ -1092,12 +1092,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -1138,12 +1138,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let solver = DDLEL::custom(
+        let solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -1162,12 +1162,12 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = DDLEL::custom(
+        let mut solver = DdLel::custom(
             &problem,
             &relax,
             &ranking,
@@ -1209,7 +1209,7 @@ mod test_solver {
             0
         }
         fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
-            let mut ret = state.clone();
+            let mut ret = *state;
             ret.depth  += 1;
             if dec.value == TAKE_IT { 
                 ret.capacity -= self.weight[dec.variable.id()] 
