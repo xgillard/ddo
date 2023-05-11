@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, cmp::Ordering};
+use std::{marker::PhantomData, cmp::Ordering, sync::Arc};
 
 use crate::DominanceChecker;
 
@@ -17,7 +17,7 @@ impl<T> Default for EmptyDominanceChecker<T> {
 impl<T> DominanceChecker for EmptyDominanceChecker<T> {
     type State = T;
 
-    fn is_dominated_or_insert(&self, _: &Self::State) -> bool {
+    fn is_dominated_or_insert(&self, _: Arc<Self::State>) -> bool {
         false
     }
 

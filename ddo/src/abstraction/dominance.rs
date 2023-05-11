@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::Arc};
 
 pub trait Dominance {
     type State;
@@ -62,7 +62,7 @@ pub trait DominanceChecker {
     
     /// Returns true if the state is dominated by a stored one
     /// And insert the (key, value) pair otherwise
-    fn is_dominated_or_insert(&self, state: &Self::State) -> bool;
+    fn is_dominated_or_insert(&self, state: Arc<Self::State>) -> bool;
 
     /// Comparator to order states by increasing value, regardless of their key
     fn cmp(&self, a: &Self::State, b: &Self::State) -> Ordering;

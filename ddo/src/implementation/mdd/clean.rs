@@ -685,7 +685,7 @@ where
         curr_l.sort_unstable_by(|a,b| input.dominance.cmp(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()).reverse());
         curr_l.retain(|id| {
             let node = get!(mut node id, self);
-            !input.dominance.is_dominated_or_insert(node.state.as_ref())
+            !input.dominance.is_dominated_or_insert(node.state.clone())
         });
     }
     
