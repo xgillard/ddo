@@ -28,24 +28,24 @@ use ddo::*;
 #[cfg(test)]
 mod tests;
 
-/// In our DP model, we consider a state that simply consists of the remaining 
+/// In our DP model, we consider a state that simply consists of the remaining
 /// capacity in the knapsack. Additionally, we also consider the *depth* (number
 /// of assigned variables) as part of the state since it useful when it comes to
 /// determine the next variable to branch on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KnapsackState {
     /// the number of variables that have already been decided upon in the complete
     /// problem.
     depth: usize,
     /// the remaining capacity in the knapsack. That is the maximum load the sack
-    /// can bear withouth cracking **given what is already in the sack**.
+    /// can bear without cracking **given what is already in the sack**.
     capacity: usize
 }
 
 /// This structure represents a particular instance of the knapsack problem.
-/// This is the sctructure that will implement the knapsack model.
-/// 
-/// The problem definition is quite easy to understand: there is a knapsack having 
+/// This is the structure that will implement the knapsack model.
+///
+/// The problem definition is quite easy to understand: there is a knapsack having
 /// a maximum (weight) capacity, and a set of items to chose from. Each of these
 /// items having a weight and a profit, the goal is to select the best subset of
 /// the items to place them in the sack so as to maximize the profit.
@@ -70,7 +70,7 @@ const LEAVE_IT_OUT: isize = 0;
 /// This is how you implement the labeled transition system (LTS) semantics of
 /// a simple dynamic program solving the knapsack problem. The definition of
 /// each of the methods should be pretty clear and easy to grasp. Should you
-/// want more details on the role of each of these methods, then you are 
+/// want more details on the role of each of these methods, then you are
 /// encouraged to go checking the documentation of the `Problem` trait.
 impl Problem for Knapsack {
     type State = KnapsackState;
@@ -94,10 +94,10 @@ impl Problem for Knapsack {
         0
     }
     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
-        let mut ret = *state;
+        let mut ret = state.clone();
         ret.depth  += 1;
-        if dec.value == TAKE_IT { 
-            ret.capacity -= self.weight[dec.variable.id()] 
+        if dec.value == TAKE_IT {
+            ret.capacity -= self.weight[dec.variable.id()]
         }
         ret
     }
@@ -115,22 +115,22 @@ impl Problem for Knapsack {
     }
 }
 
-/// In addition to a dynamic programming (DP) model of the problem you want to solve, 
+/// In addition to a dynamic programming (DP) model of the problem you want to solve,
 /// the branch and bound with MDD algorithm (and thus ddo) requires that you provide
 /// an additional relaxation allowing to control the maximum amount of space used by
-/// the decision diagrams that are compiled. 
-/// 
-/// That relaxation requires two operations: one to merge several nodes into one 
+/// the decision diagrams that are compiled.
+///
+/// That relaxation requires two operations: one to merge several nodes into one
 /// merged node that acts as an over approximation of the other nodes. The second
-/// operation is used to possibly offset some weight that would otherwise be lost 
+/// operation is used to possibly offset some weight that would otherwise be lost
 /// to the arcs entering the newly created merged node.
-/// 
+///
 /// The role of this very simple structure is simply to provide an implementation
 /// of that relaxation.
-/// 
+///
 /// # Note:
 /// In addition to the aforementioned two operations, the KPRelax structure implements
-/// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
+/// an optional `fast_upper_bound` method. Whichone provides a useful bound to
 /// prune some portions of the state-space as the decision diagrams are compiled.
 /// (aka rough upper bound pruning).
 pub struct KPRelax<'a>{pub pb: &'a Knapsack}
@@ -138,7 +138,7 @@ impl Relaxation for KPRelax<'_> {
     type State = KnapsackState;
 
     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
-        states.max_by_key(|node| node.capacity).copied().unwrap()
+        states.max_by_key(|node| node.capacity).cloned().unwrap()
     }
 
     fn relax(&self, _source: &Self::State, _dest: &Self::State, _merged: &Self::State, _decision: Decision, cost: isize) -> isize {
@@ -198,15 +198,15 @@ struct Args {
 
 /// This enumeration simply groups the kind of errors that might occur when parsing a
 /// knapsack instance from file. There can be io errors (file unavailable ?), format error
-/// (e.g. the file is not a knapsack instance but contains the text of your next paper), 
-/// or parse int errors (which are actually a variant of the format errror since it tells 
+/// (e.g. the file is not a knapsack instance but contains the text of your next paper),
+/// or parse int errors (which are actually a variant of the format errror since it tells
 /// you that the parser expected an integer number but got ... something else).
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// There was an io related error
     #[error("io error {0}")]
     Io(#[from] std::io::Error),
-    /// The parser expected to read somehting that was an integer but got some garbage
+    /// The parser expected to read something that was an integer but got some garbage
     #[error("parse int {0}")]
     ParseInt(#[from] ParseIntError),
     /// The file was not properly formatted.
@@ -219,7 +219,7 @@ pub enum Error {
 pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
     let f = File::open(fname)?;
     let f = BufReader::new(f);
-    
+
     let mut is_first = true;
     let mut n = 0;
     let mut count = 0;
@@ -251,7 +251,7 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
 }
 
 /// An utility function to return an max width heuristic that can either be a fixed width
-/// policy (if w is fixed) or an adaptative policy returning the number of unassigned variables
+/// policy (if w is fixed) or an adaptive policy returning the number of unassigned variables
 /// in the overall problem.
 fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> + Send + Sync> {
     if let Some(w) = w {
@@ -262,7 +262,7 @@ fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> +
 }
 
 /// This is your executable's entry point. It is the place where all the pieces are put together
-/// to create a fast an effectuve solver for the knapsack problem.
+/// to create a fast an effective solver for the knapsack problem.
 fn main() {
     let args = Args::parse();
     let problem = read_instance(&args.fname).unwrap();
@@ -273,17 +273,17 @@ fn main() {
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
     let mut solver = DefaultBarrierSolver::new(
-        &problem, 
-        &relaxation, 
-        &heuristic, 
-        width.as_ref(), 
-        &cutoff, 
+        &problem,
+        &relaxation,
+        &heuristic,
+        width.as_ref(),
+        &cutoff,
         &mut fringe,
     );
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();
-    
+
     let duration = start.elapsed();
     let upper_bound = solver.best_upper_bound();
     let lower_bound = solver.best_lower_bound();
