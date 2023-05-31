@@ -73,3 +73,13 @@ fn golomb6() {
 fn golomb7() {
     assert_eq!(solve_golomb(7), 25);
 }
+
+#[test]
+fn golomb8() {
+    assert_eq!(solve_golomb(8), 34);
+}
+
+#[test]
+fn golomb9() {
+    assert_eq!(solve_golomb(9), 44);
+}

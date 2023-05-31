@@ -203,7 +203,7 @@ struct Args {
     #[clap(default_value = "5")]
     size: usize,
     /// The maximum amount of time you would like this solver to run
-    #[clap(short, long, default_value = "30")]
+    #[clap(short, long, default_value = "100")]
     timeout: u64,
     /// The maximum width of a layer when solving an instance. By default, it will allow
     /// as many nodes in a layer as there are unassigned variables in the global problem.
