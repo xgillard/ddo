@@ -28,33 +28,36 @@
 //! The cost of a solution is thus the position of the last mark.
 //!
 use std::{time::{Duration, Instant}};
-use bit_set::BitSet;
+use smallbitset::Set256;
 
 use clap::Parser;
 use ddo::*;
+
+/// This is a type alias. We've decided to opt for a bitset size of 256 bits 
+/// (which is large but in the event where we would like an even larger bitset,
+/// this type makes the example future proof)
+type BitSet = Set256;
 
 #[cfg(test)]
 mod tests;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GolombState {
     marks: BitSet, // the set of marks
     distances: BitSet, // the set of pairwise distances
-    number_of_marks: isize, // the number of marks
+    number_of_marks: usize, // the number of marks
     last_mark: isize, // location of last mark
 }
 
 /// Instance of the Golomb problem.
 pub struct Golomb {
-    n: isize,
+    n: usize,
 }
 
 impl Golomb {
-    pub fn new(n: isize) -> Self {
-        Golomb {
-            n: n
-        }
+    pub fn new(n: usize) -> Self {
+        Golomb { n }
     }
 }
 
@@ -68,16 +71,18 @@ impl Problem for Golomb {
     type State = GolombState;
 
     fn nb_variables(&self) -> usize {
-        self.n as usize
+        self.n
     }
 
     // create the edges (decisions) from the given state
     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback) {
-        for i in (state.last_mark) + 1..(self.n * self.n) {
-            if state.marks.iter().any(|j| state.distances.contains(i as usize - j)) {
+        let n2 = self.n * self.n;
+        let next_mark = state.last_mark as usize+ 1;
+        for i in next_mark..n2 {
+            if state.marks.iter().any(|j| state.distances.contains(i - j)) {
                 continue; // this distance is already present, invalid mark at it (alldifferent)
             } else {
-                f.apply(Decision { variable, value: i });
+                f.apply(Decision { variable, value: i as isize});
             }
         }
     }
@@ -85,10 +90,9 @@ impl Problem for Golomb {
     // create the initial state
     fn initial_state(&self) -> Self::State {
         // upper-bound on the number of marks and distances
-        let n2 = (self.n * self.n) as usize;
         GolombState {
-            marks: BitSet::with_capacity(n2),
-            distances: BitSet::with_capacity(n2),
+            marks: BitSet::singleton(0),
+            distances: BitSet::empty(),
             number_of_marks: 0,
             last_mark: -1,
         }
@@ -100,22 +104,22 @@ impl Problem for Golomb {
 
     // compute the next state from the current state and the decision
     fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
-        let mut ret = state.clone();
-        let l = dec.value; // the new mark
-        ret.marks.insert(l as usize); // add the new mark
+        let mut ret = *state;
+        let l = dec.value as usize; // the new mark
+        ret.marks.add_inplace(l); // add the new mark
         // add distances between new mark and previous marks
         for i in state.marks.iter() {
-            ret.distances.insert(l as usize - i);
+            ret.distances.add_inplace(l - i);
         }
         ret.number_of_marks += 1; // increment the number of marks
-        ret.last_mark = l; // update the last mark
+        ret.last_mark = dec.value; // update the last mark
         ret
     }
 
     // compute the cost of the decision from the given state
     fn transition_cost(&self, state: &Self::State, dec: Decision) -> isize {
         // distance between the new mark and the previous one
-        return -(dec.value - state.last_mark as isize) as isize; // put a minus to turn objective into maximization (ddo requirement)
+        -(dec.value - state.last_mark) // put a minus to turn objective into maximization (ddo requirement)
     }
 
     // next variable to branch on
@@ -136,23 +140,21 @@ impl Relaxation for GolombRelax<'_> {
 
     // take the intersection of the marks and distances sets
     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
+        let mut intersection_marks = BitSet::full();
+        let mut intersection_distances = BitSet::full();
+        let mut number_of_marks = usize::MAX;
+        let mut last_mark = isize::MAX;
 
-        let states_vec: Vec<&Self::State> = states.collect();
-
-        let mut marks = states_vec.iter().map(|node| node.marks.clone());
-        let mut intersection_marks = marks.next().unwrap();
-        marks.for_each(|bitset| intersection_marks.intersect_with(&bitset));
-
-        let mut distances = states_vec.iter().map(|node| node.distances.clone());
-        let mut insersection_distances = distances.next().unwrap();
-        distances.for_each(|bitset| insersection_distances.intersect_with(&bitset));
-
-        let number_of_marks = states_vec.iter().min_by_key(|node| node.number_of_marks).unwrap().number_of_marks;
-        let last_mark = states_vec.iter().min_by_key(|node| node.last_mark).unwrap().last_mark;
+        for state in states {
+            intersection_marks.inter_inplace(&state.marks);
+            intersection_distances.inter_inplace(&state.distances);
+            number_of_marks = number_of_marks.min(state.number_of_marks);
+            last_mark = last_mark.min(state.last_mark);
+        }
 
         GolombState {
             marks: intersection_marks,
-            distances: insersection_distances,
+            distances: intersection_distances,
             number_of_marks,
             last_mark,
         }
@@ -164,9 +166,9 @@ impl Relaxation for GolombRelax<'_> {
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
         // known solution for n = 0..13
-        let arr: [isize; 14] = [0, 0, 1, 3, 6, 11, 17, 25, 34, 44, 55, 72, 85, 106];
+        const KNOWN_SOLUTION: [isize; 14] = [0, 0, 1, 3, 6, 11, 17, 25, 34, 44, 55, 72, 85, 106];
         // there is n-k marks left to place, therefore we need at least golomb(n-k) to place them
-        return -arr[self.pb.n as usize - state.number_of_marks as usize];
+        -KNOWN_SOLUTION[self.pb.n - state.number_of_marks]
     }
 
 }
@@ -180,7 +182,7 @@ impl StateRanking for Golombranking {
     type State = GolombState;
 
     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
-        a.last_mark.cmp( &b.last_mark) // sort by last mark
+        a.last_mark.cmp(&b.last_mark) // sort by last mark
     }
 }
 
@@ -197,14 +199,12 @@ impl StateRanking for Golombranking {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// The path to the instance file
-    fname: String,
-    /// The number of concurrent threads
-    #[clap(short, long, default_value = "8")]
-    threads: usize,
+    /// The number of marks to set on the Golomb ruler
+    #[clap(default_value = "5")]
+    size: usize,
     /// The maximum amount of time you would like this solver to run
     #[clap(short, long, default_value = "30")]
-    duration: u64,
+    timeout: u64,
     /// The maximum width of a layer when solving an instance. By default, it will allow
     /// as many nodes in a layer as there are unassigned variables in the global problem.
     #[clap(short, long)]
@@ -226,12 +226,12 @@ fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> +
 /// This is your executable's entry point. It is the place where all the pieces are put together
 /// to create a fast an effective solver for the Golomb problem.
 fn main() {
-
-    let problem = Golomb::new(5);
+    let args = Args::parse();
+    let problem = Golomb::new(args.size);
     let relaxation = GolombRelax{pb: &problem};
     let heuristic = Golombranking;
-    let width = max_width(problem.nb_variables(), Some(100));
-    let cutoff = TimeBudget::new(Duration::from_secs(100));//NoCutoff;
+    let width = max_width(problem.nb_variables(), args.width);
+    let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
     let mut solver = DefaultBarrierSolver::new(

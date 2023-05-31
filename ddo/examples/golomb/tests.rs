@@ -18,14 +18,11 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This module is meant to tests the correctness of our golomb example
-
-use std::path::PathBuf;
-
 use ddo::*;
 
 use crate::{Golomb, Golombranking, GolombRelax};
 
-pub fn solve_golomb(n: isize) -> isize {
+pub fn solve_golomb(n: usize) -> isize {
 
     let problem = Golomb::new(n);
     let relaxation = GolombRelax{pb: &problem};
@@ -43,7 +40,7 @@ pub fn solve_golomb(n: isize) -> isize {
         &mut fringe,
     );
 
-    let Completion{ is_exact, best_value } = solver.maximize();
+    let Completion{ is_exact: _, best_value } = solver.maximize();
     best_value.map(|x| -x).unwrap_or(-1)
 }
 
