@@ -315,7 +315,7 @@
 //! # use ddo::*;
 //! #
 //! # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-//! # struct KnapsackState {
+//! # pub struct KnapsackState {
 //! #     depth: usize,
 //! #     capacity: usize
 //! # }
@@ -389,6 +389,23 @@
 //! #         a.capacity.cmp(&b.capacity)
 //! #     }
 //! # }
+//! # pub struct KPDominance;
+//! # impl Dominance for KPDominance {
+//! #     type State = KnapsackState;
+//! #     type Key = usize;
+//! #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+//! #        Some(state.depth)
+//! #     }
+//! #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+//! #         1
+//! #     }
+//! #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+//! #         state.capacity as isize
+//! #     }
+//! #     fn use_value(&self) -> bool {
+//! #         true
+//! #     }
+//! # }
 //! 
 //! // 1. Create an instance of our knapsack problem
 //! let problem = Knapsack {
@@ -406,22 +423,26 @@
 //! // 4. Define the policy you will want to use regarding the maximum width of the DD
 //! let width = FixedWidth(100); // here we mean max 100 nodes per layer
 //! 
-//! // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+//! // 5. Add a dominance relation checker
+//! let dominance = SimpleDominanceChecker::new(KPDominance);
+//! 
+//! // 6. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
 //! let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 //! 
-//! // 5. Create the solver fringe
+//! // 7. Create the solver fringe
 //! let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 //!  
-//! // 6. Instanciate your solver
+//! // 8. Instanciate your solver
 //! let mut solver = DefaultSolver::new(
 //!       &problem, 
 //!       &relaxation, 
 //!       &heuristic, 
 //!       &width, 
+//!       &dominance,
 //!       &cutoff, 
 //!       &mut fringe);
 //! 
-//! // 7. Maximize your objective function
+//! // 9. Maximize your objective function
 //! // the outcome provides the value of the best solution that was found for
 //! // the problem (if one was found) along with a flag indicating whether or
 //! // not the solution was proven optimal. Hence an unsatisfiable problem
@@ -432,7 +453,7 @@
 //! // The best solution (if one exist) is retrieved with
 //! let solution = solver.best_solution();
 //!
-//! // 8. Do whatever you like with the optimal solution.
+//! // 10. Do whatever you like with the optimal solution.
 //! assert_eq!(Some(220), outcome.best_value);
 //! println!("Solution");
 //! for decision in solution.unwrap().iter() {

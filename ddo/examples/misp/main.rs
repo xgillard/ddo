@@ -346,6 +346,7 @@ fn main() {
     let ranking = MispRanking;
 
     let width = max_width(&problem, args.width);
+    let dominance = EmptyDominanceChecker::default();
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
@@ -355,6 +356,7 @@ fn main() {
         &relaxation, 
         &ranking, 
         width.as_ref(),
+        &dominance,
         cutoff.as_ref(), 
         &mut fringe,
         args.threads,

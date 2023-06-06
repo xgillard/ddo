@@ -44,6 +44,7 @@ pub fn solve_id(id: &str) -> isize {
     let ranking = McpRanking;
 
     let width = NbUnassignedWitdh(problem.nb_variables());
+    let dominance = EmptyDominanceChecker::default();
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
@@ -53,6 +54,7 @@ pub fn solve_id(id: &str) -> isize {
         &relaxation, 
         &ranking, 
         &width, 
+        &dominance,
         &cutoff, 
         &mut fringe,
     );

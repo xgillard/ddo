@@ -33,6 +33,7 @@ fn main() {
     let relax = McpRelax::new(&problem);
     let rank = McpRanking;
     let width = max_width(&problem, width);
+    let dominance = EmptyDominanceChecker::default();
     let cutoff = cutoff(timeout);
     let mut fringe = NoDupFringe::new(MaxUB::new(&rank));
 
@@ -41,6 +42,7 @@ fn main() {
         &relax, 
         &rank, 
         width.as_ref(), 
+        &dominance,
         cutoff.as_ref(), 
         &mut fringe,
     );

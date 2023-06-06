@@ -23,7 +23,7 @@ use std::path::PathBuf;
 
 use ddo::*;
 
-use crate::{KPRelax, KPranking, read_instance};
+use crate::{KPRelax, KPRanking, read_instance, KPDominance};
 
 fn locate(id: &str) -> PathBuf {
     PathBuf::new()
@@ -39,9 +39,10 @@ pub fn solve_id(id: &str) -> isize {
     
     let problem = read_instance(fname).unwrap();
     let relaxation = KPRelax{pb: &problem};
-    let ranking = KPranking;
+    let ranking = KPRanking;
 
     let width = NbUnassignedWitdh(problem.nb_variables());
+    let dominance = SimpleDominanceChecker::new(KPDominance);
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
@@ -51,6 +52,7 @@ pub fn solve_id(id: &str) -> isize {
         &relaxation, 
         &ranking, 
         &width, 
+        &dominance,
         &cutoff, 
         &mut fringe,
     );
@@ -139,7 +141,7 @@ fn knappi_2_2000_1000_1() {
     assert_eq!(solve_id("knapPI_2_2000_1000_1"), 18051);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_1_500_1000_1() {
     assert_eq!(solve_id("knapPI_1_500_1000_1"), 28857);
 }
@@ -164,7 +166,7 @@ fn knappi_2_5000_1000_1() {
     assert_eq!(solve_id("knapPI_2_5000_1000_1"), 44356);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_3_500_1000_1() {
     assert_eq!(solve_id("knapPI_3_500_1000_1"), 7117);
 }
@@ -199,7 +201,7 @@ fn knappi_2_1000_1000_1() {
     assert_eq!(solve_id("knapPI_2_1000_1000_1"), 9052);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_2_500_1000_1() {
     assert_eq!(solve_id("knapPI_2_500_1000_1"), 4566);
 }

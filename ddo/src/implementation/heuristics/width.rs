@@ -51,7 +51,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// # use std::sync::Arc;
 /// #
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// # struct KnapsackState {
+/// # pub struct KnapsackState {
 /// #     depth: usize,
 /// #     capacity: usize
 /// # }
@@ -125,6 +125,23 @@ use crate::{WidthHeuristic, SubProblem};
 /// #         a.capacity.cmp(&b.capacity)
 /// #     }
 /// # }
+/// # pub struct KPDominance;
+/// # impl Dominance for KPDominance {
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// # }
 /// # let problem = Knapsack {
 /// #     capacity: 50,
 /// #     profit  : vec![60, 100, 120],
@@ -132,6 +149,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// # };
 /// # let relaxation = KPRelax{pb: &problem};
 /// # let heuristic = KPRanking;
+/// # let dominance = SimpleDominanceChecker::new(KPDominance);
 /// # let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// # let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -140,6 +158,7 @@ use crate::{WidthHeuristic, SubProblem};
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &FixedWidth(100), // all DDs will be compiled with a maximum width of 100 nodes 
+///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// ```
@@ -257,7 +276,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// # use std::sync::Arc;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// struct KnapsackState {
+/// pub struct KnapsackState {
 ///       // details omitted in this example
 /// #     depth: usize,
 /// #     capacity: usize
@@ -334,6 +353,24 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #         a.capacity.cmp(&b.capacity)
 /// #     }
 /// }
+/// pub struct KPDominance;
+/// impl Dominance for KPDominance {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// }
 /// 
 /// let problem = Knapsack {
 ///       // details omitted
@@ -343,6 +380,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
+/// let dominance = SimpleDominanceChecker::new(KPDominance);
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -351,6 +389,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &NbUnassignedWitdh(problem.nb_variables()),
+///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// ```
@@ -476,7 +515,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// # use std::sync::Arc;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// struct KnapsackState {
+/// pub struct KnapsackState {
 ///       // details omitted in this example
 /// #     depth: usize,
 /// #     capacity: usize
@@ -553,6 +592,24 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// #         a.capacity.cmp(&b.capacity)
 /// #     }
 /// }
+/// pub struct KPDominance;
+/// impl Dominance for KPDominance {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// }
 /// 
 /// let problem = Knapsack {
 ///       // details omitted
@@ -562,6 +619,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
+/// let dominance = SimpleDominanceChecker::new(KPDominance);
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -570,6 +628,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &Times(5, NbUnassignedWitdh(problem.nb_variables())),
+///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// ```
@@ -695,7 +754,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// # use ddo::*;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// struct KnapsackState {
+/// pub struct KnapsackState {
 ///       // details omitted in this example
 /// #     depth: usize,
 /// #     capacity: usize
@@ -772,7 +831,24 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #         a.capacity.cmp(&b.capacity)
 /// #     }
 /// }
-/// 
+/// pub struct KPDominance;
+/// impl Dominance for KPDominance {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// }
 /// let problem = Knapsack {
 ///       // details omitted
 /// #     capacity: 50,
@@ -781,6 +857,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
+/// let dominance = SimpleDominanceChecker::new(KPDominance);
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -789,6 +866,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &DivBy(2, NbUnassignedWitdh(problem.nb_variables())),
+///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// ```

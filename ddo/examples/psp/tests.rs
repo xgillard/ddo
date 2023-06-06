@@ -43,6 +43,7 @@ mod psp_test_utils {
         let ranking = PspRanking;
 
         let width = FixedWidth(1000);
+        let dominance = EmptyDominanceChecker::default();
         let cutoff = NoCutoff;
         let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
@@ -52,6 +53,7 @@ mod psp_test_utils {
             &relaxation, 
             &ranking, 
             &width, 
+            &dominance,
             &cutoff, 
             &mut fringe,
             1,

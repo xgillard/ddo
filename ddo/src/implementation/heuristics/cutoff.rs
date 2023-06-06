@@ -36,7 +36,7 @@ use crate::Cutoff;
 /// # use ddo::*;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// struct KnapsackState {
+/// pub struct KnapsackState {
 ///       // details omitted in this example
 /// #     depth: usize,
 /// #     capacity: usize
@@ -113,6 +113,24 @@ use crate::Cutoff;
 /// #         a.capacity.cmp(&b.capacity)
 /// #     }
 /// }
+/// pub struct KPDominance;
+/// impl Dominance for KPDominance {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// }
 /// 
 /// let problem = Knapsack {
 ///       // details omitted
@@ -122,6 +140,7 @@ use crate::Cutoff;
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let width = FixedWidth(100);
+/// let dominance = SimpleDominanceChecker::new(KPDominance);
 /// let heuristic = KPRanking;
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -130,6 +149,7 @@ use crate::Cutoff;
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &width,
+///       &dominance,
 ///       // this solver will only stop when optimality is proved
 ///       &NoCutoff, 
 ///       &mut fringe);
@@ -154,7 +174,7 @@ impl Cutoff for NoCutoff {
 /// # use ddo::*;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// struct KnapsackState {
+/// pub struct KnapsackState {
 ///       // details omitted in this example
 /// #     depth: usize,
 /// #     capacity: usize
@@ -232,6 +252,25 @@ impl Cutoff for NoCutoff {
 /// #     }
 /// }
 /// 
+/// pub struct KPDominance;
+/// impl Dominance for KPDominance {
+///       // details omitted in this example
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// }
+/// 
 /// let problem = Knapsack {
 ///       // details omitted
 /// #     capacity: 50,
@@ -240,6 +279,7 @@ impl Cutoff for NoCutoff {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let width = FixedWidth(100);
+/// let dominance = SimpleDominanceChecker::new(KPDominance);
 /// let heuristic = KPRanking;
 /// 
 /// // this solver will be allowed to run for 30 seconds
@@ -251,6 +291,7 @@ impl Cutoff for NoCutoff {
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &width,
+///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// let outcome = solver.maximize();
