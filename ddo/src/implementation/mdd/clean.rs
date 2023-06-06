@@ -663,6 +663,7 @@ where
             self.layers.push(Layer { from: 0, to: 0 });
             false
         } else {
+            self._filter_with_dominance(input, curr_l);
             if !self.layers.is_empty() {
                 self._filter_with_barrier(input, curr_l);
             }
@@ -680,6 +681,17 @@ where
         }
     }
 
+    fn _filter_with_dominance(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        curr_l.sort_unstable_by(|a,b| input.dominance.cmp(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()).reverse());
+        curr_l.retain(|id| {
+            let node = get!(mut node id, self);
+            if node.flags.is_exact() {
+                !input.dominance.is_dominated_or_insert(node.state.clone(), node.value_top)
+            } else {
+                true
+            }
+        });
+    }
     
     fn _filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.retain(|id| {
@@ -1072,7 +1084,7 @@ mod test_default_mdd {
 
     use fxhash::FxHashMap;
 
-    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, Mdd, FRONTIER, VizConfigBuilder, Threshold};
+    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, Mdd, FRONTIER, VizConfigBuilder, Threshold, EmptyDominanceChecker};
 
     type DefaultMDD<State>    = DefaultMDDLEL<State>;
     type DefaultMDDLEL<State> = Mdd<State, {LAST_EXACT_LAYER}>;
@@ -1088,6 +1100,7 @@ mod test_default_mdd {
     #[test]
     fn root_remembers_the_pa_from_the_fringe_node() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let mut input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1104,6 +1117,7 @@ mod test_default_mdd {
                 depth: 1,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
 
         let mut mdd = DefaultMDD::new();
@@ -1123,6 +1137,7 @@ mod test_default_mdd {
     #[test]
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1139,6 +1154,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
 
@@ -1157,6 +1173,7 @@ mod test_default_mdd {
     #[test]
     fn restricted_drops_the_less_interesting_nodes() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1173,6 +1190,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
 
@@ -1191,6 +1209,7 @@ mod test_default_mdd {
     #[test]
     fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1207,6 +1226,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1219,6 +1239,7 @@ mod test_default_mdd {
     #[test]
     fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1235,6 +1256,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1247,6 +1269,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1263,6 +1286,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1281,6 +1305,7 @@ mod test_default_mdd {
     #[test]
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1297,6 +1322,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1307,6 +1333,7 @@ mod test_default_mdd {
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1323,6 +1350,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1332,6 +1360,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1348,6 +1377,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1358,6 +1388,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1374,6 +1405,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1393,6 +1425,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1409,6 +1442,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1422,6 +1456,7 @@ mod test_default_mdd {
     #[test]
     fn an_exact_mdd_must_be_exact() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1438,6 +1473,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1449,6 +1485,7 @@ mod test_default_mdd {
     #[test]
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1465,6 +1502,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1476,6 +1514,7 @@ mod test_default_mdd {
     #[test]
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1492,6 +1531,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1502,6 +1542,7 @@ mod test_default_mdd {
     #[test]
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1518,6 +1559,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1528,6 +1570,7 @@ mod test_default_mdd {
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1544,6 +1587,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1554,6 +1598,7 @@ mod test_default_mdd {
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_solution() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1570,6 +1615,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1579,6 +1625,7 @@ mod test_default_mdd {
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_best_value() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyInfeasibleProblem,
@@ -1595,6 +1642,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1604,6 +1652,7 @@ mod test_default_mdd {
     #[test]
     fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1620,6 +1669,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1629,6 +1679,7 @@ mod test_default_mdd {
     #[test]
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1645,6 +1696,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1654,6 +1706,7 @@ mod test_default_mdd {
     #[test]
     fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
         let barrier = EmptyBarrier::new();
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1670,6 +1723,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1683,6 +1737,7 @@ mod test_default_mdd {
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
             problem:    &DummyProblem,
@@ -1699,6 +1754,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1712,6 +1768,7 @@ mod test_default_mdd {
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1728,6 +1785,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1741,6 +1799,7 @@ mod test_default_mdd {
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
         barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1757,6 +1816,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1768,6 +1828,7 @@ mod test_default_mdd {
     fn restricted_mdd_computes_thresholds_when_exact() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&DummyProblem);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1784,6 +1845,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1819,6 +1881,7 @@ mod test_default_mdd {
     fn relaxed_mdd_computes_thresholds_when_exact() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&DummyProblem);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1835,6 +1898,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1870,6 +1934,7 @@ mod test_default_mdd {
     fn restricted_mdd_computes_thresholds_when_all_pruned() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&DummyProblem);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
             problem:    &DummyProblem,
@@ -1886,6 +1951,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -1921,6 +1987,7 @@ mod test_default_mdd {
     fn relaxed_mdd_computes_thresholds_when_all_pruned() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&DummyProblem);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &DummyProblem,
@@ -1937,6 +2004,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
         let result = mdd.compile(&input);
@@ -2099,6 +2167,7 @@ mod test_default_mdd {
     fn relaxed_computes_local_bounds_and_thresholds_1() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2115,6 +2184,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDLEL::new();
         let result = mdd.compile(&input);
@@ -2158,6 +2228,7 @@ mod test_default_mdd {
     fn relaxed_computes_local_bounds_and_thresholds_2() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2174,6 +2245,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
         let result = mdd.compile(&input);
@@ -2235,6 +2307,7 @@ mod test_default_mdd {
     fn relaxed_computes_local_bounds_and_thresholds_with_pruning() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2251,6 +2324,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
         let result = mdd.compile(&input);
@@ -2310,6 +2384,7 @@ mod test_default_mdd {
     fn test_default_visualisation() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2326,6 +2401,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
         let _ = mdd.compile(&input);
@@ -2341,6 +2417,7 @@ mod test_default_mdd {
     fn test_terse_visualisation() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2357,6 +2434,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
         let _ = mdd.compile(&input);
@@ -2377,6 +2455,7 @@ mod test_default_mdd {
     fn test_show_deleted_viz() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2393,6 +2472,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
         let _ = mdd.compile(&input);
@@ -2413,6 +2493,7 @@ mod test_default_mdd {
     fn test_show_group_merged() {
         let mut barrier = SimpleBarrier::default();
         barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
             problem:    &LocBoundsAndThresholdsExamplePb,
@@ -2429,6 +2510,7 @@ mod test_default_mdd {
                 depth: 0,
             },
             barrier: &barrier,
+            dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
         let _ = mdd.compile(&input);

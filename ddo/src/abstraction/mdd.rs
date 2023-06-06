@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier};
+use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier, DominanceChecker};
 
 // FIXME: Replace that with the following enum definition when const generics allow enum types
 /// What type of cutset are we using for relaxed DDs ?
@@ -67,6 +67,7 @@ pub struct CompilationInput<'a, State> {
     pub best_lb: isize,
     /// Data structure containing info about past compilations used to prune the search
     pub barrier: &'a dyn Barrier<State = State>,
+    pub dominance: &'a dyn DominanceChecker<State = State>,
 }
 
 /// This trait describes the operations that can be expected from an abstract

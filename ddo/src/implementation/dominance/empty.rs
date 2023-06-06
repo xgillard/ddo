@@ -17,25 +17,29 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module (and its submodule) provide the abstractions for the basic
-//! building blocks of an MDD solvers. A client willing to use our library to
-//! implement a solver for his/her particular problem should look into the `dp`
-//! submodule. Indeed, `dp` is the place where the traits `Problem` and
-//! `Relaxation` are defined. These are the two abstractions that one *must*
-//! implement in order to be able to use our library.
+use std::{marker::PhantomData, cmp::Ordering, sync::Arc};
+use crate::DominanceChecker;
 
-mod dp;
-mod heuristics;
-mod solver;
-mod fringe;
-mod mdd;
-mod barrier;
-mod dominance;
+/// Implementation of a dominance checker that never detects any dominance relation
+pub struct EmptyDominanceChecker<T>
+{
+    _phantom: PhantomData<T>,
+}
 
-pub use dp::*;
-pub use heuristics::*;
-pub use solver::*;
-pub use fringe::*;
-pub use mdd::*;
-pub use barrier::*;
-pub use dominance::*;
+impl<T> Default for EmptyDominanceChecker<T> {
+    fn default() -> Self {
+        Self { _phantom: Default::default() }
+    }
+}
+
+impl<T> DominanceChecker for EmptyDominanceChecker<T> {
+    type State = T;
+
+    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: isize) -> bool {
+        false
+    }
+
+    fn cmp(&self, _: &Self::State, _: &Self::State) -> Ordering {
+        Ordering::Equal
+    }
+}

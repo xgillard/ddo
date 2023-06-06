@@ -28,7 +28,7 @@
 use std::clone::Clone;
 use std::{sync::Arc, hash::Hash};
 
-use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Barrier, EmptyBarrier, DefaultMDDLEL};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Barrier, EmptyBarrier, DefaultMDDLEL, DominanceChecker};
 
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -47,7 +47,7 @@ enum WorkLoad<T> {
 /// # use ddo::*;
 /// #
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-/// # struct KnapsackState {
+/// # pub struct KnapsackState {
 /// #     depth: usize,
 /// #     capacity: usize
 /// # }
@@ -121,6 +121,23 @@ enum WorkLoad<T> {
 /// #         a.capacity.cmp(&b.capacity)
 /// #     }
 /// # }
+/// # pub struct KPDominance;
+/// # impl Dominance for KPDominance {
+/// #     type State = KnapsackState;
+/// #     type Key = usize;
+/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #        Some(state.depth)
+/// #     }
+/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #         1
+/// #     }
+/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #         state.capacity as isize
+/// #     }
+/// #     fn use_value(&self) -> bool {
+/// #         true
+/// #     }
+/// # }
 /// 
 /// // To create a new solver, you need to be able to provide it with a problem instance, a relaxation
 /// // and the various required heuristic. This example assumes the existence of the Knapsack structure
@@ -142,22 +159,26 @@ enum WorkLoad<T> {
 /// // 4. Define the policy you will want to use regarding the maximum width of the DD
 /// let width = FixedWidth(100); // here we mean max 100 nodes per layer
 /// 
-/// // 5. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+/// // 5. Add a dominance relation checker
+/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// 
+/// // 6. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 /// 
-/// // 5. Create the solver fringe
+/// // 7. Create the solver fringe
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 ///  
-/// // 6. Instanciate your solver
+/// // 8. Instanciate your solver
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
 ///       &relaxation, 
 ///       &heuristic, 
 ///       &width, 
+///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// 
-/// // 7. Maximize your objective function
+/// // 9. Maximize your objective function
 /// // the outcome provides the value of the best solution that was found for
 /// // the problem (if one was found) along with a flag indicating whether or
 /// // not the solution was proven optimal. Hence an unsatisfiable problem
@@ -168,7 +189,7 @@ enum WorkLoad<T> {
 /// // The best solution (if one exist) is retrieved with
 /// let solution = solver.best_solution();
 ///
-/// // 8. Do whatever you like with the optimal solution.
+/// // 10. Do whatever you like with the optimal solution.
 /// assert_eq!(Some(220), outcome.best_value);
 /// println!("Solution");
 /// for decision in solution.unwrap().iter() {
@@ -229,6 +250,7 @@ where D: DecisionDiagram<State = State> + Default,
     mdd: D,
     /// Data structure containing info about past compilations used to prune the search
     barrier: B,
+    dominance: &'a (dyn DominanceChecker<State = State>),
 }
 
 impl<'a, State, D, B>  SequentialSolver<'a, State, D, B>
@@ -242,10 +264,11 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width: &'a (dyn WidthHeuristic<State>),
+        dominance: &'a (dyn DominanceChecker<State = State>),
         cutoff: &'a (dyn Cutoff), 
         fringe: &'a mut (dyn Fringe<State = State>),
     ) -> Self {
-        Self::custom(problem, relaxation, ranking, width, cutoff, fringe)
+        Self::custom(problem, relaxation, ranking, width, dominance, cutoff, fringe)
     }
 
     pub fn custom(
@@ -253,6 +276,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width_heu: &'a (dyn WidthHeuristic<State>),
+        dominance: &'a (dyn DominanceChecker<State = State>),
         cutoff: &'a (dyn Cutoff),
         fringe: &'a mut (dyn Fringe<State = State>),
     ) -> Self {
@@ -273,6 +297,7 @@ where
             abort_proof: None,
             mdd: D::default(),
             barrier: B::default(),
+            dominance,
         }
     }
 
@@ -325,6 +350,7 @@ where
             ranking: self.ranking,
             cutoff: self.cutoff,
             barrier: &self.barrier,
+            dominance: self.dominance,
             residual: &node,
             //
             best_lb,
@@ -346,6 +372,7 @@ where
             ranking: self.ranking,
             cutoff: self.cutoff,
             barrier: &self.barrier,
+            dominance: self.dominance,
             residual: &node,
             //
             best_lb,
@@ -521,12 +548,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -544,12 +573,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -567,12 +598,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -591,12 +624,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -616,12 +651,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -638,12 +675,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -661,12 +700,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -684,12 +725,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -708,12 +751,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -744,12 +789,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqBarrierSolver::custom(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -780,12 +827,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -820,12 +869,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqBarrierSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -860,12 +911,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -905,12 +958,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );
@@ -928,12 +983,14 @@ mod test_solver {
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
+        let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
             &problem,
             &relax,
             &ranking,
             &width,
+            &dominance,
             &cutoff,
             &mut fringe,
         );

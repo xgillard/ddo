@@ -17,25 +17,8 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This module (and its submodule) provide the abstractions for the basic
-//! building blocks of an MDD solvers. A client willing to use our library to
-//! implement a solver for his/her particular problem should look into the `dp`
-//! submodule. Indeed, `dp` is the place where the traits `Problem` and
-//! `Relaxation` are defined. These are the two abstractions that one *must*
-//! implement in order to be able to use our library.
+mod empty;
+mod simple;
 
-mod dp;
-mod heuristics;
-mod solver;
-mod fringe;
-mod mdd;
-mod barrier;
-mod dominance;
-
-pub use dp::*;
-pub use heuristics::*;
-pub use solver::*;
-pub use fringe::*;
-pub use mdd::*;
-pub use barrier::*;
-pub use dominance::*;
+pub use empty::*;
+pub use simple::*;

@@ -160,12 +160,36 @@ impl Relaxation for KPRelax<'_> {
 /// solver is a `StateRanking`. This is an heuristic which is used to select the most
 /// and least promising nodes as a means to only delete/merge the *least* promising nodes
 /// when compiling restricted and relaxed DDs.
-pub struct KPranking;
-impl StateRanking for KPranking {
+pub struct KPRanking;
+impl StateRanking for KPRanking {
     type State = KnapsackState;
 
     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
         a.capacity.cmp(&b.capacity)
+    }
+}
+
+/// Optionally, define dominance relations between states obtained throughout the search.
+/// In this case, s1 dominates s2 if s1.capacity >= s2.capacity and s1 has a larger value than s2.
+pub struct KPDominance;
+impl Dominance for KPDominance {
+    type State = KnapsackState;
+    type Key = usize;
+
+    fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+        Some(state.depth)
+    }
+
+    fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+        1
+    }
+
+    fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+        state.capacity as isize
+    }
+
+    fn use_value(&self) -> bool {
+        true
     }
 }
 
@@ -267,8 +291,9 @@ fn main() {
     let args = Args::parse();
     let problem = read_instance(&args.fname).unwrap();
     let relaxation= KPRelax{pb: &problem};
-    let heuristic= KPranking;
+    let heuristic= KPRanking;
     let width = max_width(problem.nb_variables(), args.width);
+    let dominance = SimpleDominanceChecker::new(KPDominance);
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
@@ -277,6 +302,7 @@ fn main() {
         &relaxation, 
         &heuristic, 
         width.as_ref(), 
+        &dominance,
         &cutoff, 
         &mut fringe,
     );

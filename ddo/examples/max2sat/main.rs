@@ -35,6 +35,7 @@ fn main() {
     let relax = Max2SatRelax(&problem);
     let rank = Max2SatRanking;
     let width = max_width(&problem, width);
+    let dominance = EmptyDominanceChecker::default();
     let cutoff = cutoff(timeout);
     let mut fringe = NoDupFringe::new(MaxUB::new(&Max2SatRanking));
 
@@ -43,6 +44,7 @@ fn main() {
         &relax, 
         &rank, 
         width.as_ref(), 
+        &dominance,
         cutoff.as_ref(), 
         &mut fringe,
     );
