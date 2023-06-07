@@ -48,27 +48,15 @@ pub trait Dominance {
     fn partial_cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Option<Ordering> {
         let mut ordering = Ordering::Equal;
         if self.use_value() {
-            if val_a < val_b {
-                ordering = Ordering::Less;
-            } else if val_a > val_b {
-                ordering = Ordering::Greater;
-            }
+            ordering = val_a.cmp(&val_b);
         }
         for i in 0..self.nb_dimensions(a) {
-            let coord_a = self.get_coordinate(a, i);
-            let coord_b = self.get_coordinate(b, i);
-            if coord_a < coord_b {
-                if ordering == Ordering::Greater {
-                    return None;
-                } else if ordering == Ordering::Equal {
-                    ordering = Ordering::Less;
-                }
-            } else if coord_a > coord_b {
-                if ordering == Ordering::Less {
-                    return None;
-                } else if ordering == Ordering::Equal {
-                    ordering = Ordering::Greater;
-                }
+            match (ordering, self.get_coordinate(a, i).cmp(&self.get_coordinate(b, i))) {
+                (Ordering::Less, Ordering::Greater)  => return None,
+                (Ordering::Greater, Ordering::Less)  => return None,
+                (Ordering::Equal, Ordering::Greater) => ordering = Ordering::Greater,
+                (Ordering::Equal, Ordering::Less)    => ordering = Ordering::Less,
+                (_, _)                               => (),
             }
         }
         Some(ordering)
@@ -77,19 +65,17 @@ pub trait Dominance {
     /// Comparator to order states by increasing value, regardless of their key
     fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering {
         if self.use_value() {
-            if val_a < val_b {
-                return Ordering::Less;
-            } else if val_a > val_b {
-                return Ordering::Greater;
+            match val_a.cmp(&val_b) {
+                Ordering::Less    => return Ordering::Less,
+                Ordering::Greater => return Ordering::Greater,
+                Ordering::Equal   => (),
             }
         }
         for i in 0..self.nb_dimensions(a) {
-            let coord_a = self.get_coordinate(a, i);
-            let coord_b = self.get_coordinate(b, i);
-            if coord_a < coord_b {
-                return Ordering::Less;
-            } else if coord_a > coord_b {
-                return Ordering::Greater;
+            match self.get_coordinate(a, i).cmp(&self.get_coordinate(b, i)) {
+                Ordering::Less    => return Ordering::Less,
+                Ordering::Greater => return Ordering::Greater,
+                Ordering::Equal   => (),
             }
         }
         Ordering::Equal
