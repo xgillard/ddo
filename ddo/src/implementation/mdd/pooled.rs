@@ -1396,7 +1396,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact())
+        assert!(mdd.is_exact())
     }
 
     #[test]
@@ -1425,7 +1425,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact())
+        assert!(mdd.is_exact())
     }
 
     #[test]
@@ -1454,7 +1454,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(false, mdd.is_exact())
+        assert!(!mdd.is_exact())
     }
     #[test]
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
@@ -1482,7 +1482,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact())
+        assert!(mdd.is_exact())
     }
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
@@ -1510,7 +1510,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(false, mdd.is_exact())
+        assert!(!mdd.is_exact())
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_solution() {
@@ -1768,7 +1768,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact());
+        assert!(mdd.is_exact());
 
         let expected = vec![
             (DummyState{depth: 0, value: 0}, Some(Threshold {value: 0, explored: true})),
@@ -1821,7 +1821,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact());
+        assert!(mdd.is_exact());
 
         let expected = vec![
             (DummyState{depth: 0, value: 0}, Some(Threshold {value: 0, explored: true})),
@@ -1874,7 +1874,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact());
+        assert!(mdd.is_exact());
 
         let expected = vec![
             (DummyState{depth: 0, value: 0}, Some(Threshold {value: 1, explored: true})),
@@ -1927,7 +1927,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
         
-        assert_eq!(true, mdd.is_exact());
+        assert!(mdd.is_exact());
 
         let expected = vec![
             (DummyState{depth: 0, value: 0}, Some(Threshold {value: 1, explored: true})),
@@ -2107,7 +2107,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
-        assert_eq!(false,    mdd.is_exact());
+        assert!(!mdd.is_exact());
         assert_eq!(Some(16), mdd.best_value());
 
         let mut v = FxHashMap::<char, isize>::default();
@@ -2186,7 +2186,7 @@ mod test_default_mdd {
         let result = mdd.compile(&input);
         assert!(result.is_ok());
 
-        assert_eq!(false,    mdd.is_exact());
+        assert!(!mdd.is_exact());
         assert_eq!(Some(16), mdd.best_value());
 
         let mut v = FxHashMap::<char, isize>::default();

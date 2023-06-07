@@ -31,7 +31,7 @@ struct Params {
 
 fn main() {
     let Params{file, width, timeout} = Params::parse();
-    let problem = Max2Sat::new(read_instance(&file).unwrap());
+    let problem = Max2Sat::new(read_instance(file).unwrap());
     let relax = Max2SatRelax(&problem);
     let rank = Max2SatRanking;
     let width = max_width(&problem, width);

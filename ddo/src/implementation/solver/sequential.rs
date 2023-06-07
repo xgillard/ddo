@@ -488,7 +488,7 @@ where
             }
         }
 
-        self.best_sol.as_mut().map(|sol| sol.sort_unstable_by_key(|d| d.variable.0));
+        if let Some(sol) = self.best_sol.as_mut() { sol.sort_unstable_by_key(|d| d.variable.0) }
         Completion { is_exact: self.abort_proof.is_none(), best_value: self.best_sol.as_ref().map(|_| self.best_lb) }
     }
 
@@ -545,7 +545,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -570,7 +570,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -595,7 +595,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -621,7 +621,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -648,7 +648,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -672,7 +672,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -697,7 +697,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -722,7 +722,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -748,7 +748,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -786,7 +786,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -824,7 +824,7 @@ mod test_solver {
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
             weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -866,7 +866,7 @@ mod test_solver {
             profit  : vec![60, 210, 12, 5, 100, 120, 110],
             weight  : vec![10,  45, 20, 4,  20,  30,  50]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -908,7 +908,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -955,7 +955,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -980,7 +980,7 @@ mod test_solver {
             profit  : vec![60, 100, 120],
             weight  : vec![10,  20,  30]
         };
-        let relax = KPRelax {pb: &&problem};
+        let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
         let width = NbUnassignedWitdh(problem.nb_variables());
@@ -1028,7 +1028,7 @@ mod test_solver {
             0
         }
         fn transition(&self, state: &Self::State, dec: Decision) -> Self::State {
-            let mut ret = state.clone();
+            let mut ret = *state;
             ret.depth  += 1;
             if dec.value == TAKE_IT { 
                 ret.capacity -= self.weight[dec.variable.id()] 

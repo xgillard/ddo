@@ -28,7 +28,7 @@ struct Params {
 
 fn main() {
     let Params{file, width, timeout} = Params::parse();
-    let graph = Graph::from(File::open(&file).expect("could not open file"));
+    let graph = Graph::from(File::open(file).expect("could not open file"));
     let problem = Mcp::from(graph);
     let relax = McpRelax::new(&problem);
     let rank = McpRanking;

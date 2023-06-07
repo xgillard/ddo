@@ -565,13 +565,13 @@ mod test_no_dup_fringe {
         let mut heap = empty_fringe();
         push_all(&mut heap, &nodes);
         assert_eq!(5,     heap.len());
-        assert_eq!(false, heap.is_empty());
+        assert!(!heap.is_empty());
 
         let actual   = pop_all(&mut heap);
         let expected = vec![5, 4, 3, 2, 1];
         assert_eq!(expected,  actual);
         assert_eq!(0,    heap.len());
-        assert_eq!(true, heap.is_empty());
+        assert!(heap.is_empty());
     }
     #[test]
     fn pushing_same_node_multiple_times_does_not_alter_pop_order() {
@@ -591,13 +591,13 @@ mod test_no_dup_fringe {
         push_all(&mut heap, &nodes);
         // even after pushing all nodes five times, there are only 5 nodes in the heap
         assert_eq!(5,     heap.len());
-        assert_eq!(false, heap.is_empty());
+        assert!(!heap.is_empty());
 
         let actual   = pop_all(&mut heap);
         let expected = vec![5, 4, 3, 2, 1];
         assert_eq!(expected,  actual);
         assert_eq!(0,    heap.len());
-        assert_eq!(true, heap.is_empty());
+        assert!(heap.is_empty());
     }
 
     #[test]
@@ -630,13 +630,13 @@ mod test_no_dup_fringe {
         push_all(&mut heap, &nodes_3);
         // even after pushing all nodes five times, there are only 5 nodes in the heap
         assert_eq!(5,     heap.len());
-        assert_eq!(false, heap.is_empty());
+        assert!(!heap.is_empty());
 
         let actual   = pop_all(&mut heap);
         let expected = vec![5, 4, 3, 2, 1];
         assert_eq!(expected,  actual);
         assert_eq!(0,    heap.len());
-        assert_eq!(true, heap.is_empty());
+        assert!(heap.is_empty());
     }
 
     fn push_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFringe<T>, nodes: &[SubProblem<usize>]) {
