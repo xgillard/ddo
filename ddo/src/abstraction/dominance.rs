@@ -94,3 +94,109 @@ pub trait DominanceChecker {
     fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering;
     
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Arc, cmp::Ordering};
+
+    use crate::Dominance;
+
+    #[test]
+    fn by_default_value_is_unused() {
+        let dominance = DummyDominance;
+        assert_eq!(false, dominance.use_value());
+    }
+
+    #[test]
+    fn partial_cmp_returns_none_when_coordinates_disagree() {
+        let dominance = DummyDominance;
+
+        assert_eq!(None, dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, -1, 1], 0));
+
+        let dominance = DummyDominanceWithValue;
+
+        assert_eq!(None, dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], -1));
+    }
+
+    #[test]
+    fn partial_cmp_returns_some_when_coordinates_agree() {
+        let dominance = DummyDominance;
+
+        assert_eq!(Some(Ordering::Less), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], 0));
+        assert_eq!(Some(Ordering::Less), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], -1));
+        assert_eq!(Some(Ordering::Greater), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, -1], 0));
+        assert_eq!(Some(Ordering::Greater), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, -1], 1));
+        assert_eq!(Some(Ordering::Equal), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 0], 1));
+
+        let dominance = DummyDominanceWithValue;
+
+        assert_eq!(Some(Ordering::Less), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 0], 1));
+        assert_eq!(Some(Ordering::Less), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![1, 1, 1], 1));
+        assert_eq!(Some(Ordering::Greater), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 0], -1));
+        assert_eq!(Some(Ordering::Greater), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![-1, -1, -1], -1));
+        assert_eq!(Some(Ordering::Equal), dominance.partial_cmp(&vec![0, 0, 0], 0, &vec![0, 0, 0], 0));
+    }
+
+    #[test]
+    fn cmp_returns_first_diff() {
+        let dominance = DummyDominance;
+
+        assert_eq!(Ordering::Less, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], 0));
+        assert_eq!(Ordering::Less, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 1, -1], 0));
+        assert_eq!(Ordering::Less, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], -1));
+        assert_eq!(Ordering::Greater, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, -1], 0));
+        assert_eq!(Ordering::Greater, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, -1, 1], 0));
+        assert_eq!(Ordering::Greater, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, -1], 1));
+        assert_eq!(Ordering::Equal, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, 0], 1));
+
+        let dominance = DummyDominanceWithValue;
+
+        assert_eq!(Ordering::Less, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], 0));
+        assert_eq!(Ordering::Less, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 1, -1], 0));
+        assert_eq!(Ordering::Less, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, -1], 1));
+        assert_eq!(Ordering::Greater, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, -1], 0));
+        assert_eq!(Ordering::Greater, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, -1, 1], 0));
+        assert_eq!(Ordering::Greater, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, 1], -1));
+        assert_eq!(Ordering::Equal, dominance.cmp(&vec![0, 0, 0], 0, &vec![0, 0, 0], 0));
+    }
+
+    struct DummyDominance;
+    impl Dominance for DummyDominance {
+        type State = Vec<isize>;
+        type Key = isize;
+
+        fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
+            Some(state[0])
+        }
+
+        fn nb_dimensions(&self, state: &Self::State) -> usize {
+            state.len()
+        }
+
+        fn get_coordinate(&self, state: &Self::State, i: usize) -> isize {
+            state[i]
+        }
+    }
+
+    struct DummyDominanceWithValue;
+    impl Dominance for DummyDominanceWithValue {
+        type State = Vec<isize>;
+        type Key = isize;
+
+        fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
+            Some(state[0])
+        }
+
+        fn nb_dimensions(&self, state: &Self::State) -> usize {
+            state.len()
+        }
+
+        fn get_coordinate(&self, state: &Self::State, i: usize) -> isize {
+            state[i]
+        }
+
+        fn use_value(&self) -> bool {
+            true
+        }
+    }
+}

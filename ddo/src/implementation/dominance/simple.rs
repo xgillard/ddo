@@ -98,3 +98,94 @@ where
         self.dominance.cmp(a, val_a, b, val_b)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::{Dominance, SimpleDominanceChecker, DominanceChecker};
+
+    #[test]
+    fn not_dominated_when_keys_are_different() {
+        let dominance = SimpleDominanceChecker::new(DummyDominance);
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![3, 0]), 3));
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![2, 0]), 2));
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![1, 0]), 1));
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0));
+    }
+
+    #[test]
+    fn dominated_when_keys_are_equal() {
+        let dominance = SimpleDominanceChecker::new(DummyDominance);
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
+        assert_eq!(true, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 2));
+        assert_eq!(true, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 1));
+        assert_eq!(true, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0));
+    }
+
+    #[test]
+    fn not_dominated_when_keys_are_equal_but_coordinates_disagree() {
+        let dominance = SimpleDominanceChecker::new(DummyDominance);
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 5));
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 5]), 1));
+    }
+
+    #[test]
+    fn entry_is_added_only_when_dominant() {
+        let dominance = SimpleDominanceChecker::new(DummyDominance);
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
+        assert_eq!(true, dominance.data.get(&0).is_some());
+        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+
+        assert_eq!(true, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 1));
+        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 1));
+        assert_eq!(2, dominance.data.get(&0).unwrap().len());
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 5));
+        assert_eq!(3, dominance.data.get(&0).unwrap().len());
+    }
+
+    #[test]
+    fn entry_is_removed_when_dominated() {
+        let dominance = SimpleDominanceChecker::new(DummyDominance);
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
+        assert_eq!(true, dominance.data.get(&0).is_some());
+        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 5));
+        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+
+        assert_eq!(false, dominance.is_dominated_or_insert(Arc::new(vec![0, 2]), 7));
+        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+    }
+
+    struct DummyDominance;
+    impl Dominance for DummyDominance {
+        type State = Vec<isize>;
+        type Key = isize;
+
+        fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
+            Some(state[0])
+        }
+
+        fn nb_dimensions(&self, state: &Self::State) -> usize {
+            state.len()
+        }
+
+        fn get_coordinate(&self, state: &Self::State, i: usize) -> isize {
+            state[i]
+        }
+
+        fn use_value(&self) -> bool {
+            true
+        }
+    }
+}
