@@ -231,6 +231,7 @@ fn main() {
     let relaxation = GolombRelax{pb: &problem};
     let heuristic = Golombranking;
     let width = max_width(problem.nb_variables(), args.width);
+    let dominance = EmptyDominanceChecker::default();
     let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
@@ -239,6 +240,7 @@ fn main() {
         &relaxation,
         &heuristic,
         width.as_ref(),
+        &dominance,
         &cutoff,
         &mut fringe,
     );

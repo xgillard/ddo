@@ -28,6 +28,7 @@ pub fn solve_golomb(n: usize) -> isize {
     let relaxation = GolombRelax{pb: &problem};
     let heuristic = Golombranking;
     let width = NbUnassignedWitdh(problem.nb_variables());
+    let dominance = EmptyDominanceChecker::default();
     let cutoff = NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
@@ -36,6 +37,7 @@ pub fn solve_golomb(n: usize) -> isize {
         &relaxation,
         &heuristic,
         &width,
+        &dominance,
         &cutoff,
         &mut fringe,
     );
