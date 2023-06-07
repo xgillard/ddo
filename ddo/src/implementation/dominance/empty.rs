@@ -39,7 +39,7 @@ impl<T> DominanceChecker for EmptyDominanceChecker<T> {
         false
     }
 
-    fn cmp(&self, _: &Self::State, _: &Self::State) -> Ordering {
+    fn cmp(&self, _: &Self::State, _: isize, _: &Self::State, _: isize) -> Ordering {
         Ordering::Equal
     }
 }

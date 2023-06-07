@@ -45,6 +45,7 @@ enum WorkLoad<T> {
 /// # Example Usage
 /// ```
 /// # use ddo::*;
+/// # use std::sync::Arc;
 /// #
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// # pub struct KnapsackState {
@@ -125,13 +126,13 @@ enum WorkLoad<T> {
 /// # impl Dominance for KPDominance {
 /// #     type State = KnapsackState;
 /// #     type Key = usize;
-/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #     fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
-/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {
 /// #         1
 /// #     }
-/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #     fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
 /// #         state.capacity as isize
 /// #     }
 /// #     fn use_value(&self) -> bool {

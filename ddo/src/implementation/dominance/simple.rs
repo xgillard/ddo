@@ -62,7 +62,7 @@ where
     type State = D::State;
 
     fn is_dominated_or_insert(&self, state: Arc<Self::State>, value: isize) -> bool {
-        if let Some(key) = self.dominance.get_key(state.as_ref()) {
+        if let Some(key) = self.dominance.get_key(state.clone()) {
             match self.data.entry(key) {
                 Entry::Occupied(mut e) => {
                     let mut dominated = false;
@@ -94,7 +94,7 @@ where
         }
     }
 
-    fn cmp(&self, a: &Self::State, b: &Self::State) -> Ordering {
-        self.dominance.cmp(a, b)
+    fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering {
+        self.dominance.cmp(a, val_a, b, val_b)
     }
 }

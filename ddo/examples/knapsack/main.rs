@@ -20,7 +20,7 @@
 //! This example show how to implement a solver for the knapsack problem using ddo.
 //! It is a fairly simple example but  features most of the aspects you will want to
 //! copy when implementing your own solver.
-use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Instant}, num::ParseIntError};
+use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Instant}, num::ParseIntError, sync::Arc};
 
 use clap::Parser;
 use ddo::*;
@@ -176,15 +176,15 @@ impl Dominance for KPDominance {
     type State = KnapsackState;
     type Key = usize;
 
-    fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+    fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
         Some(state.depth)
     }
 
-    fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+    fn nb_dimensions(&self, _state: &Self::State) -> usize {
         1
     }
 
-    fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+    fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
         state.capacity as isize
     }
 
