@@ -132,10 +132,10 @@ use crate::{WidthHeuristic, SubProblem};
 /// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
-/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {
 /// #         1
 /// #     }
-/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #     fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
 /// #         state.capacity as isize
 /// #     }
 /// #     fn use_value(&self) -> bool {
@@ -361,10 +361,10 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
-/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {
 /// #         1
 /// #     }
-/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #     fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
 /// #         state.capacity as isize
 /// #     }
 /// #     fn use_value(&self) -> bool {
@@ -600,10 +600,10 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
-/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {
 /// #         1
 /// #     }
-/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #     fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
 /// #         state.capacity as isize
 /// #     }
 /// #     fn use_value(&self) -> bool {
@@ -839,10 +839,10 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
-/// #     fn nb_value_dimensions(&self, _state: &Self::State) -> usize {
+/// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {
 /// #         1
 /// #     }
-/// #     fn get_value_at(&self, state: &Self::State, _: usize) -> isize {
+/// #     fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
 /// #         state.capacity as isize
 /// #     }
 /// #     fn use_value(&self) -> bool {
