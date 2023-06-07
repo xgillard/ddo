@@ -22,9 +22,9 @@ use std::{cmp::Ordering, sync::Arc};
 /// This trait abstracts gives the possibility to model dominance relations
 /// between the states of a specific problem. The dominance relation is evaluated
 /// only for pairs of states that are mapped to the same key. A dominance relation
-/// exists if the values of a state are greater or equal than those of another state
+/// exists if the coordinates of a state are greater or equal than those of another state
 /// for all given dimensions. The value obtained by the solver for each state can
-/// optionally be included in the comparison.
+/// optionally be used as a coordinate in the comparison.
 pub trait Dominance {
     type State;
     type Key;
@@ -32,18 +32,18 @@ pub trait Dominance {
     /// Takes a state and returns a key that maps it to comparable states
     fn get_key(&self, state: &Self::State) -> Option<Self::Key>;
 
-    /// Returns the number of dimensions that capture the value of a state
-    fn nb_value_dimensions(&self, state: &Self::State) -> usize;
+    /// Returns the number of dimensions to include in the comparison
+    fn nb_dimensions(&self, state: &Self::State) -> usize;
 
-    /// Returns the i-th component of the value associated with the given state
+    /// Returns the i-th coordinate associated with the given state
     /// Greater is better for the dominance check
-    fn get_value_at(&self, state: &Self::State, i: usize) -> isize;
+    fn get_coordinate(&self, state: &Self::State, i: usize) -> isize;
 
-    /// Whether to include the value in the dominance check
+    /// Whether to include the value as a coordinate in the dominance check
     fn use_value(&self) -> bool { false }
 
-    /// Checks whether there is a dominance relation between the two states, given the values
-    /// provided by the function get_value_at evaluated for all i in 0..self.nb_value_dimensions()
+    /// Checks whether there is a dominance relation between the two states, given the coordinates
+    /// provided by the function get_coordinate evaluated for all i in 0..self.nb_dimensions()
     /// Note: the states are assumed to have the same key, otherwise they are not comparable for dominance
     fn partial_cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Option<Ordering> {
         let mut ordering = Ordering::Equal;
@@ -54,17 +54,16 @@ pub trait Dominance {
                 ordering = Ordering::Greater;
             }
         }
-        for i in 0..self.nb_value_dimensions(a) {
-            let val_a = self.get_value_at(a, i);
-            let val_b = self.get_value_at(b, i);
-            
-            if val_a < val_b {
+        for i in 0..self.nb_dimensions(a) {
+            let coord_a = self.get_coordinate(a, i);
+            let coord_b = self.get_coordinate(b, i);
+            if coord_a < coord_b {
                 if ordering == Ordering::Greater {
                     return None;
                 } else if ordering == Ordering::Equal {
                     ordering = Ordering::Less;
                 }
-            } else if val_a > val_b {
+            } else if coord_a > coord_b {
                 if ordering == Ordering::Less {
                     return None;
                 } else if ordering == Ordering::Equal {
@@ -76,14 +75,20 @@ pub trait Dominance {
     }
 
     /// Comparator to order states by increasing value, regardless of their key
-    fn cmp(&self, a: &Self::State, b: &Self::State) -> Ordering {
-        for i in 0..self.nb_value_dimensions(a) {
-            let val_a = self.get_value_at(a, i);
-            let val_b = self.get_value_at(b, i);
-            
+    fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering {
+        if self.use_value() {
             if val_a < val_b {
                 return Ordering::Less;
             } else if val_a > val_b {
+                return Ordering::Greater;
+            }
+        }
+        for i in 0..self.nb_dimensions(a) {
+            let coord_a = self.get_coordinate(a, i);
+            let coord_b = self.get_coordinate(b, i);
+            if coord_a < coord_b {
+                return Ordering::Less;
+            } else if coord_a > coord_b {
                 return Ordering::Greater;
             }
         }
@@ -100,6 +105,6 @@ pub trait DominanceChecker {
     fn is_dominated_or_insert(&self, state: Arc<Self::State>, value: isize) -> bool;
 
     /// Comparator to order states by increasing value, regardless of their key
-    fn cmp(&self, a: &Self::State, b: &Self::State) -> Ordering;
+    fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering;
     
 }

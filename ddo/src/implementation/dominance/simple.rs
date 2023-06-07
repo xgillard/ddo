@@ -94,7 +94,7 @@ where
         }
     }
 
-    fn cmp(&self, a: &Self::State, b: &Self::State) -> Ordering {
-        self.dominance.cmp(a, b)
+    fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering {
+        self.dominance.cmp(a, val_a, b, val_b)
     }
 }
