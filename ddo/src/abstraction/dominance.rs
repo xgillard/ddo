@@ -30,7 +30,7 @@ pub trait Dominance {
     type Key;
 
     /// Takes a state and returns a key that maps it to comparable states
-    fn get_key(&self, state: &Self::State) -> Option<Self::Key>;
+    fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key>;
 
     /// Returns the number of dimensions to include in the comparison
     fn nb_dimensions(&self, state: &Self::State) -> usize;

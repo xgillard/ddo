@@ -34,6 +34,7 @@ use crate::Cutoff;
 /// 
 /// ```
 /// # use ddo::*;
+/// # use std::sync::Arc;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// pub struct KnapsackState {
@@ -118,7 +119,7 @@ use crate::Cutoff;
 ///       // details omitted in this example
 /// #     type State = KnapsackState;
 /// #     type Key = usize;
-/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #     fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
 /// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {
@@ -172,6 +173,7 @@ impl Cutoff for NoCutoff {
 /// ```
 /// # use std::time::Duration;
 /// # use ddo::*;
+/// # use std::sync::Arc;
 /// #
 /// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// pub struct KnapsackState {
@@ -257,7 +259,7 @@ impl Cutoff for NoCutoff {
 ///       // details omitted in this example
 /// #     type State = KnapsackState;
 /// #     type Key = usize;
-/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #     fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
 /// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {

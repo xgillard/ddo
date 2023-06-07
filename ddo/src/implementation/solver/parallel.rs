@@ -130,6 +130,7 @@ enum WorkLoad<T> {
 /// # Example Usage
 /// ```
 /// # use ddo::*;
+/// # use std::sync::Arc;
 /// #
 /// # #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// # pub struct KnapsackState {
@@ -210,7 +211,7 @@ enum WorkLoad<T> {
 /// # impl Dominance for KPDominance {
 /// #     type State = KnapsackState;
 /// #     type Key = usize;
-/// #     fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+/// #     fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
 /// #        Some(state.depth)
 /// #     }
 /// #     fn nb_dimensions(&self, _state: &Self::State) -> usize {

@@ -198,7 +198,7 @@ impl Dominance for KPDominance {
     type State = KnapsackState;
     type Key = usize;
 
-    fn get_key(&self, state: &Self::State) -> Option<Self::Key> {
+    fn get_key(&self, state: Arc<Self::State>) -> Option<Self::Key> {
         Some(state.depth)
     }
 

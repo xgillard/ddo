@@ -62,7 +62,7 @@ where
     type State = D::State;
 
     fn is_dominated_or_insert(&self, state: Arc<Self::State>, value: isize) -> bool {
-        if let Some(key) = self.dominance.get_key(state.as_ref()) {
+        if let Some(key) = self.dominance.get_key(state.clone()) {
             match self.data.entry(key) {
                 Entry::Occupied(mut e) => {
                     let mut dominated = false;
