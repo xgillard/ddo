@@ -316,7 +316,7 @@ where
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, dominance, cutoff, fringe, num_cpus::get())
     }
-
+    #[allow(clippy::too_many_arguments)]
     pub fn custom(
         problem: &'a (dyn Problem<State = State> + Send + Sync),
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
