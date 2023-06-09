@@ -17,29 +17,28 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::{marker::PhantomData, cmp::Ordering, sync::Arc};
-use crate::{DominanceChecker, DominanceCheckResult};
+use ddo::Dominance;
 
-/// Implementation of a dominance checker that never detects any dominance relation
-pub struct EmptyDominanceChecker<T>
-{
-    _phantom: PhantomData<T>,
-}
+use crate::model::LcsState;
 
-impl<T> Default for EmptyDominanceChecker<T> {
-    fn default() -> Self {
-        Self { _phantom: Default::default() }
-    }
-}
+pub struct LcsDominance;
+impl Dominance for LcsDominance {
+    type State = LcsState;
+    type Key = usize;
 
-impl<T> DominanceChecker for EmptyDominanceChecker<T> {
-    type State = T;
-
-    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: isize) -> DominanceCheckResult {
-        DominanceCheckResult { dominated: false, threshold: None }
+    fn get_key(&self, state: std::sync::Arc<Self::State>) -> Option<Self::Key> {
+        Some(state.position[0])
     }
 
-    fn cmp(&self, _: &Self::State, _: isize, _: &Self::State, _: isize) -> Ordering {
-        Ordering::Equal
+    fn nb_dimensions(&self, state: &Self::State) -> usize {
+        state.position.len()
+    }
+
+    fn get_coordinate(&self, state: &Self::State, i: usize) -> isize {
+        - (state.position[i] as isize)
+    }
+
+    fn use_value(&self) -> bool {
+        true
     }
 }

@@ -10,7 +10,7 @@ use std::{sync::Arc, hash::Hash, collections::hash_map::Entry, fmt::Debug};
 use derive_builder::Builder;
 use fxhash::FxHashMap;
 
-use crate::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem, FRONTIER, Solution};
+use crate::{NodeFlags, Decision, CutsetType, CompilationInput, Completion, Reason, CompilationType, Problem, LAST_EXACT_LAYER, DecisionDiagram, SubProblem, FRONTIER, Solution, DominanceCheckResult};
 
 /// The identifier of a node: it indicates the position of the referenced node 
 /// in the ’nodes’ vector of the mdd structure.
@@ -686,7 +686,13 @@ where
         curr_l.retain(|id| {
             let node = get!(mut node id, self);
             if node.flags.is_exact() {
-                !input.dominance.is_dominated_or_insert(node.state.clone(), node.value_top)
+                let DominanceCheckResult { dominated, threshold } = input.dominance.is_dominated_or_insert(node.state.clone(), node.value_top);
+                if dominated {
+                    node.theta = threshold;
+                    false
+                } else {
+                    true
+                }
             } else {
                 true
             }

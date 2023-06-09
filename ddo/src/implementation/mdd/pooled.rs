@@ -9,7 +9,7 @@ use std::{sync::Arc, hash::Hash, collections::{hash_map::Entry, BTreeMap}, fmt::
 
 use fxhash::FxHashMap;
 
-use crate::{NodeFlags, Decision, CompilationInput, Completion, Reason, CompilationType, Problem, DecisionDiagram, SubProblem, Solution, VizConfig, Variable};
+use crate::{NodeFlags, Decision, CompilationInput, Completion, Reason, CompilationType, Problem, DecisionDiagram, SubProblem, Solution, VizConfig, Variable, DominanceCheckResult};
 
 /// The identifier of a node: it indicates the position of the referenced node 
 /// in the ’nodes’ vector of the mdd structure.
@@ -619,8 +619,8 @@ where
         to_remove.drain(..).for_each(|s| { self.pool.remove(s.as_ref()); });
         
         let mut to_expand = curr_l.clone(); // need to preserve layer to remember nodes pruned by barrier
+        self._filter_with_dominance(input, &mut to_expand);
         if !self.layers.is_empty() {
-            self._filter_with_dominance(input, &mut to_expand);
             self._filter_with_barrier(input, &mut to_expand);
         }
 
@@ -642,7 +642,13 @@ where
         curr_l.retain(|id| {
             let node = get!(mut node id, self);
             if node.flags.is_exact() {
-                !input.dominance.is_dominated_or_insert(node.state.clone(), node.value_top)
+                let DominanceCheckResult { dominated, threshold } = input.dominance.is_dominated_or_insert(node.state.clone(), node.value_top);
+                if dominated {
+                    node.theta = threshold; // set theta for later propagation
+                    false
+                } else {
+                    true
+                }
             } else {
                 true
             }

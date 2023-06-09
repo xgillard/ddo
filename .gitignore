@@ -1,5 +1,6 @@
 **/*.rs.bk
 *.iml
+.DS_Store
 .idea/
 /target
 /examples/target
