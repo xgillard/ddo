@@ -136,7 +136,7 @@ fn knappi_1_5000_1000_1() {
     assert_eq!(solve_id("knapPI_1_5000_1000_1"), 276457);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_2_2000_1000_1() {
     assert_eq!(solve_id("knapPI_2_2000_1000_1"), 18051);
 }
@@ -151,12 +151,12 @@ fn knappi_1_10000_1000_1() {
     assert_eq!(solve_id("knapPI_1_10000_1000_1"), 563647);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_1_2000_1000_1() {
     assert_eq!(solve_id("knapPI_1_2000_1000_1"), 110625);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_3_1000_1000_1() {
     assert_eq!(solve_id("knapPI_3_1000_1000_1"), 14390);
 }
@@ -176,12 +176,11 @@ fn knappi_2_10000_1000_1() {
     assert_eq!(solve_id("knapPI_2_10000_1000_1"), 90204);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_3_2000_1000_1() {
     assert_eq!(solve_id("knapPI_3_2000_1000_1"), 28919);
 }
-
-#[ignore] #[test]
+#[test]
 fn knappi_1_1000_1000_1() {
     assert_eq!(solve_id("knapPI_1_1000_1000_1"), 54503);
 }
@@ -196,7 +195,7 @@ fn knappi_3_5000_1000_1() {
     assert_eq!(solve_id("knapPI_3_5000_1000_1"), 72505);
 }
 
-#[ignore] #[test]
+#[test]
 fn knappi_2_1000_1000_1() {
     assert_eq!(solve_id("knapPI_2_1000_1000_1"), 9052);
 }
