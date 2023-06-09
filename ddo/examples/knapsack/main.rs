@@ -24,6 +24,7 @@ use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Insta
 
 use clap::Parser;
 use ddo::*;
+use ordered_float::OrderedFloat;
 
 #[cfg(test)]
 mod tests;
@@ -53,9 +54,20 @@ pub struct Knapsack {
     /// The maximum capacity of the sack (when empty)
     capacity: usize,
     /// the profit of each item
-    profit: Vec<usize>,
+    profit: Vec<isize>,
     /// the weight of each item.
     weight: Vec<usize>,
+    /// the order in which the items are considered
+    order: Vec<usize>,
+}
+
+impl Knapsack {
+    pub fn new(capacity: usize, profit: Vec<isize>, weight: Vec<usize>) -> Self {
+        let mut order = (0..profit.len()).collect::<Vec<usize>>();
+        order.sort_unstable_by_key(|i| OrderedFloat(- profit[*i] as f64 / weight[*i] as f64));
+
+        Knapsack { capacity, profit, weight, order }
+    }
 }
 
 /// For each variable in the decision problem, there are two possible choices:
@@ -82,10 +94,8 @@ impl Problem for Knapsack {
     {
         if state.capacity >= self.weight[variable.id()] {
             f.apply(Decision { variable, value: TAKE_IT });
-            f.apply(Decision { variable, value: LEAVE_IT_OUT });
-        } else {
-            f.apply(Decision { variable, value: LEAVE_IT_OUT });
         }
+        f.apply(Decision { variable, value: LEAVE_IT_OUT });
     }
     fn initial_state(&self) -> Self::State {
         KnapsackState{ depth: 0, capacity: self.capacity }
@@ -102,13 +112,13 @@ impl Problem for Knapsack {
         ret
     }
     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
-        self.profit[dec.variable.id()] as isize * dec.value
+        self.profit[dec.variable.id()] * dec.value
     }
 
     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
         let n = self.nb_variables();
         if depth < n {
-            Some(Variable(depth))
+            Some(Variable(self.order[depth]))
         } else {
             None
         }
@@ -146,13 +156,27 @@ impl Relaxation for KPRelax<'_> {
     }
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
-        let mut tot = 0;
-        for var in state.depth..self.pb.nb_variables() {
-            if self.pb.weight[var] <= state.capacity {
-                tot += self.pb.profit[var];
+        let mut depth = state.depth;
+        let mut max_profit = 0;
+        let mut capacity = state.capacity;
+
+        while capacity > 0 && depth < self.pb.profit.len() {
+            let item = self.pb.order[depth];
+
+            if capacity >= self.pb.weight[item] {
+                max_profit += self.pb.profit[item];
+                capacity -= self.pb.weight[item];
+            } else {
+                let item_ratio = capacity as f64 / self.pb.weight[item] as f64;
+                let item_profit = item_ratio * self.pb.profit[item] as f64;
+                max_profit += item_profit.floor() as isize;
+                capacity = 0;
             }
+
+            depth += 1;
         }
-        tot as isize
+
+        max_profit
     }
 }
 
@@ -271,7 +295,7 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
             count += 1;
         }
     }
-    Ok(Knapsack { capacity: capa, profit, weight })
+    Ok(Knapsack::new(capa, profit, weight))
 }
 
 /// An utility function to return an max width heuristic that can either be a fixed width
