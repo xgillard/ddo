@@ -18,7 +18,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use std::{marker::PhantomData, cmp::Ordering, sync::Arc};
-use crate::DominanceChecker;
+use crate::{DominanceChecker, DominanceCheckResult};
 
 /// Implementation of a dominance checker that never detects any dominance relation
 pub struct EmptyDominanceChecker<T>
@@ -35,8 +35,8 @@ impl<T> Default for EmptyDominanceChecker<T> {
 impl<T> DominanceChecker for EmptyDominanceChecker<T> {
     type State = T;
 
-    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: isize) -> bool {
-        false
+    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: isize) -> DominanceCheckResult {
+        DominanceCheckResult { dominated: false, threshold: None }
     }
 
     fn cmp(&self, _: &Self::State, _: isize, _: &Self::State, _: isize) -> Ordering {
