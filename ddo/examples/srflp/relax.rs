@@ -67,7 +67,7 @@ impl Relaxation for SrflpRelax<'_> {
         
         maybe_place = maybe_place.diff(must_place);
 
-        let maybe_place = if maybe_place.len() > 0 {
+        let maybe_place = if !maybe_place.is_empty() {
             Some(maybe_place)
         } else {
             None
@@ -126,10 +126,9 @@ impl Relaxation for SrflpRelax<'_> {
             if state.must_place.contains(i) && state.must_place.contains(j) {
                 flows.push(f);
             } else if let Some(maybe) = state.maybe_place.as_ref() {
-                if state.must_place.contains(i) && maybe.contains(j) && n_flows_from_must_to_maybe_place > 0 {
-                    flows.push(f);
-                    n_flows_from_must_to_maybe_place -= 1;
-                } else if maybe.contains(i) && state.must_place.contains(j) && n_flows_from_must_to_maybe_place > 0 {
+                if n_flows_from_must_to_maybe_place > 0 && 
+                    ((state.must_place.contains(i) && maybe.contains(j)) ||
+                        (maybe.contains(i) && state.must_place.contains(j)))  {
                     flows.push(f);
                     n_flows_from_must_to_maybe_place -= 1;
                 } else if maybe.contains(i) && maybe.contains(j) && n_flows_in_maybe_place > 0 {
