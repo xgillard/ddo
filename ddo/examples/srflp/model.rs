@@ -56,7 +56,7 @@ impl Srflp {
             cut: vec![0; inst.nb_departments],
             depth : 0
         };
-        Self { instance: inst, sorted_lengths: sorted_lengths, sorted_flows: sorted_flows, initial: state }
+        Self { instance: inst, sorted_lengths, sorted_flows, initial: state }
     }
 }
 
@@ -124,7 +124,7 @@ impl Problem for Srflp {
         SrflpState {
             must_place: remaining,
             maybe_place: maybes,
-            cut: cut,
+            cut,
             depth: state.depth + 1
         }
     }

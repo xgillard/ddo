@@ -65,7 +65,7 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<SrflpInstance, Error> {
             continue;
         }
 
-        let data = line.replace(",", " ");
+        let data = line.replace(',', " ");
         let mut data = data.split_ascii_whitespace();
 
         if i == 0 {
