@@ -392,7 +392,7 @@ where
             value_bot: isize::MIN, 
             best: None, 
             inbound: NIL, 
-            rub: input.residual.ub, 
+            rub: isize::MAX, 
             theta: None,
             flags: NodeFlags::new_exact(), 
             depth: input.residual.depth,
@@ -477,13 +477,13 @@ where
         if input.comp_type == CompilationType::Relaxed || self.is_exact {
             let mut best_known = input.best_lb;
 
-            if let Some(id) = self.best_exact_node {
-                let best_exact_value = get!(mut node id, self).value_top;
+            if let Some(best_exact_node) = self.best_exact_node {
+                let best_exact_value = get!(mut node best_exact_node, self).value_top;
                 best_known = best_known.max(best_exact_value);
 
                 for id in self.next_l.values() {
                     if (CUTSET_TYPE == LAST_EXACT_LAYER && self.is_exact) || (CUTSET_TYPE == FRONTIER && self.nodes[id.0].flags.is_exact()) {
-                        self.nodes[id.0].theta = Some(best_exact_value);
+                        self.nodes[id.0].theta = Some(best_known);
                     }
                 }
             }
@@ -510,6 +510,8 @@ where
                             } else {
                                 node.theta = Some(node.value_top);
                             }
+                        } else if node.flags.is_exact() && node.theta.is_none() { // large theta for dangling nodes
+                            node.theta = Some(isize::MAX);
                         }
 
                         Self::_maybe_update_barrier(node, input);
