@@ -18,14 +18,13 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This example uses ddo to solve the Aircraft Landing Problem
-//! Instances can be downloaded from http://people.brunel.ac.uk/~mastjjb/jeb/orlib/airlandinfo.html
 
 use std::{time::{Duration, Instant}};
 
 use clap::Parser;
 use ddo::*;
 
-use crate::{io_utils::read_orlib_instance, model::{AlpRelax, AlpRanking, AlpDecision, RunwayState, Alp}, dominance::AlpDominance};
+use crate::{io_utils::read_instance, model::{AlpRelax, AlpRanking, AlpDecision, RunwayState, Alp}, dominance::AlpDominance};
 
 mod model;
 mod dominance;
@@ -77,8 +76,7 @@ fn cutoff(timeout: Option<u64>) -> Box<dyn Cutoff + Send + Sync> {
 fn main() {
     let args = Args::parse();
     let fname = &args.fname;
-    let instance = read_orlib_instance(fname).unwrap();
-    println!("{:?}", instance);
+    let instance = read_instance(fname).unwrap();
     let problem = Alp::new(instance);
     let relaxation = AlpRelax::new(problem.clone());
     let ranking = AlpRanking;
@@ -88,7 +86,7 @@ fn main() {
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
-    let mut solver = ParBarrierSolverPooled::custom(
+    let mut solver = DefaultBarrierSolver::custom(
         &problem, 
         &relaxation, 
         &ranking, 

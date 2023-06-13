@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::{num::ParseIntError, path::Path, fs::File, io::{BufReader, BufRead}, collections::{HashMap, hash_map::Entry}};
+use std::{num::ParseIntError, path::Path, fs::File, io::{BufReader, BufRead}};
 
 #[derive(Debug, Clone)]
 pub struct AlpInstance {
@@ -25,12 +25,9 @@ pub struct AlpInstance {
     pub nb_aircrafts: usize,
     pub nb_runways: usize,
     pub classes: Vec<usize>,
-    pub earliest: Vec<isize>,
     pub target: Vec<isize>,
     pub latest: Vec<isize>,
     pub separation: Vec<Vec<isize>>,
-    pub early_cost: Vec<isize>,
-    pub late_cost: Vec<isize>,
 }
 
 /// This enumeration simply groups the kind of errors that might occur when parsing a
@@ -53,7 +50,7 @@ pub enum Error {
 
 /// This function is used to read an alp instance from file. It returns either an
 /// alp instance if everything went on well or an error describing the problem.
-pub fn read_orlib_instance<P: AsRef<Path>>(fname: P) -> Result<AlpInstance, Error> {
+pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<AlpInstance, Error> {
     let f = File::open(fname)?;
     let f = BufReader::new(f);
     let lines = f.lines();
@@ -61,88 +58,36 @@ pub fn read_orlib_instance<P: AsRef<Path>>(fname: P) -> Result<AlpInstance, Erro
     let mut data = vec![];
     for line in lines {
         let line = line?;
-        let mut numbers = line.split_ascii_whitespace().map(|x| x.parse::<f64>().unwrap()).collect::<Vec<f64>>();
+        let mut numbers = line.split_ascii_whitespace().map(|x| x.parse::<usize>().unwrap()).collect::<Vec<usize>>();
         data.append(&mut numbers);
     }
 
-    let nb_aircrafts = data[0] as usize;
+    let nb_aircrafts = data[0];
+    let nb_classes = data[1];
+    let nb_runways = data[2];
 
-    let mut earliest = vec![];
     let mut target = vec![];
     let mut latest = vec![];
-    let mut early_cost = vec![];
-    let mut late_cost = vec![];
+    let mut classes = vec![];
 
-    let mut sep = vec![];
-
-    let mut cnt = 2;
+    let mut cnt = 3;
     for _ in 0..nb_aircrafts {
-        earliest.push(data[cnt+1] as isize);
-        target.push(data[cnt+2] as isize);
-        latest.push(data[cnt+3] as isize);
+        target.push(data[cnt] as isize);
+        latest.push(data[cnt + 1] as isize);
+        classes.push(data[cnt + 2]);
 
-        early_cost.push((100.0 * data[cnt+4]) as isize);
-        late_cost.push((100.0 * data[cnt+5]) as isize);
+        cnt += 3;
+    }
 
-        cnt += 6;
-
-        let mut s = vec![];
-        for _ in 0..nb_aircrafts {
-            s.push(data[cnt] as isize);
+    let mut separation = vec![];
+    for _ in 0..nb_classes {
+        let mut sep = vec![];
+        for _ in 0..nb_classes {
+            sep.push(data[cnt] as isize);
             cnt += 1;
         }
-
-        sep.push(s);
+        separation.push(sep);
     }
 
-    let mut clusters = HashMap::new();
-    for i in 0..nb_aircrafts {
-        let mut found = false;
-        for j in 0..nb_aircrafts {
-            if i != j {
-                let mut same = true;
-                for k in 0..nb_aircrafts {
-                    if k != i && k != j && (sep[i][k] != sep[j][k] || sep[k][i] != sep[k][j]) {
-                        same = false;
-                        break;
-                    }
-                }
-
-                if same {
-                    sep[i][i] = sep[j][i];
-                    found = true;
-                    match clusters.entry(sep[i].clone()) {
-                        Entry::Vacant(e) => {
-                            let members = vec![i];
-                            e.insert(members);
-                        },
-                        Entry::Occupied(mut e) => e.get_mut().push(i),
-                    }
-                    break;
-                }
-            }
-        }
-
-        if !found {
-            clusters.insert(sep[i].clone(),vec![i]);
-        }
-    }
-
-    let nb_classes = clusters.len();
-    let mut classes = vec![usize::MAX; nb_aircrafts];
-    let mut separation = vec![vec![-1; nb_classes]; nb_classes];
-
-    for (i, (_, members)) in clusters.iter().enumerate() {
-        for j in members.iter().copied() {
-            classes[j] = i;
-        }
-    }
-
-    for (i, (seps, _)) in clusters.iter().enumerate() {
-        for (j, s) in seps.iter().copied().enumerate() {
-            separation[i][classes[j]] = s;
-        }
-    }
-
-    Ok(AlpInstance { nb_classes, nb_aircrafts, nb_runways: 1, classes, earliest, target, latest, separation, early_cost, late_cost })
+    Ok(AlpInstance { nb_classes, nb_aircrafts, nb_runways, classes, target, latest, separation })
 }
