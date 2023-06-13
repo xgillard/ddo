@@ -63,19 +63,18 @@ where
             match self.data.entry(key) {
                 Entry::Occupied(mut e) => {
                     let mut dominated = false;
-                    let mut threshold = match self.dominance.use_value() {
-                        true => Some(isize::MAX),
-                        false => None,
-                    };
+                    let mut threshold = Some(isize::MAX);
                     e.get_mut().retain(|other| {
                         match self.dominance.partial_cmp(state.as_ref(), value, other.state.as_ref(), other.value) {
                             Some(cmp) => match cmp {
                                 DominanceCmpResult { ordering: Ordering::Less, only_val_diff} => {
                                     dominated = true;
-                                    if only_val_diff {
-                                        threshold = threshold.min(Some(other.value.saturating_sub(1)));
-                                    } else {
-                                        threshold = threshold.min(Some(other.value));
+                                    if self.dominance.use_value() {
+                                        if only_val_diff {
+                                            threshold = threshold.min(Some(other.value.saturating_sub(1)));
+                                        } else {
+                                            threshold = threshold.min(Some(other.value));
+                                        }
                                     }
                                     true
                                 },
