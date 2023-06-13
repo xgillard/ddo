@@ -27,6 +27,8 @@ use ddo::*;
 
 use crate::io_utils::AlpInstance;
 
+const DUMMY: isize = -1;
+
 /// The state of the DP model
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AlpState {
@@ -81,9 +83,9 @@ impl Alp {
     }
 
     pub fn get_arrival_time(&self, info: &Vec<RunwayState>, aircraft: usize, runway: usize) -> isize {
-        if info[runway].prev_time == -1 {
+        if info[runway].prev_time == 0 && info[runway].prev_class == DUMMY { // No aircraft before
             self.instance.target[aircraft]
-        } else if info[runway].prev_class == -1 {
+        } else if info[runway].prev_class == DUMMY { // Unknown aircraft before
             self.instance.target[aircraft]
                 .max(info[runway].prev_time + self.min_separation_to[self.instance.classes[aircraft]])
         } else {
@@ -120,7 +122,7 @@ impl Problem for Alp {
 
         AlpState {
             rem,
-            info: vec![RunwayState {prev_class: -1, prev_time: -1}; self.instance.nb_runways],
+            info: vec![RunwayState {prev_class: DUMMY, prev_time: 0}; self.instance.nb_runways],
         }
     }
 
@@ -129,7 +131,7 @@ impl Problem for Alp {
     }
 
     fn transition(&self, state: &Self::State, decision: ddo::Decision) -> Self::State {
-        if decision.value == -1 {
+        if decision.value == DUMMY {
             state.clone()
         } else {
             let AlpDecision {class, runway} = self.from_decision(decision.value);
@@ -147,7 +149,7 @@ impl Problem for Alp {
     }
 
     fn transition_cost(&self, state: &Self::State, decision: ddo::Decision) -> isize {
-        if decision.value == -1 {
+        if decision.value == DUMMY {
             0
         } else {
             let AlpDecision {class, runway} = self.from_decision(decision.value);
@@ -190,7 +192,7 @@ impl Problem for Alp {
         }
 
         if tot_rem == 0 {
-            f.apply(Decision {variable, value: -1 });
+            f.apply(Decision {variable, value: DUMMY });
         }
     }
 }
@@ -212,7 +214,7 @@ impl Relaxation for AlpRelax {
 
     fn merge(&self, states: &mut dyn Iterator<Item = &Self::State>) -> Self::State {
         let mut rem = vec![usize::MAX; self.pb.instance.nb_classes];
-        let mut info = vec![RunwayState { prev_class: -1, prev_time: isize::MAX }; self.pb.instance.nb_runways];
+        let mut info = vec![RunwayState { prev_class: DUMMY, prev_time: isize::MAX }; self.pb.instance.nb_runways];
 
         for s in states {
             rem.iter_mut().enumerate().for_each(|(k,r)| *r = (*r).min(s.rem[k]));

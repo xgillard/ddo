@@ -43,9 +43,6 @@ pub enum Error {
     /// The parser expected to read somehting that was an integer but got some garbage
     #[error("parse int {0}")]
     ParseInt(#[from] ParseIntError),
-    /// The file was not properly formatted.
-    #[error("ill formed instance")]
-    Format,
 }
 
 /// This function is used to read an alp instance from file. It returns either an

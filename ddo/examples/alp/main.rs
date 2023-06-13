@@ -19,7 +19,7 @@
 
 //! This example uses ddo to solve the Aircraft Landing Problem
 
-use std::{time::{Duration, Instant}};
+use std::time::{Duration, Instant};
 
 use clap::Parser;
 use ddo::*;
