@@ -64,7 +64,7 @@ fn max_width<P: Problem>(p: &P, w: Option<usize>) -> Box<dyn WidthHeuristic<Srfl
     if let Some(w) = w {
         Box::new(SrflpWidth::new(p.nb_variables(), w))
     } else {
-        Box::new(NbUnassignedWitdh(p.nb_variables()))
+        Box::new(NbUnassignedWidth(p.nb_variables()))
     }
 }
 /// An utility function to return a cutoff heuristic that can either be a time budget policy

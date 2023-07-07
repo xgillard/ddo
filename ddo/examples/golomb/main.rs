@@ -177,8 +177,8 @@ impl Relaxation for GolombRelax<'_> {
 /// solver is a `StateRanking`. This is an heuristic which is used to select the most
 /// and least promising nodes as a means to only delete/merge the *least* promising nodes
 /// when compiling restricted and relaxed DDs.
-pub struct Golombranking;
-impl StateRanking for Golombranking {
+pub struct GolombRanking;
+impl StateRanking for GolombRanking {
     type State = GolombState;
 
     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
@@ -219,7 +219,7 @@ fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> +
     if let Some(w) = w {
         Box::new(FixedWidth(w))
     } else {
-        Box::new(NbUnassignedWitdh(nb_vars))
+        Box::new(NbUnassignedWidth(nb_vars))
     }
 }
 
@@ -229,7 +229,7 @@ fn main() {
     let args = Args::parse();
     let problem = Golomb::new(args.size);
     let relaxation = GolombRelax{pb: &problem};
-    let heuristic = Golombranking;
+    let heuristic = GolombRanking;
     let width = max_width(problem.nb_variables(), args.width);
     let dominance = EmptyDominanceChecker::default();
     let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));//NoCutoff;
