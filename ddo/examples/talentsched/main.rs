@@ -52,7 +52,7 @@ struct Args {
 }
 
 /// An utility function to return an max width heuristic that can either be a fixed width
-/// policy (if w is fixed) or an adaptative policy returning the number of unassigned variables
+/// policy (if w is fixed) or an adaptive policy returning the number of unassigned variables
 /// in the overall problem.
 fn max_width<P: Problem>(p: &P, w: Option<usize>) -> Box<dyn WidthHeuristic<P::State> + Send + Sync> {
     if let Some(w) = w {

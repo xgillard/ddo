@@ -74,7 +74,7 @@ struct Node<T> {
 struct Edge {
     /// The identifier of the node at the ∗∗source∗∗ of this edge.
     from: NodeId,
-    /// The identifier of the node at the ∗∗destinaition∗∗ of this edge.
+    /// The identifier of the node at the ∗∗destination∗∗ of this edge.
     to: NodeId,
     /// This is the decision label associated to this edge. It gives the 
     /// information "what variable" is assigned to "what value".
@@ -99,17 +99,17 @@ struct Layer {
 }
 
 /// The decision diagram in itself. This structure essentially keeps track
-/// of the nodes composing the diagam as well as the edges connecting these
+/// of the nodes composing the diagram as well as the edges connecting these
 /// nodes in two vectors (enabling preallocation and good cache locality). 
 /// In addition to that, it also keeps track of the path (root_pa) from the
 /// problem root to the root of this decision diagram (explores a sub problem). 
 /// The prev_l comprises information about the nodes that are currently being
 /// expanded, next_l stores the information about the nodes from the next layer 
-/// and cutset stores an exact cutset of the DD.
+/// and cut-set stores an exact cut-set of the DD.
 /// Depending on the type of DD compiled, different cutset types will be used:
-/// - Exact: no cutset is needed since the DD is exact
-/// - Restricted: the last exact layer is used as cutset
-/// - Relaxed: either the last exact layer of the frontier cutset can be chosen
+/// - Exact: no cut-set is needed since the DD is exact
+/// - Restricted: the last exact layer is used as cut-set
+/// - Relaxed: either the last exact layer of the frontier cut-set can be chosen
 ///            within the CompilationInput
 #[derive(Debug, Clone)]
 pub struct Mdd<T, const CUTSET_TYPE: CutsetType>
@@ -126,7 +126,7 @@ where
     /// This vector stores the information about all edges connecting the nodes 
     /// of the decision diagram.
     edges: Vec<Edge>,
-    /// This vector stores the information about all edge lists consituting 
+    /// This vector stores the information about all edge lists constituting 
     /// linked lists between edges
     edgelists: Vec<EdgesList>,
     
@@ -149,7 +149,7 @@ where
     path_to_root: Vec<Decision>,
     /// The identifier of the last exact layer (should this dd be inexact)
     lel: Option<LayerId>,
-    /// The cutset of the decision diagram (only maintained for relaxed dd)
+    /// The cut-set of the decision diagram (only maintained for relaxed dd)
     cutset: Vec<NodeId>,
     /// The identifier of the best terminal node of the diagram (None when the
     /// problem compiled into this dd is infeasible)
@@ -537,7 +537,7 @@ where
                     node.state.clone(), 
                     node.depth, 
                     theta, 
-                    !node.flags.is_cutset()) // if it is in the cutset it has not been expored !
+                    !node.flags.is_cutset()) // if it is in the cutset it has not been explored !
             }
         }
     }
@@ -870,7 +870,7 @@ where
 }
 
 // ############################################################################
-// #### VISUALISATION #########################################################
+// #### VISUALIZATION #########################################################
 // ############################################################################
 /// This is how you configure the output visualisation e.g.
 /// if you want to see the RUB, LocB and the nodes that have been merged
@@ -1014,7 +1014,7 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
 
         format!("shape={shape},style=filled,color={color},peripheries={peripheries},group=\"{group}\",label=\"{label}\"")
     }
-    /// Determines the group of a node based on the last branching decicion leading to it
+    /// Determines the group of a node based on the last branching decision leading to it
     fn node_group(&self, node: &Node<T>) -> String {
         if let Some(eid) = node.best {
             let edge = self.edges[eid.0];
@@ -1520,7 +1520,7 @@ mod test_default_mdd {
     }
 
     #[test]
-    fn a_relaxed_mdd_is_not_exact_when_a_merge_occured() {
+    fn a_relaxed_mdd_is_not_exact_when_a_merge_occurred() {
         let barrier = EmptyBarrier::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
@@ -1576,7 +1576,7 @@ mod test_default_mdd {
         assert!(mdd.is_exact())
     }
     #[test]
-    fn a_restricted_mdd_is_not_exact_when_a_restriction_occured() {
+    fn a_restricted_mdd_is_not_exact_when_a_restriction_occurred() {
         let barrier = EmptyBarrier::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {

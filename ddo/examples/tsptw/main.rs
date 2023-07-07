@@ -40,7 +40,7 @@ mod dominance;
 #[cfg(test)]
 mod tests;
 
-/// TSPTW is a solver based on branch-and-bound mdd which solves the travelling
+/// TSPTW is a solver based on branch-and-bound mdd which solves the traveling
 /// salesman problem with time windows to optimality. 
 ///
 /// The implementation of tsptw is based on 

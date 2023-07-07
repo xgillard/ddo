@@ -26,14 +26,14 @@ use std::num::ParseIntError;
 /// This enumeration simply groups the kind of errors that might occur when parsing a
 /// instance file. There can be io errors (file unavailable ?), format error
 /// (e.g. the file is not an instance but contains the text of your next paper), 
-/// or parse int errors (which are actually a variant of the format errror since it tells 
+/// or parse int errors (which are actually a variant of the format error since it tells 
 /// you that the parser expected an integer number but got ... something else).
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// There was an io related error
     #[error("io error {0}")]
     Io(#[from] std::io::Error),
-    /// The parser expected to read somehting that was an integer but got some garbage
+    /// The parser expected to read something that was an integer but got some garbage
     #[error("parse int {0}")]
     ParseInt(#[from] ParseIntError),
 }

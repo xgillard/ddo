@@ -20,7 +20,7 @@
 use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier, DominanceChecker};
 
 // FIXME: Replace that with the following enum definition when const generics allow enum types
-/// What type of cutset are we using for relaxed DDs ?
+/// What type of cut-set are we using for relaxed DDs ?
 pub type CutsetType = u8;
 /// enqueue the last layer with only exact nodes
 pub const LAST_EXACT_LAYER: u8 = 1;
@@ -102,7 +102,7 @@ pub trait DecisionDiagram {
     /// approximate DD, it returns the value None instead.
     fn best_exact_solution(&self) -> Option<Solution>;
     /// Iteratively applies the given function `func` to each element of the
-    /// exact cutset that was computed during DD compilation.
+    /// exact cut-set that was computed during DD compilation.
     ///
     /// # Important:
     /// This can only be called if the DD was compiled in relaxed mode.

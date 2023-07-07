@@ -53,13 +53,13 @@ impl NodeFlags {
     pub const F_RELAXED: u8 = 2;
     /// The position of the marked flag.
     pub const F_MARKED: u8 = 4;
-    /// The position of the cutset flag.
+    /// The position of the cut-set flag.
     pub const F_CUTSET: u8 = 8;
     /// The position of the deleted flag.
     pub const F_DELETED: u8 = 16;
     /// The position of the barrier flag.
     pub const F_BARRIER: u8 = 32;
-    /// The position of the above cutset flag.
+    /// The position of the above cut-set flag.
     pub const F_ABOVE_CUTSET: u8 = 64;
 
     /// Creates a new set of flags, either initialized with exact on or with
@@ -98,12 +98,12 @@ impl NodeFlags {
     pub fn is_marked(self) -> bool {
         self.test(NodeFlags::F_MARKED)
     }
-    /// Returns true iff the cutset flag is turned on
+    /// Returns true iff the cut-set flag is turned on
     #[inline]
     pub fn is_cutset(self) -> bool {
         self.test(NodeFlags::F_CUTSET)
     }
-    /// Returns true iff the above cutset flag is turned on
+    /// Returns true iff the above cut-set flag is turned on
     #[inline]
     pub fn is_above_cutset(self) -> bool {
         self.test(NodeFlags::F_ABOVE_CUTSET)

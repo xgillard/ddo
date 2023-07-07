@@ -34,12 +34,12 @@ pub struct KnapsackState {
     /// problem.
     depth: usize,
     /// the remaining capacity in the knapsack. That is the maximum load the sack
-    /// can bear withouth cracking **given what is already in the sack**.
+    /// can bear without cracking **given what is already in the sack**.
     capacity: usize
 }
 
 /// This structure represents a particular instance of the knapsack problem.
-/// This is the sctructure that will implement the knapsack model.
+/// This is the structure that will implement the knapsack model.
 /// 
 /// The problem definition is quite easy to understand: there is a knapsack having 
 /// a maximum (weight) capacity, and a set of items to chose from. Each of these
@@ -126,7 +126,7 @@ impl Problem for Knapsack {
 /// 
 /// # Note:
 /// In addition to the aforementioned two operations, the KPRelax structure implements
-/// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
+/// an optional `fast_upper_bound` method. Which one provides a useful bound to 
 /// prune some portions of the state-space as the decision diagrams are compiled.
 /// (aka rough upper bound pruning).
 pub struct KPRelax<'a>{pub pb: &'a Knapsack}
@@ -195,14 +195,14 @@ struct Args {
 /// This enumeration simply groups the kind of errors that might occur when parsing a
 /// knapsack instance from file. There can be io errors (file unavailable ?), format error
 /// (e.g. the file is not a knapsack instance but contains the text of your next paper), 
-/// or parse int errors (which are actually a variant of the format errror since it tells 
+/// or parse int errors (which are actually a variant of the format error since it tells 
 /// you that the parser expected an integer number but got ... something else).
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// There was an io related error
     #[error("io error {0}")]
     Io(#[from] std::io::Error),
-    /// The parser expected to read somehting that was an integer but got some garbage
+    /// The parser expected to read something that was an integer but got some garbage
     #[error("parse int {0}")]
     ParseInt(#[from] ParseIntError),
     /// The file was not properly formatted.
@@ -210,7 +210,7 @@ pub enum Error {
     Format,
 }
 
-/// This funciton is used to read a knapsack instance from file. It returns either a
+/// This function is used to read a knapsack instance from file. It returns either a
 /// knapsack instance if everything went on well or an error describing the problem.
 pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
     let f = File::open(fname)?;
@@ -254,7 +254,7 @@ fn locate(id: &str) -> PathBuf {
 }
 
 /// This is your executable's entry point. It is the place where all the pieces are put together
-/// to create a fast an effectuve solver for the knapsack problem.
+/// to create a fast an effective solver for the knapsack problem.
 fn main() {
     let fname = locate("f1_l-d_kp_10_269");
        

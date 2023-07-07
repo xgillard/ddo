@@ -30,9 +30,9 @@ use crate::{StateRanking, SubProblemRanking, SubProblem};
 /// ranking.
 /// 
 /// In practice, MaxUB is implemented as a shim wrapper around a regular 
-/// stateranking which eases the reuse of otherwise required code. The comparison
+/// state-ranking which eases the reuse of otherwise required code. The comparison
 /// is initially made on the upper bound only, then the longest path value, and 
-/// it is eventually delegated to the stateranking as a means to break ties when
+/// it is eventually delegated to the state-ranking as a means to break ties when
 /// an equality is detected.
 ///
 /// # Example

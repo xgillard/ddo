@@ -61,7 +61,7 @@
 //!     /// problem.
 //!     depth: usize,
 //!     /// the remaining capacity in the knapsack. That is the maximum load the sack
-//!     /// can bear withouth cracking **given what is already in the sack**.
+//!     /// can bear without cracking **given what is already in the sack**.
 //!     capacity: usize
 //! }
 //! ```
@@ -79,7 +79,7 @@
 //! # }
 //! # 
 //! /// This structure represents a particular instance of the knapsack problem.
-//! /// This is the sctructure that will implement the knapsack model.
+//! /// This is the structure that will implement the knapsack model.
 //! /// 
 //! /// The problem definition is quite easy to understand: there is a knapsack having 
 //! /// a maximum (weight) capacity, and a set of items to chose from. Each of these
@@ -110,7 +110,7 @@
 //! /// encouraged to go checking the documentation of the `Problem` trait.
 //! impl Problem for Knapsack {
 //!     // This associated type indicates that the type which is used to represent
-//!     // a state of the knapsack problem is `KnapsackState`. Hence the statespace
+//!     // a state of the knapsack problem is `KnapsackState`. Hence the state-space
 //!     // of the problem consists of the set of KnapsackStates that can be represented
 //!     type State = KnapsackState;
 //! 
@@ -119,7 +119,7 @@
 //!     fn nb_variables(&self) -> usize {
 //!         self.profit.len()
 //!     }
-//!     // This method returns the intial state of your DP model. In our case, that
+//!     // This method returns the initial state of your DP model. In our case, that
 //!     // is nothing but an empty sack.
 //!     fn initial_state(&self) -> Self::State {
 //!         KnapsackState{ depth: 0, capacity: self.capacity }
@@ -298,15 +298,15 @@
 //!     type State = KnapsackState;
 //!     
 //!     // It compares two states and returns an ordering. Greater means that
-//!     // state a is prefered over state b. Less means that state b should be 
-//!     // preferred over state a. And Equals means you dont care.
+//!     // state a is preferred over state b. Less means that state b should be 
+//!     // preferred over state a. And Equals means you don't care.
 //!     fn compare(&self, a: &Self::State, b: &Self::State) -> std::cmp::Ordering {
 //!         a.capacity.cmp(&b.capacity)
 //!     }
 //! }
 //! ```
 //! 
-//! # Instanciate your Solver
+//! # Instantiate your Solver
 //! As soon as you have defined a problem and relaxation and state ranking, you are 
 //! good to go. The only thing you still need to do is to write your main method and 
 //! spin your solver to solve actual problems. Here is how you would do it.
@@ -427,13 +427,13 @@
 //! // 5. Add a dominance relation checker
 //! let dominance = SimpleDominanceChecker::new(KPDominance);
 //! 
-//! // 6. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+//! // 6. Decide of a cutoff heuristic (if you don't want to let the solver run for ever)
 //! let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 //! 
 //! // 7. Create the solver fringe
 //! let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 //!  
-//! // 8. Instanciate your solver
+//! // 8. Instantiate your solver
 //! let mut solver = DefaultSolver::new(
 //!       &problem, 
 //!       &relaxation, 
@@ -471,8 +471,8 @@
 //! For the exploration of the APIs, you are encouraged to start with the types
 //! `ddo::Problem` and `ddo::Relaxation` which defines the core abstractions
 //! you will need to implement. After that, it is also interesting to have a
-//! look at the various heuristics availble and the configuration options you
-//! can use when cutomizing the behavior of your solver and mdd. That should 
+//! look at the various heuristics available and the configuration options you
+//! can use when customizing the behavior of your solver and mdd. That should 
 //! get you covered and you should be able to get a deep understanding of how 
 //! to use our library.
 //!

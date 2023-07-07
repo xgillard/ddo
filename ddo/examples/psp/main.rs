@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! This example show how to implement a solver for the pigment sequencint problem 
+//! This example show how to implement a solver for the pigment sequencing problem 
 //! using ddo. It is a fairly simple example but it features most of the aspects you will
 //! want to copy when implementing your own solver.
 
@@ -63,7 +63,7 @@ struct Args {
 }
 
 /// An utility function to return an max width heuristic that can either be a fixed width
-/// policy (if w is fixed) or an adaptative policy returning the number of unassigned variables
+/// policy (if w is fixed) or an adaptive policy returning the number of unassigned variables
 /// in the overall problem.
 fn max_width<P: Problem>(p: &P, w: Option<usize>) -> Box<dyn WidthHeuristic<P::State> + Send + Sync> {
     if let Some(w) = w {
