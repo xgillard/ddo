@@ -20,14 +20,14 @@
 //! This module is meant to tests the correctness of our golomb example
 use ddo::*;
 
-use crate::{Golomb, Golombranking, GolombRelax};
+use crate::{Golomb, GolombRanking, GolombRelax};
 
 pub fn solve_golomb(n: usize) -> isize {
 
     let problem = Golomb::new(n);
     let relaxation = GolombRelax{pb: &problem};
-    let heuristic = Golombranking;
-    let width = NbUnassignedWitdh(problem.nb_variables());
+    let heuristic = GolombRanking;
+    let width = NbUnassignedWidth(problem.nb_variables());
     let dominance = EmptyDominanceChecker::default();
     let cutoff = NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));

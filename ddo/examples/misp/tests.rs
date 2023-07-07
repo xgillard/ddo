@@ -42,7 +42,7 @@ pub fn solve_id(id: &str) -> isize {
     let relaxation = MispRelax {pb: &&problem};
     let ranking = MispRanking;
 
-    let width = NbUnassignedWitdh(problem.nb_variables());
+    let width = NbUnassignedWidth(problem.nb_variables());
     let dominance = EmptyDominanceChecker::default();
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));

@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWitdh, Variable, Decision, Relaxation, Solver, Completion, SeqNoBarrierSolverLel, SeqBarrierSolverLel, SeqBarrierSolverFc, SeqNoBarrierSolverFc};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWidth, Variable, Decision, Relaxation, Solver, Completion, SeqNoBarrierSolverLel, SeqBarrierSolverLel, SeqBarrierSolverFc, SeqNoBarrierSolverFc};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -139,7 +139,7 @@ fn max_width<'a>(n: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<PyState<'
     if let Some(w) = w {
         Box::new(FixedWidth(w))
     } else {
-        Box::new(NbUnassignedWitdh(n))
+        Box::new(NbUnassignedWidth(n))
     }
 }
 

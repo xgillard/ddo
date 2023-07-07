@@ -548,7 +548,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -573,7 +573,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -598,7 +598,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
@@ -624,7 +624,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
@@ -651,7 +651,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -675,7 +675,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -700,7 +700,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -725,7 +725,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -751,7 +751,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::custom(
@@ -789,7 +789,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqBarrierSolver::custom(
@@ -827,7 +827,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
@@ -869,7 +869,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqBarrierSolver::new(
@@ -911,7 +911,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(
@@ -958,7 +958,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = SeqSolver::new(
@@ -983,7 +983,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = SeqSolver::new(

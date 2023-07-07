@@ -250,7 +250,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #     profit  : vec![60, 100, 120],
 /// #     weight  : vec![10,  20,  30]
 /// };
-/// let heuristic = NbUnassignedWitdh(problem.nb_variables());
+/// let heuristic = NbUnassignedWidth(problem.nb_variables());
 /// let subproblem= SubProblem {
 /// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
 /// #    value: 5, 
@@ -267,7 +267,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// ```
 /// 
 /// # Typical usage example
-/// Typically, you will only ever create a NbUnassignedWitdh policy when instanciating 
+/// Typically, you will only ever create a NbUnassignedWidth policy when instanciating 
 /// your solver. The following example shows how you create a solver that imposes
 /// a maximum layer width of one node per unassigned variable.
 /// 
@@ -388,14 +388,14 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 ///       &problem, 
 ///       &relaxation, 
 ///       &heuristic, 
-///       &NbUnassignedWitdh(problem.nb_variables()),
+///       &NbUnassignedWidth(problem.nb_variables()),
 ///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
 /// ```
 #[derive(Default, Debug, Copy, Clone)]
-pub struct NbUnassignedWitdh(pub usize);
-impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
+pub struct NbUnassignedWidth(pub usize);
+impl <X> WidthHeuristic<X> for NbUnassignedWidth {
     fn max_width(&self, x: &SubProblem<X>) -> usize {
         self.0 - x.path.len()
     }
@@ -489,7 +489,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// #     profit  : vec![60, 100, 120],
 /// #     weight  : vec![10,  20,  30]
 /// };
-/// let heuristic = Times(5, NbUnassignedWitdh(problem.nb_variables()));
+/// let heuristic = Times(5, NbUnassignedWidth(problem.nb_variables()));
 /// let subproblem= SubProblem {
 /// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
 /// #    value: 5, 
@@ -627,7 +627,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 ///       &problem, 
 ///       &relaxation, 
 ///       &heuristic, 
-///       &Times(5, NbUnassignedWitdh(problem.nb_variables())),
+///       &Times(5, NbUnassignedWidth(problem.nb_variables())),
 ///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
@@ -729,7 +729,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #     profit  : vec![60, 100, 120],
 /// #     weight  : vec![10,  20,  30]
 /// };
-/// let heuristic = DivBy(2, NbUnassignedWitdh(problem.nb_variables()));
+/// let heuristic = DivBy(2, NbUnassignedWidth(problem.nb_variables()));
 /// let subproblem= SubProblem {
 /// #    state: Arc::new(KnapsackState{depth: 3, capacity: 2}), 
 /// #    value: 5, 
@@ -866,7 +866,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 ///       &problem, 
 ///       &relaxation, 
 ///       &heuristic, 
-///       &DivBy(2, NbUnassignedWitdh(problem.nb_variables())),
+///       &DivBy(2, NbUnassignedWidth(problem.nb_variables())),
 ///       &dominance,
 ///       &cutoff, 
 ///       &mut fringe);
@@ -890,7 +890,7 @@ mod test_nbunassigned {
     #[test]
     fn non_empty() {
         // assume a problem with 5 variables
-        let heu = NbUnassignedWitdh(5); 
+        let heu = NbUnassignedWidth(5); 
         let sub = SubProblem {
             state: Arc::new('a'),
             value: 10,
@@ -902,7 +902,7 @@ mod test_nbunassigned {
     }
     #[test]
     fn all() {
-        let heu = NbUnassignedWitdh(5); 
+        let heu = NbUnassignedWidth(5); 
         let sub = SubProblem {
             state: Arc::new('a'),
             value: 10,
@@ -915,7 +915,7 @@ mod test_nbunassigned {
     #[test]
     fn empty() {
         // assume a problem with 5 variables
-        let heu = NbUnassignedWitdh(5); 
+        let heu = NbUnassignedWidth(5); 
         let sub = SubProblem {
             state: Arc::new('a'),
             value: 10,
