@@ -40,7 +40,7 @@ pub fn solve_id(id: &str) -> isize {
     let relaxation = AlpRelax::new(problem.clone());
     let ranking = AlpRanking;
 
-    let width = NbUnassignedWitdh(problem.nb_variables());
+    let width = NbUnassignedWidth(problem.nb_variables());
     let dominance = SimpleDominanceChecker::new(AlpDominance);
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));

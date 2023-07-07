@@ -76,6 +76,6 @@ fn max_width<P: Problem>(p: &P, w: Option<usize>) -> Box<dyn WidthHeuristic<P::S
     if let Some(w) = w {
         Box::new(FixedWidth(w))
     } else {
-        Box::new(NbUnassignedWitdh(p.nb_variables()))
+        Box::new(NbUnassignedWidth(p.nb_variables()))
     }
 }

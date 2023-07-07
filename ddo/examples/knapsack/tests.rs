@@ -41,7 +41,7 @@ pub fn solve_id(id: &str) -> isize {
     let relaxation = KPRelax{pb: &problem};
     let ranking = KPRanking;
 
-    let width = NbUnassignedWitdh(problem.nb_variables());
+    let width = NbUnassignedWidth(problem.nb_variables());
     let dominance = SimpleDominanceChecker::new(KPDominance);
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));

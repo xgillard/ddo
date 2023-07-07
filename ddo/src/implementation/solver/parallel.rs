@@ -663,7 +663,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -689,7 +689,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -715,7 +715,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
@@ -742,7 +742,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
@@ -770,7 +770,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -795,7 +795,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -824,7 +824,7 @@ mod test_solver {
         let relax = KPRelax {pb: &&problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DD::custom(
@@ -851,7 +851,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -877,7 +877,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -904,7 +904,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
@@ -943,7 +943,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdFc::custom(
@@ -982,7 +982,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
@@ -1025,7 +1025,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdFc::custom(
@@ -1068,7 +1068,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
@@ -1111,7 +1111,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdFc::custom(
@@ -1154,7 +1154,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
@@ -1202,7 +1202,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let solver = DdLel::custom(
@@ -1228,7 +1228,7 @@ mod test_solver {
         let relax = KPRelax {pb: &problem};
         let ranking = KPRanking;
         let cutoff = NoCutoff;
-        let width = NbUnassignedWitdh(problem.nb_variables());
+        let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
         let mut solver = DdLel::custom(
