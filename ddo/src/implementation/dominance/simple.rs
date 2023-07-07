@@ -23,7 +23,7 @@ use dashmap::{DashMap, mapref::entry::Entry};
 use crate::{Dominance, DominanceChecker, DominanceCmpResult, DominanceCheckResult};
 
 /// Simple implementation of a dominance checker that stores a vector of non-dominated
-/// states for each disctinct key.
+/// states for each distinct key.
 
 #[derive(Debug)]
 struct DominanceEntry<T> {

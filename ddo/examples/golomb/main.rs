@@ -80,7 +80,7 @@ impl Problem for Golomb {
         let next_mark = state.last_mark as usize+ 1;
         for i in next_mark..n2 {
             if state.marks.iter().any(|j| state.distances.contains(i - j)) {
-                continue; // this distance is already present, invalid mark at it (alldifferent)
+                continue; // this distance is already present, invalid mark at it (all different)
             } else {
                 f.apply(Decision { variable, value: i as isize});
             }

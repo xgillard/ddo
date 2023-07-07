@@ -70,12 +70,12 @@ struct KnapsackState {
     /// problem.
     depth: usize,
     /// the remaining capacity in the knapsack. That is the maximum load the sack
-    /// can bear withouth cracking **given what is already in the sack**.
+    /// can bear without cracking **given what is already in the sack**.
     capacity: usize
 }
 
 /// This structure represents a particular instance of the knapsack problem.
-/// This is the sctructure that will implement the knapsack model.
+/// This is the structure that will implement the knapsack model.
 /// 
 /// The problem definition is quite easy to understand: there is a knapsack having 
 /// a maximum (weight) capacity, and a set of items to chose from. Each of these
@@ -172,7 +172,7 @@ implement the `fast_upper_bound()` method of the `Relaxation` trait.
 /// 
 /// # Note:
 /// In addition to the aforementioned two operations, the KPRelax structure implements
-/// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
+/// an optional `fast_upper_bound` method. Which one provides a useful bound to 
 /// prune some portions of the state-space as the decision diagrams are compiled.
 /// (aka rough upper bound pruning).
 struct KPRelax;
@@ -261,13 +261,13 @@ fn main() {
     // 5. Add a dominance relation checker
     let dominance = SimpleDominanceChecker::new(KPDominance);
 
-    // 6. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+    // 6. Decide of a cutoff heuristic (if you don't want to let the solver run for ever)
     let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 
     // 7. Create the solver fringe
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
     
-    // 8. Instanciate your solver
+    // 8. Instantiate your solver
     let mut solver = DefaultSolver::new(
           &problem, 
           &relaxation, 

@@ -44,6 +44,6 @@ pub enum Previous {
     /// It can either be at an actual job
     Job(usize),
     /// Or it can be one among a pool of jobs 
-    /// (relaxed node == job is shroedinger's cat)
+    /// (relaxed node == job is Schrödinger's cat)
     Virtual(BitSet),
 }

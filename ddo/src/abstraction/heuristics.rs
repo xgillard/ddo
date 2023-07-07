@@ -22,7 +22,7 @@
 //! Namely, it defines :
 //!
 //!  - the `WidthHeuristic` which is used to control the maximum width of an MDD
-//!  - the `StateRanking` heuristic which is used to guess the nodes promisingess
+//!  - the `StateRanking` heuristic which is used to guess the nodes promising-ness
 //!  - the `Cutoff` heuristic which is used to impose a stopping criterion on the
 //!    solver resolution.
 
@@ -30,13 +30,13 @@ use std::cmp::Ordering;
 
 use crate::SubProblem;
 
-/// This trait enclapsulates the behavior of the heuristic that determines
+/// This trait encapsulates the behavior of the heuristic that determines
 /// the maximum permitted width of a decision diagram.
 ///
 /// # Technical Note:
 /// Just like `Problem`, `Relaxation` and `StateRanking`, the `WidthHeuristic`
 /// trait is generic over `State`s. However, rather than using the same 
-/// 'assciated-type' mechanism that was used for the former three types, 
+/// 'associated-type' mechanism that was used for the former three types, 
 /// `WidthHeuristic` uses a parameter type for this purpose (the type parameter
 /// approach might feel more familiar to Java or C++ programmers than the 
 /// associated-type). 
@@ -54,8 +54,8 @@ use crate::SubProblem;
 ///    implementation which is applicable regardless of the state of the problem
 ///    which is currently being solved. For instance, the ddo framework offers
 ///    the `Fixed` and `NbUnassigned` width heuristics which are independent of
-///    the problem. The `Fixed` width heuristic imposes that the maxumum layer
-///    width be constant accross all compiled DDs whereas `NbUnassigned` lets
+///    the problem. The `Fixed` width heuristic imposes that the maximum layer
+///    width be constant across all compiled DDs whereas `NbUnassigned` lets
 ///    the maximum width vary depending on the number of problem variables 
 ///    which have already been decided upon.
 pub trait WidthHeuristic<State> {
@@ -82,7 +82,7 @@ pub trait StateRanking {
 }
 
 /// A subproblem ranking is an heuristic that imposes a partial order on
-/// subproblems on the solver fringe. This order is used by the framework 
+/// sub-problems on the solver fringe. This order is used by the framework 
 /// as a means to impose a given ordering on the nodes that are popped from
 /// the solver fringe.
 pub trait SubProblemRanking {
@@ -90,7 +90,7 @@ pub trait SubProblemRanking {
     /// must tell the kind of states it is able to operate on.
     type State;
 
-    /// This method compares two subproblems and determines which is the one 
+    /// This method compares two sub-problems and determines which is the one 
     /// that needs to be popped off the fringe first. In this ordering, greater
     /// means more likely to be popped first.
     fn compare(&self, a: &SubProblem<Self::State>, b: &SubProblem<Self::State>) -> Ordering;

@@ -18,7 +18,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This module provides the implementation of a solver fringe that forbids the
-//! co-occurence of two subproblems having the same root state.
+//! co-occurrence of two sub-problems having the same root state.
 
 use std::{hash::Hash, sync::Arc};
 use std::collections::hash_map::Entry::{Occupied, Vacant};
@@ -240,7 +240,7 @@ where
             parent = self.parent(me);
         }
     }
-    /// Internal method to sink a node down so as to restor the heap invariant.
+    /// Internal method to sink a node down so as to restore the heap invariant.
     fn bubble_down(&mut self, id: NodeId) {
         let mut me = self.position(id);
         let mut kid = self.max_child_of(me);

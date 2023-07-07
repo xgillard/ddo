@@ -44,7 +44,7 @@ pub struct Lcs {
     /// next[str][char][pos] gives the next position after
     /// position pos (included) in which character char occurs in string str
     next: Vec<Vec<Vec<usize>>>,
-    /// rem[str][char][pos] gives the number of occurences of
+    /// rem[str][char][pos] gives the number of occurrences of
     /// character char in string str after position pos (included)
     rem: Vec<Vec<Vec<isize>>>,
     /// Mapping from integers to the original characters

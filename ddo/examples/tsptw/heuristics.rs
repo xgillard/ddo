@@ -18,7 +18,7 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //! This module provides the implementation for some heuristics that may be used
-//! to improve the behavior of the branch-and-bound-MDD solver for travelling
+//! to improve the behavior of the branch-and-bound-MDD solver for traveling
 //! salesman problem with time windows.
 
 use ddo::{StateRanking, WidthHeuristic, SubProblem};

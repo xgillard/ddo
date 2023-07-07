@@ -30,7 +30,7 @@ use regex::Regex;
 #[cfg(test)]
 mod tests;
 
-/// This structure represents an instance of the Maximum Idependent Set Problem. 
+/// This structure represents an instance of the Maximum Independent Set Problem. 
 /// It is this structure that implements a simple dynamic programming model for the
 /// MISP. In that model, the state is simply a bitset where each bit represents 
 /// a node that may be kept or left out of the MIS. 
@@ -127,7 +127,7 @@ impl Problem for Misp {
                 heu.iter_mut().for_each(|i| *i = 0);
             }
             
-            // count the occurence of each var
+            // count the occurrence of each var
             for s in next_layer {
                 for sit in s.iter() {
                     heu[sit] += 1;
@@ -162,7 +162,7 @@ impl Problem for Misp {
 /// 
 /// # Note:
 /// In addition to the aforementioned two operations, the MispRelax structure implements
-/// an optional `fast_upper_bound` method. Whichone provides a useful bound to 
+/// an optional `fast_upper_bound` method. Which one provides a useful bound to 
 /// prune some portions of the state-space as the decision diagrams are compiled.
 /// (aka rough upper bound pruning).
 pub struct MispRelax<'a>{pb: &'a Misp}
@@ -238,14 +238,14 @@ struct Args {
 /// This enumeration simply groups the kind of errors that might occur when parsing a
 /// misp instance from file. There can be io errors (file unavailable ?), format error
 /// (e.g. the file is not an instance but contains the text of your next paper), 
-/// or parse int errors (which are actually a variant of the format errror since it tells 
+/// or parse int errors (which are actually a variant of the format error since it tells 
 /// you that the parser expected an integer number but got ... something else).
 #[derive(Debug, thiserror::Error)]
 enum Error {
     /// There was an io related error
     #[error("io error {0}")]
     Io(#[from] std::io::Error),
-    /// The parser expected to read somehting that was an integer but got some garbage
+    /// The parser expected to read something that was an integer but got some garbage
     #[error("parse int {0}")]
     ParseInt(#[from] ParseIntError),
     /// The file was not properly formatted.
@@ -253,7 +253,7 @@ enum Error {
     Format,
 }
 
-/// This funciton is used to read a misp instance from file. It returns either a
+/// This function is used to read a misp instance from file. It returns either a
 /// misp instance if everything went on well or an error describing the problem.
 fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Misp, Error> {
     let f = File::open(fname)?;
@@ -317,7 +317,7 @@ fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Misp, Error> {
 }
 
 /// An utility function to return an max width heuristic that can either be a fixed width
-/// policy (if w is fixed) or an adaptative policy returning the number of unassigned variables
+/// policy (if w is fixed) or an adaptive policy returning the number of unassigned variables
 /// in the overall problem.
 fn max_width<P: Problem>(p: &P, w: Option<usize>) -> Box<dyn WidthHeuristic<P::State> + Send + Sync> {
     if let Some(w) = w {

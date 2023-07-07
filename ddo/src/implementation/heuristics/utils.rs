@@ -55,12 +55,12 @@ use crate::{SubProblemRanking, SubProblem};
 /// }
 /// 
 /// // However, if you were in need to create a heap capable of ordering
-/// // the subproblems with your custom state ranking, you would need to use an
-/// // object that implents the `Compare` trait. This is what `CompareSubProblem`
+/// // the sub-problems with your custom state ranking, you would need to use an
+/// // object that implements the `Compare` trait. This is what `CompareSubProblem`
 /// // is used for: it provides a convenient zero sized adapter for that
 /// // purpose.
 /// 
-/// // This allows to compare two subproblems, ordering them in best first order
+/// // This allows to compare two sub-problems, ordering them in best first order
 /// let comparator = CompareSubProblem::new(MaxUB::new(&KPRanking));
 /// 
 /// // And that comparator can in turn be used to parameterize the behavior

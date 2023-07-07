@@ -37,7 +37,7 @@ pub struct Solution {
     /// The best known lower bound on the objective value
     pub lower_bound: isize,
     #[pyo3(get)]
-    /// What are the assigments leading to the best solution ? 
+    /// What are the assignments leading to the best solution ? 
     /// `assignment[x] = y` means value `y` was assigned to variable `x`.
     /// -> If no solution was found, then the assignment value will be None
     pub assignment: Option<Vec<isize>>,

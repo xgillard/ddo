@@ -40,7 +40,7 @@ pub trait Problem {
     fn nb_variables(&self) -> usize;
     /// This method returns the initial state of the problem (the state of $r$).
     fn initial_state(&self) -> Self::State;
-    /// This method returns the intial value $v_r$ of the problem
+    /// This method returns the initial value $v_r$ of the problem
     fn initial_value(&self) -> isize;
     /// This method is an implementation of the transition function mentioned
     /// in the mathematical model of a DP formulation for some problem.

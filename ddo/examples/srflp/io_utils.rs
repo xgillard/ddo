@@ -29,7 +29,7 @@ pub struct SrflpInstance {
 /// This enumeration simply groups the kind of errors that might occur when parsing a
 /// srflp instance from file. There can be io errors (file unavailable ?), format error
 /// (e.g. the file is not an instance but contains the text of your next paper), 
-/// or parse int errors (which are actually a variant of the format errror since it tells 
+/// or parse int errors (which are actually a variant of the format error since it tells 
 /// you that the parser expected an integer number but got ... something else).
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

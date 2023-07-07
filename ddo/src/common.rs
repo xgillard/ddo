@@ -33,7 +33,7 @@ use std::sync::Arc;
 pub struct Variable(pub usize);
 impl Variable {
     #[inline]
-    /// This function retruns the id (numeric value) of the variable.
+    /// This function returns the id (numeric value) of the variable.
     ///
     /// # Examples:
     /// ```
@@ -68,7 +68,7 @@ pub struct Decision {
 /// resolution of the original problem which had been defined. 
 /// 
 /// # Note:
-/// Subproblems are automatically instanciated from nodes in the exact custsets 
+/// Sub-problems are automatically instantiated from nodes in the exact cut-sets 
 /// of relaxed decision diagrams. If you are only discovering the API, rest 
 /// assured.. you don't need to implement any subproblem yourself.
 #[derive(Debug, Clone, PartialEq, Eq)]

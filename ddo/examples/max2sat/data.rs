@@ -61,7 +61,7 @@ pub struct Weighed2Sat {
 }
 
 
-/// This funciton is used to read an instance from file. It returns either an
+/// This function is used to read an instance from file. It returns either an
 /// instance if everything went on well or an error describing the problem.
 pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Weighed2Sat, Error> {
     let f = File::open(fname)?;

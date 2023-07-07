@@ -11,7 +11,7 @@ simply not benefit from the parallel capabilities of ddo (the python interpreter
 will simply not let you).
 
 At some other places, the interaction between rust and python mean that some 
-vectore will have to be instanciated where they could have remained lazy iterators
+vectors will have to be instantiated where they could have remained lazy iterators
 otherwise... But I suppose this is the kind of performance degradation one is 
 willing to accept for the benefit of crafting something with python.
 

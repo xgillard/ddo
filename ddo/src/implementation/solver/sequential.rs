@@ -163,13 +163,13 @@ enum WorkLoad<T> {
 /// // 5. Add a dominance relation checker
 /// let dominance = SimpleDominanceChecker::new(KPDominance);
 /// 
-/// // 6. Decide of a cutoff heuristic (if you dont want to let the solver run for ever)
+/// // 6. Decide of a cutoff heuristic (if you don't want to let the solver run for ever)
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)
 /// 
 /// // 7. Create the solver fringe
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 ///  
-/// // 8. Instanciate your solver
+/// // 8. Instantiate your solver
 /// let mut solver = DefaultSolver::new(
 ///       &problem, 
 ///       &relaxation, 
@@ -247,7 +247,7 @@ where D: DecisionDiagram<State = State> + Default,
     abort_proof: Option<Reason>,
 
     /// This is just a marker that allows us to remember the exact type of the
-    /// mdds to be instanciated.
+    /// mdds to be instantiated.
     mdd: D,
     /// Data structure containing info about past compilations used to prune the search
     barrier: B,
@@ -325,7 +325,7 @@ where
     /// This method processes the given `node`. To do so, it reads the current
     /// best lower bound from the critical data. Then it expands a restricted
     /// and possibly a relaxed mdd rooted in `node`. If that is necessary,
-    /// it stores cutset nodes onto the fringe for further parallel processing.
+    /// it stores cut-set nodes onto the fringe for further parallel processing.
     fn process_one_node(
         &mut self,
         node: SubProblem<State>,
@@ -398,7 +398,7 @@ where
             self.best_sol = self.mdd.best_exact_solution();
         }
     }
-    /// If necessary, thightens the bound of nodes in the cutset of `mdd` and
+    /// If necessary, tightens the bound of nodes in the cut-set of `mdd` and
     /// then add the relevant nodes to the shared fringe.
     fn enqueue_cutset(&mut self, ub: isize) {
         let best_lb = self.best_lb;

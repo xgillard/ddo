@@ -267,7 +267,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// ```
 /// 
 /// # Typical usage example
-/// Typically, you will only ever create a NbUnassignedWitdh policy when instanciating 
+/// Typically, you will only ever create a NbUnassignedWitdh policy when instantiating 
 /// your solver. The following example shows how you create a solver that imposes
 /// a maximum layer width of one node per unassigned variable.
 /// 
@@ -416,8 +416,8 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// Here is an example of how to use this strategy to allow 5 times as many nodes
 /// as there are nodes unassigned variable in a layer.
 /// 
-/// In ther following example, there are 5 variables. Three of these have already
-/// been assigned. Which means there are only two unassinged variables left.
+/// In the following example, there are 5 variables. Three of these have already
+/// been assigned. Which means there are only two unassigned variables left.
 /// Using the Times(5) decorator would mean that the maximum allowed width for a
 /// layer is 10 nodes. 
 ///
@@ -506,7 +506,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWitdh {
 /// ```
 /// 
 /// # Typical usage example
-/// Typically, you will only ever create a Times policy when instanciating 
+/// Typically, you will only ever create a Times policy when instantiating 
 /// your solver. The following example shows how you create a solver that imposes
 /// a fixed maximum layer width of five node per unassigned variable.
 /// 
@@ -656,8 +656,8 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// Here is an example of how to use this strategy to allow 1 nodes per two
 /// unassigned variables in a layer.
 ///
-/// In ther following example, there are 5 variables. Three of these have already
-/// been assigned. Which means there are only two unassinged variables left.
+/// In the following example, there are 5 variables. Three of these have already
+/// been assigned. Which means there are only two unassigned variables left.
 /// Using the DivBy(2) decorator would mean that the maximum allowed width for a
 /// layer is 1 node. 
 ///
@@ -746,7 +746,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// ```
 /// 
 /// # Typical usage example
-/// Typically, you will only ever create a DivBy policy when instanciating 
+/// Typically, you will only ever create a DivBy policy when instantiating 
 /// your solver. The following example shows how you create a solver that imposes
 /// a maximum layer width of one node per two unassigned variables.
 /// 

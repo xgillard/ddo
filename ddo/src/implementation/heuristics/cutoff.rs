@@ -28,7 +28,7 @@ use crate::Cutoff;
 /// proves optimality before to stop.
 /// 
 /// # Typical Usage Example
-/// The cutoff policy is typically created when instanciating a solver. The following
+/// The cutoff policy is typically created when instantiating a solver. The following
 /// example shows how one can create a solver that never stops before it found the 
 /// optimal solution to a given problem instance.
 /// 
@@ -166,9 +166,9 @@ impl Cutoff for NoCutoff {
 /// that has been found (so far) is returned.
 ///
 /// # Typical Usage Example
-/// The cutoff policy is typically created when instanciating a solver. The following
+/// The cutoff policy is typically created when instantiating a solver. The following
 /// example shows how one can create a solver that is allowed to run for no more than
-/// 30 seonds (wall time).
+/// 30 seconds (wall time).
 /// 
 /// ```
 /// # use std::time::Duration;

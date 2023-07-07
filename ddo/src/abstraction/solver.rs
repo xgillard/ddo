@@ -51,7 +51,7 @@ pub trait Solver {
     ///   means that the problem admits no feasible solution (UNSAT).
     /// * When the `is_exact` flag is false and no `best_value` is present: it
     ///   simply means that no feasible solution has been found before the 
-    ///   cutoff occured.
+    ///   cutoff occurred.
     ///
     fn maximize(&mut self) -> Completion;
     /// This method returns the value of the objective function for the best

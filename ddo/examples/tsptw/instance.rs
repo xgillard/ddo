@@ -23,7 +23,7 @@
 
 use std::{f32, fs::File, io::{BufRead, BufReader, Lines, Read}};
 
-/// This structure, represents a timewindow. Basically it is nothing but a 
+/// This structure, represents a time window. Basically it is nothing but a 
 /// closed time interval
 #[derive(Debug, Copy, Clone)]
 pub struct TimeWindow {
@@ -37,7 +37,7 @@ impl TimeWindow {
     }
 }
 
-/// This structure represents the TSP with time window instane.
+/// This structure represents the TSP with time window instance.
 #[derive(Clone)]
 pub struct TsptwInstance {
     /// The number of nodes (including depot)
@@ -97,8 +97,8 @@ impl <B: BufRead> From<Lines<B>> for TsptwInstance {
                let earliest   = (earliest * 10000.0) as usize;
                let latest     = (latest   * 10000.0) as usize;
 
-               let timewind   = TimeWindow::new(earliest, latest);
-               timewindows.push(timewind);
+               let timewindow   = TimeWindow::new(earliest, latest);
+               timewindows.push(timewindow);
            }
             
             lc += 1;
