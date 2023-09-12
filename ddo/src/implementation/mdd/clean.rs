@@ -665,10 +665,10 @@ where
             self.layers.push(Layer { from: 0, to: 0 });
             false
         } else {
-            self._filter_with_dominance(input, curr_l);
             if !self.layers.is_empty() {
                 self._filter_with_barrier(input, curr_l);
             }
+            self._filter_with_dominance(input, curr_l);
 
             self._squash_if_needed(input, curr_l);
             

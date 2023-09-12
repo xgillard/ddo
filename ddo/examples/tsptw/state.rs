@@ -92,7 +92,7 @@ impl ElapsedTime {
             ElapsedTime::FuzzyAmount{earliest,..}=> earliest
         }
     }
-    pub fn latest(self) -> usize {
+    pub fn _latest(self) -> usize {
         match self {
             ElapsedTime::FixedAmount{duration} => duration,
             ElapsedTime::FuzzyAmount{latest,..}=> latest

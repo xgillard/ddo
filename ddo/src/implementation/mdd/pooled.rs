@@ -621,10 +621,10 @@ where
         to_remove.drain(..).for_each(|s| { self.pool.remove(s.as_ref()); });
         
         let mut to_expand = curr_l.clone(); // need to preserve layer to remember nodes pruned by barrier
-        self._filter_with_dominance(input, &mut to_expand);
         if !self.layers.is_empty() {
             self._filter_with_barrier(input, &mut to_expand);
         }
+        self._filter_with_dominance(input, &mut to_expand);
 
         let len = self.nodes.len(); // but need to add the potential merged node
         self._squash_if_needed(input, &mut to_expand);

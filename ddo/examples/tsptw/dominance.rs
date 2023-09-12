@@ -48,10 +48,14 @@ impl Dominance for TsptwDominance {
     }
 
     fn nb_dimensions(&self, _: &Self::State) -> usize {
-        1
+        0
     }
 
-    fn get_coordinate(&self, state: &Self::State, _: usize) -> isize {
-        - (state.elapsed.latest() as isize)
+    fn get_coordinate(&self, _: &Self::State, _: usize) -> isize {
+        0
+    }
+
+    fn use_value(&self) -> bool {
+        true
     }
 }
