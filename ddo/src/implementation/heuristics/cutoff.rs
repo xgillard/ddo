@@ -141,7 +141,7 @@ use crate::Cutoff;
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let width = FixedWidth(100);
-/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// let heuristic = KPRanking;
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -281,7 +281,7 @@ impl Cutoff for NoCutoff {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let width = FixedWidth(100);
-/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// let heuristic = KPRanking;
 /// 
 /// // this solver will be allowed to run for 30 seconds

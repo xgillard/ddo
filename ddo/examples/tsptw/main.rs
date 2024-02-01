@@ -73,7 +73,7 @@ fn main() {
     let pb = Tsptw::new(inst);
     let relax    = TsptwRelax::new(&pb);
     let width = TsptwWidth::new(pb.nb_variables(), args.width.unwrap_or(1));
-    let dominance = SimpleDominanceChecker::new(TsptwDominance);
+    let dominance = SimpleDominanceChecker::new(TsptwDominance, pb.nb_variables());
     let cutoff = TimeBudget::new(Duration::from_secs(args.duration.unwrap_or(u64::MAX)));
     let mut fringe = NoDupFringe::new(MaxUB::new(&TsptwRanking));
     let mut solver = DefaultBarrierSolver::custom(

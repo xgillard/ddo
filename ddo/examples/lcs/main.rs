@@ -83,7 +83,7 @@ fn main() {
     let ranking = LcsRanking;
 
     let width = max_width(&problem, args.width);
-    let dominance = SimpleDominanceChecker::new(LcsDominance);
+    let dominance = SimpleDominanceChecker::new(LcsDominance, problem.nb_variables());
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 

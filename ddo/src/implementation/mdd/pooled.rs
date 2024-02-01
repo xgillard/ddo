@@ -644,7 +644,7 @@ where
         curr_l.retain(|id| {
             let node = get!(mut node id, self);
             if node.flags.is_exact() {
-                let DominanceCheckResult { dominated, threshold } = input.dominance.is_dominated_or_insert(node.state.clone(), node.value_top);
+                let DominanceCheckResult { dominated, threshold } = input.dominance.is_dominated_or_insert(node.state.clone(), node.depth, node.value_top);
                 if dominated {
                     node.theta = threshold; // set theta for later propagation
                     false

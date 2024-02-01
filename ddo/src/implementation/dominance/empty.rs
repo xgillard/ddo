@@ -35,7 +35,9 @@ impl<T> Default for EmptyDominanceChecker<T> {
 impl<T> DominanceChecker for EmptyDominanceChecker<T> {
     type State = T;
 
-    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: isize) -> DominanceCheckResult {
+    fn clear_layer(&self, _: usize) {}
+
+    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: usize, _: isize) -> DominanceCheckResult {
         DominanceCheckResult { dominated: false, threshold: None }
     }
 
