@@ -86,7 +86,7 @@ fn main() {
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
-    let mut solver = DefaultBarrierSolver::custom(
+    let mut solver = DefaultCachingSolver::custom(
         &problem, 
         &relaxation, 
         &ranking, 

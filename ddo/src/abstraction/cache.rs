@@ -21,14 +21,14 @@ use std::sync::Arc;
 
 use crate::{Threshold, SubProblem, Problem};
 
-/// This trait abstracts away the implementation details of the solver barrier.
-/// That is, a Barrier represents the data structure that stores thresholds that
+/// This trait abstracts away the implementation details of the solver cache.
+/// That is, a Cache represents the data structure that stores thresholds that
 /// condition the re-exploration of nodes with a state already reached previously.
-pub trait Barrier {
+pub trait Cache {
     type State;
 
     /// Returns true if the subproblem still must be explored,
-    /// given the thresholds contained in the barrier.
+    /// given the thresholds contained in the cache.
     fn must_explore(&self, subproblem: &SubProblem<Self::State>) -> bool {
         let threshold = self.get_threshold(subproblem.state.as_ref(), subproblem.depth);
         if let Some(threshold) = threshold {
@@ -38,7 +38,7 @@ pub trait Barrier {
         }
     }
 
-    /// Prepare the barrier to be used with the given problem
+    /// Prepare the cache to be used with the given problem
     fn initialize(&mut self, problem: &dyn Problem<State = Self::State>);
 
     /// Returns the threshold currently associated with the given state, if any.

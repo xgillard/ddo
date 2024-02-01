@@ -28,7 +28,7 @@
 use std::clone::Clone;
 use std::{sync::Arc, hash::Hash};
 
-use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Barrier, EmptyBarrier, DefaultMDDLEL, DominanceChecker};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Cache, EmptyCache, DefaultMDDLEL, DominanceChecker};
 
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -199,9 +199,9 @@ enum WorkLoad<T> {
 ///     }
 /// }
 /// ```
-pub struct SequentialSolver<'a, State, D = DefaultMDDLEL<State>, B = EmptyBarrier<State>> 
+pub struct SequentialSolver<'a, State, D = DefaultMDDLEL<State>, C = EmptyCache<State>> 
 where D: DecisionDiagram<State = State> + Default,
-      B: Barrier<State = State> + Default,
+      C: Cache<State = State> + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
     problem: &'a (dyn Problem<State = State>),
@@ -250,15 +250,15 @@ where D: DecisionDiagram<State = State> + Default,
     /// mdds to be instantiated.
     mdd: D,
     /// Data structure containing info about past compilations used to prune the search
-    barrier: B,
+    cache: C,
     dominance: &'a (dyn DominanceChecker<State = State>),
 }
 
-impl<'a, State, D, B>  SequentialSolver<'a, State, D, B>
+impl<'a, State, D, C>  SequentialSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
-    B: Barrier<State = State> + Default,
+    C: Cache<State = State> + Default,
 {
     pub fn new(
         problem: &'a (dyn Problem<State = State>),
@@ -297,7 +297,7 @@ where
             first_active_layer: 0,
             abort_proof: None,
             mdd: D::default(),
-            barrier: B::default(),
+            cache: C::default(),
             dominance,
         }
     }
@@ -307,7 +307,7 @@ where
     /// can pick it up and the processing can be bootstrapped.
     fn initialize(&mut self) {
         let root = self.root_node();
-        self.barrier.initialize(self.problem);
+        self.cache.initialize(self.problem);
         self.fringe.push(root);
         self.open_by_layer[0] += 1;
     }
@@ -338,7 +338,7 @@ where
             return Ok(());
         }
 
-        if !self.barrier.must_explore(&node) {
+        if !self.cache.must_explore(&node) {
             return Ok(());
         }
 
@@ -350,7 +350,7 @@ where
             relaxation: self.relaxation,
             ranking: self.ranking,
             cutoff: self.cutoff,
-            barrier: &self.barrier,
+            cache: &self.cache,
             dominance: self.dominance,
             residual: &node,
             //
@@ -372,7 +372,7 @@ where
             relaxation: self.relaxation,
             ranking: self.ranking,
             cutoff: self.cutoff,
-            barrier: &self.barrier,
+            cache: &self.cache,
             dominance: self.dominance,
             residual: &node,
             //
@@ -418,7 +418,7 @@ where
     fn abort_search(&mut self, reason: Reason) {
         self.abort_proof = Some(reason);
         self.fringe.clear();
-        self.barrier.clear();
+        self.cache.clear();
     }
 
     /// Consults the shared state to fetch a workload. Depending on the current
@@ -432,10 +432,10 @@ where
     ///     process.
     fn get_workload(&mut self) -> WorkLoad<State>
     {
-        // Can we clean up the barrier?
+        // Can we clean up the cache?
         while self.first_active_layer < self.problem.nb_variables() &&
                 self.open_by_layer[self.first_active_layer] == 0 {
-            self.barrier.clear_layer(self.first_active_layer);
+            self.cache.clear_layer(self.first_active_layer);
             self.first_active_layer += 1;
         }
 
@@ -461,11 +461,11 @@ where
     }
 }
 
-impl<'a, State, D, B> Solver for SequentialSolver<'a, State, D, B>
+impl<'a, State, D, C> Solver for SequentialSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
-    B: Barrier<State = State> + Default,
+    C: Cache<State = State> + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers
@@ -535,8 +535,8 @@ where
 mod test_solver {
     use crate::*;
 
-    type SeqSolver<'a, T> = SequentialSolver<'a, T, DefaultMDDLEL<T>, EmptyBarrier<T>>;
-    type SeqBarrierSolver<'a, T> = SequentialSolver<'a, T, DefaultMDDFC<T>, SimpleBarrier<T>>;
+    type SeqSolver<'a, T> = SequentialSolver<'a, T, DefaultMDDLEL<T>, EmptyCache<T>>;
+    type SeqCachingSolver<'a, T> = SequentialSolver<'a, T, DefaultMDDFC<T>, SimpleCache<T>>;
     
     #[test]
     fn by_default_best_lb_is_min_infinity() {
@@ -792,7 +792,7 @@ mod test_solver {
         let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = SeqBarrierSolver::custom(
+        let mut solver = SeqCachingSolver::custom(
             &problem,
             &relax,
             &ranking,
@@ -872,7 +872,7 @@ mod test_solver {
         let width = NbUnassignedWidth(problem.nb_variables());
         let dominance = EmptyDominanceChecker::default();
         let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));
-        let mut solver = SeqBarrierSolver::new(
+        let mut solver = SeqCachingSolver::new(
             &problem,
             &relax,
             &ranking,

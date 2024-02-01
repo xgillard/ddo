@@ -2,8 +2,8 @@
 //! the pruning techniques that I have proposed in my PhD thesis (RUB, LocB, EBPO).
 //! It also implements the techniques we proposed in 
 //! 
-//! ``Branch-and-Bound with Barrier: Dominance and Suboptimality Detection for 
-//!   DD-Based Branch-and-Bound''.
+//! ``Decision Diagram-Based Branch-and-Bound with Caching
+//! for Dominance and Suboptimality Detection''.
 
 use std::{sync::Arc, hash::Hash, collections::hash_map::Entry, fmt::Debug};
 
@@ -53,7 +53,7 @@ struct Node<T> {
     inbound: EdgesListId,
     // The rough upper bound associated to this node
     rub: isize,
-    /// A threshold value to be stored in the barrier that conditions the
+    /// A threshold value to be stored in the cache that conditions the
     /// re-exploration of other nodes with the same state.
     /// 
     /// ### Note
@@ -454,7 +454,7 @@ where
             }
 
             // traverse bottom-up
-            // note: barrier requires that all nodes have an associated locb. not only those below cutset
+            // note: cache requires that all nodes have an associated locb. not only those below cutset
             for Layer{from, to} in self.layers.iter().rev().copied() {
                 for id in from..to {
                     let id = NodeId(id);
@@ -497,8 +497,8 @@ where
                         continue;
                     }
 
-                    // ATTENTION: YOU WANT TO PROPAGATE THETA EVEN IF THE NODE WAS PRUNED BY BARRIER
-                    if !node.flags.is_pruned_by_barrier() {
+                    // ATTENTION: YOU WANT TO PROPAGATE THETA EVEN IF THE NODE WAS PRUNED BY THE CACHE
+                    if !node.flags.is_pruned_by_cache() {
                         let tot_rub = node.value_top.saturating_add(node.rub);
                         if tot_rub <= best_known {
                             node.theta = Some(best_known.saturating_sub(node.rub));
@@ -514,7 +514,7 @@ where
                             node.theta = Some(isize::MAX);
                         }
 
-                        Self::_maybe_update_barrier(node, input);
+                        Self::_maybe_update_cache(node, input);
                     }
                     // only propagate if you have an actual threshold
                     if let Some(my_theta) = node.theta {
@@ -529,11 +529,11 @@ where
         }
     }
 
-    fn _maybe_update_barrier(node: &Node<T>, input: &CompilationInput<T>) {
-        // A node can only be added to the barrier if it belongs to the cutset or is above it
+    fn _maybe_update_cache(node: &Node<T>, input: &CompilationInput<T>) {
+        // A node can only be added to the cache if it belongs to the cutset or is above it
         if let Some(theta) = node.theta {
             if node.flags.is_above_cutset() {
-                input.barrier.update_threshold(
+                input.cache.update_threshold(
                     node.state.clone(), 
                     node.depth, 
                     theta, 
@@ -666,7 +666,7 @@ where
             false
         } else {
             if !self.layers.is_empty() {
-                self._filter_with_barrier(input, curr_l);
+                self._filter_with_cache(input, curr_l);
             }
             self._filter_with_dominance(input, curr_l);
 
@@ -701,15 +701,15 @@ where
         });
     }
     
-    fn _filter_with_barrier(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+    fn _filter_with_cache(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.retain(|id| {
             let node = get!(mut node id, self);
-            let threshold = input.barrier.get_threshold(node.state.as_ref(), node.depth);
+            let threshold = input.cache.get_threshold(node.state.as_ref(), node.depth);
             if let Some(threshold) = threshold {
                 if node.value_top > threshold.value {
                     true
                 } else {
-                    node.flags.set_pruned_by_barrier(true);
+                    node.flags.set_pruned_by_cache(true);
                     node.theta = Some(threshold.value); // set theta for later propagation
                     false
                 }
@@ -1092,7 +1092,7 @@ mod test_default_mdd {
 
     use fxhash::FxHashMap;
 
-    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyBarrier, SimpleBarrier, Barrier, LAST_EXACT_LAYER, Mdd, FRONTIER, VizConfigBuilder, Threshold, EmptyDominanceChecker};
+    use crate::{Variable, DecisionDiagram, SubProblem, CompilationInput, Problem, Decision, Relaxation, StateRanking, NoCutoff, CompilationType, Cutoff, Reason, DecisionCallback, EmptyCache, SimpleCache, Cache, LAST_EXACT_LAYER, Mdd, FRONTIER, VizConfigBuilder, Threshold, EmptyDominanceChecker};
 
     type DefaultMDD<State>    = DefaultMDDLEL<State>;
     type DefaultMDDLEL<State> = Mdd<State, {LAST_EXACT_LAYER}>;
@@ -1107,7 +1107,7 @@ mod test_default_mdd {
 
     #[test]
     fn root_remembers_the_pa_from_the_fringe_node() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let mut input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1124,7 +1124,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 1,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
 
@@ -1144,7 +1144,7 @@ mod test_default_mdd {
     // In an exact setup, the dummy problem would be 3*3*3 = 9 large at the bottom level
     #[test]
     fn exact_completely_unrolls_the_mdd_no_matter_its_width() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1161,7 +1161,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1180,7 +1180,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_drops_the_less_interesting_nodes() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1197,7 +1197,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1216,7 +1216,7 @@ mod test_default_mdd {
 
     #[test]
     fn exact_no_cutoff_completion_must_be_coherent_with_outcome() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1233,7 +1233,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1246,7 +1246,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_no_cutoff_completion_must_be_coherent_with_outcome_() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1263,7 +1263,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1276,7 +1276,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_no_cutoff_completion_must_be_coherent_with_outcome() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1293,7 +1293,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1312,7 +1312,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_fails_with_cutoff_when_cutoff_occurs() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1329,7 +1329,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1340,7 +1340,7 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_fails_with_cutoff_when_cutoff_occurs() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1357,7 +1357,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1367,7 +1367,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_fails_with_cutoff_when_cutoff_occurs() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1384,7 +1384,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1395,7 +1395,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_merges_the_less_interesting_nodes() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1412,7 +1412,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1432,7 +1432,7 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_populates_the_cutset_and_will_not_squash_first_layer() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1449,7 +1449,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1463,7 +1463,7 @@ mod test_default_mdd {
 
     #[test]
     fn an_exact_mdd_must_be_exact() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1480,7 +1480,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1492,7 +1492,7 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_exact_as_long_as_no_merge_occurs() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1509,7 +1509,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1521,7 +1521,7 @@ mod test_default_mdd {
 
     #[test]
     fn a_relaxed_mdd_is_not_exact_when_a_merge_occurred() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1538,7 +1538,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1549,7 +1549,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_exact_as_long_as_no_restriction_occurs() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1566,7 +1566,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1577,7 +1577,7 @@ mod test_default_mdd {
     }
     #[test]
     fn a_restricted_mdd_is_not_exact_when_a_restriction_occurred() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1594,7 +1594,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1605,7 +1605,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_solution() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1622,7 +1622,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1632,7 +1632,7 @@ mod test_default_mdd {
     }
     #[test]
     fn when_the_problem_is_infeasible_there_is_no_best_value() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1649,7 +1649,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1659,7 +1659,7 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_skips_node_with_an_ub_less_than_best_known_lb() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1676,7 +1676,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1686,7 +1686,7 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_skips_node_with_an_ub_less_than_best_known_lb() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1703,7 +1703,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1713,7 +1713,7 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_skips_node_with_an_ub_less_than_best_known_lb() {
-        let barrier = EmptyBarrier::new();
+        let cache = EmptyCache::new();
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1730,7 +1730,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1740,11 +1740,11 @@ mod test_default_mdd {
     }
     #[test]
     fn exact_skips_nodes_with_a_value_less_than_known_threshold() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Exact,
@@ -1761,7 +1761,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1771,11 +1771,11 @@ mod test_default_mdd {
     }
     #[test]
     fn relaxed_skips_nodes_with_a_value_less_than_known_threshold() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1792,7 +1792,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1802,11 +1802,11 @@ mod test_default_mdd {
     }
     #[test]
     fn restricted_skips_nodes_with_a_value_less_than_known_threshold() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
-        barrier.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 0}), 1, 0, true);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 1}), 1, 1, true);
+        cache.update_threshold(Arc::new(DummyState{depth: 1, value: 2}), 1, 2, true);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1823,7 +1823,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1834,8 +1834,8 @@ mod test_default_mdd {
 
     #[test]
     fn restricted_mdd_computes_thresholds_when_exact() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1852,7 +1852,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1881,14 +1881,14 @@ mod test_default_mdd {
         ];
 
         for (state, threshold) in expected.iter().copied() {
-            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+            assert_eq!(threshold, cache.get_threshold(&state, state.depth));
         }
     }
 
     #[test]
     fn relaxed_mdd_computes_thresholds_when_exact() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -1905,7 +1905,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1934,14 +1934,14 @@ mod test_default_mdd {
         ];
 
         for (state, threshold) in expected.iter().copied() {
-            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+            assert_eq!(threshold, cache.get_threshold(&state, state.depth));
         }
     }
 
     #[test]
     fn restricted_mdd_computes_thresholds_when_all_pruned() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Restricted,
@@ -1958,7 +1958,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -1987,14 +1987,14 @@ mod test_default_mdd {
         ];
 
         for (state, threshold) in expected.iter().copied() {
-            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+            assert_eq!(threshold, cache.get_threshold(&state, state.depth));
         }
     }
 
     #[test]
     fn relaxed_mdd_computes_thresholds_when_all_pruned() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&DummyProblem);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&DummyProblem);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -2011,7 +2011,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDD::new();
@@ -2040,7 +2040,7 @@ mod test_default_mdd {
         ];
 
         for (state, threshold) in expected.iter().copied() {
-            assert_eq!(threshold, barrier.get_threshold(&state, state.depth));
+            assert_eq!(threshold, cache.get_threshold(&state, state.depth));
         }
     }
 
@@ -2173,8 +2173,8 @@ mod test_default_mdd {
 
     #[test]
     fn relaxed_computes_local_bounds_and_thresholds_1() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -2191,7 +2191,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDLEL::new();
@@ -2208,34 +2208,34 @@ mod test_default_mdd {
         assert_eq!(14, v[&'b']);
         assert_eq!(2, v.len());
 
-        assert!(barrier.get_threshold(&'r', 0).is_some());
-        assert!(barrier.get_threshold(&'a', 1).is_some());
-        assert!(barrier.get_threshold(&'b', 1).is_some());
-        assert!(barrier.get_threshold(&'M', 2).is_none());
-        assert!(barrier.get_threshold(&'e', 2).is_none());
-        assert!(barrier.get_threshold(&'f', 2).is_none());
-        assert!(barrier.get_threshold(&'g', 3).is_none());
-        assert!(barrier.get_threshold(&'h', 3).is_none());
-        assert!(barrier.get_threshold(&'i', 3).is_none());
-        assert!(barrier.get_threshold(&'t', 4).is_none());
+        assert!(cache.get_threshold(&'r', 0).is_some());
+        assert!(cache.get_threshold(&'a', 1).is_some());
+        assert!(cache.get_threshold(&'b', 1).is_some());
+        assert!(cache.get_threshold(&'M', 2).is_none());
+        assert!(cache.get_threshold(&'e', 2).is_none());
+        assert!(cache.get_threshold(&'f', 2).is_none());
+        assert!(cache.get_threshold(&'g', 3).is_none());
+        assert!(cache.get_threshold(&'h', 3).is_none());
+        assert!(cache.get_threshold(&'i', 3).is_none());
+        assert!(cache.get_threshold(&'t', 4).is_none());
 
-        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
+        let mut threshold = cache.get_threshold(&'r', 0).unwrap();
         assert_eq!(0, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'a', 1).unwrap();
+        threshold = cache.get_threshold(&'a', 1).unwrap();
         assert_eq!(10, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(&'b', 1).unwrap();
+        threshold = cache.get_threshold(&'b', 1).unwrap();
         assert_eq!(7, threshold.value);
         assert!(!threshold.explored);
     }
 
     #[test]
     fn relaxed_computes_local_bounds_and_thresholds_2() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -2252,7 +2252,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
@@ -2271,50 +2271,50 @@ mod test_default_mdd {
         assert_eq!(14, v[&'i']);
         assert_eq!(4, v.len());
 
-        assert!(barrier.get_threshold(&'r', 0).is_some());
-        assert!(barrier.get_threshold(&'a', 1).is_some());
-        assert!(barrier.get_threshold(&'b', 1).is_some());
-        assert!(barrier.get_threshold(&'M', 2).is_none());
-        assert!(barrier.get_threshold(&'e', 2).is_some());
-        assert!(barrier.get_threshold(&'f', 2).is_some());
-        assert!(barrier.get_threshold(&'g', 3).is_none());
-        assert!(barrier.get_threshold(&'h', 3).is_some());
-        assert!(barrier.get_threshold(&'i', 3).is_some());
-        assert!(barrier.get_threshold(&'t', 4).is_none());
+        assert!(cache.get_threshold(&'r', 0).is_some());
+        assert!(cache.get_threshold(&'a', 1).is_some());
+        assert!(cache.get_threshold(&'b', 1).is_some());
+        assert!(cache.get_threshold(&'M', 2).is_none());
+        assert!(cache.get_threshold(&'e', 2).is_some());
+        assert!(cache.get_threshold(&'f', 2).is_some());
+        assert!(cache.get_threshold(&'g', 3).is_none());
+        assert!(cache.get_threshold(&'h', 3).is_some());
+        assert!(cache.get_threshold(&'i', 3).is_some());
+        assert!(cache.get_threshold(&'t', 4).is_none());
 
-        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
+        let mut threshold = cache.get_threshold(&'r', 0).unwrap();
         assert_eq!(0, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'a', 1).unwrap();
+        threshold = cache.get_threshold(&'a', 1).unwrap();
         assert_eq!(10, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(&'b', 1).unwrap();
+        threshold = cache.get_threshold(&'b', 1).unwrap();
         assert_eq!(7, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(&'e', 2).unwrap();
+        threshold = cache.get_threshold(&'e', 2).unwrap();
         assert_eq!(13, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'f', 2).unwrap();
+        threshold = cache.get_threshold(&'f', 2).unwrap();
         assert_eq!(12, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'h', 3).unwrap();
+        threshold = cache.get_threshold(&'h', 3).unwrap();
         assert_eq!(13, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(&'i', 3).unwrap();
+        threshold = cache.get_threshold(&'i', 3).unwrap();
         assert_eq!(14, threshold.value);
         assert!(!threshold.explored);
     }
 
     #[test]
     fn relaxed_computes_local_bounds_and_thresholds_with_pruning() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type: crate::CompilationType::Relaxed,
@@ -2331,7 +2331,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
@@ -2348,50 +2348,50 @@ mod test_default_mdd {
         assert_eq!(14, v[&'b']);
         assert_eq!(2, v.len());
 
-        assert!(barrier.get_threshold(&'r', 0).is_some());
-        assert!(barrier.get_threshold(&'a', 1).is_some());
-        assert!(barrier.get_threshold(&'b', 1).is_some());
-        assert!(barrier.get_threshold(&'M', 2).is_none());
-        assert!(barrier.get_threshold(&'e', 2).is_some());
-        assert!(barrier.get_threshold(&'f', 2).is_some());
-        assert!(barrier.get_threshold(&'g', 3).is_none());
-        assert!(barrier.get_threshold(&'h', 3).is_some());
-        assert!(barrier.get_threshold(&'i', 3).is_some());
-        assert!(barrier.get_threshold(&'t', 4).is_none());
+        assert!(cache.get_threshold(&'r', 0).is_some());
+        assert!(cache.get_threshold(&'a', 1).is_some());
+        assert!(cache.get_threshold(&'b', 1).is_some());
+        assert!(cache.get_threshold(&'M', 2).is_none());
+        assert!(cache.get_threshold(&'e', 2).is_some());
+        assert!(cache.get_threshold(&'f', 2).is_some());
+        assert!(cache.get_threshold(&'g', 3).is_none());
+        assert!(cache.get_threshold(&'h', 3).is_some());
+        assert!(cache.get_threshold(&'i', 3).is_some());
+        assert!(cache.get_threshold(&'t', 4).is_none());
 
-        let mut threshold = barrier.get_threshold(&'r', 0).unwrap();
+        let mut threshold = cache.get_threshold(&'r', 0).unwrap();
         assert_eq!(0, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'a', 1).unwrap();
+        threshold = cache.get_threshold(&'a', 1).unwrap();
         assert_eq!(10, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(&'b', 1).unwrap();
+        threshold = cache.get_threshold(&'b', 1).unwrap();
         assert_eq!(8, threshold.value);
         assert!(!threshold.explored);
 
-        threshold = barrier.get_threshold(&'e', 2).unwrap();
+        threshold = cache.get_threshold(&'e', 2).unwrap();
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'f', 2).unwrap();
+        threshold = cache.get_threshold(&'f', 2).unwrap();
         assert_eq!(13, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'h', 3).unwrap();
+        threshold = cache.get_threshold(&'h', 3).unwrap();
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
 
-        threshold = barrier.get_threshold(&'i', 3).unwrap();
+        threshold = cache.get_threshold(&'i', 3).unwrap();
         assert_eq!(15, threshold.value);
         assert!(threshold.explored);
     }
 
     #[test]
     fn test_default_visualisation() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
@@ -2408,7 +2408,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
@@ -2423,8 +2423,8 @@ mod test_default_mdd {
 
     #[test]
     fn test_terse_visualisation() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
@@ -2441,7 +2441,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
@@ -2461,8 +2461,8 @@ mod test_default_mdd {
 
     #[test]
     fn test_show_deleted_viz() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
@@ -2479,7 +2479,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();
@@ -2499,8 +2499,8 @@ mod test_default_mdd {
 
     #[test]
     fn test_show_group_merged() {
-        let mut barrier = SimpleBarrier::default();
-        barrier.initialize(&LocBoundsAndThresholdsExamplePb);
+        let mut cache = SimpleCache::default();
+        cache.initialize(&LocBoundsAndThresholdsExamplePb);
         let dominance = EmptyDominanceChecker::default();
         let input = CompilationInput {
             comp_type:  crate::CompilationType::Relaxed,
@@ -2517,7 +2517,7 @@ mod test_default_mdd {
                 ub:    isize::MAX,
                 depth: 0,
             },
-            barrier: &barrier,
+            cache: &cache,
             dominance: &dominance,
         };
         let mut mdd = DefaultMDDFC::new();

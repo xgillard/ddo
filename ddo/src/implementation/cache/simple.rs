@@ -24,48 +24,52 @@
 //! `Relaxation` are defined. These are the two abstractions that one *must*
 //! implement in order to be able to use our library.
 
-use std::{sync::Arc, marker::PhantomData};
+use std::{sync::Arc, hash::Hash};
 
-use crate::*;
+use dashmap::DashMap;
 
-/// Dummy implementation of Barrier with no information stored at all.
-#[derive(Debug, Clone, Copy)]
-pub struct EmptyBarrier<T> {
-    phantom: PhantomData<T>,
+use crate::{Cache, Threshold};
+
+/// Simple implementation of Cache using one hashmap for each layer,
+/// each protected with a read-write lock.
+#[derive(Debug)]
+pub struct SimpleCache<T>
+where T: Hash + Eq {
+    thresholds_by_layer: Vec<DashMap<Arc<T>, Threshold, fxhash::FxBuildHasher>>,
 }
-impl <T> Default for EmptyBarrier<T> {
+impl <T> Default for SimpleCache<T> 
+where T: Hash + Eq {
     fn default() -> Self {
-        EmptyBarrier { phantom: Default::default() }
-    }
-}
-impl <T> EmptyBarrier<T> {
-    pub fn new() -> Self {
-        Default::default()
+        Self { thresholds_by_layer: vec![] }
     }
 }
 
-impl<T> Barrier for EmptyBarrier<T> {
+impl<T> Cache for SimpleCache<T>
+where T: Hash + Eq {
     type State = T;
 
-    #[inline(always)]
-    fn initialize(&mut self, _: &dyn Problem<State = Self::State>) {}
-
-    #[inline(always)]
-    fn get_threshold(&self, _: &T, _: usize) -> Option<Threshold> {
-        None
+    fn initialize(&mut self, problem: &dyn crate::Problem<State = Self::State>) {
+        let nb_variables = problem.nb_variables();
+        for _ in 0..=nb_variables {
+            self.thresholds_by_layer.push(Default::default());
+        }
     }
 
-    #[inline(always)]
-    fn update_threshold(&self, _: Arc<T>, _: usize, _: isize, _: bool) {}
+    fn get_threshold(&self, state: &T, depth: usize) -> Option<Threshold> {
+        self.thresholds_by_layer[depth].get(state).as_deref().copied()
+    }
 
-    #[inline(always)]
-    fn clear_layer(&self, _: usize) {}
+    fn update_threshold(&self, state: Arc<T>, depth: usize, value: isize, explored: bool) {
+        self.thresholds_by_layer[depth].entry(state)
+            .and_modify(|e| *e = Threshold { value, explored }.max(*e))
+            .or_insert(Threshold { value, explored });
+    }
 
-    #[inline(always)]
-    fn clear(&self) {}
+    fn clear_layer(&self, depth: usize) {
+        self.thresholds_by_layer[depth].clear();
+    }
 
-    #[inline(always)]
-    fn must_explore(&self, _: &SubProblem<Self::State>) -> bool {
-        true
+    fn clear(&self) {
+        self.thresholds_by_layer.iter().for_each(|l| l.clear());
     }
 }

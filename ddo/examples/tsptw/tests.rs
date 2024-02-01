@@ -19,7 +19,7 @@
 
 use std::{fs::File, path::PathBuf};
 
-use ddo::{MaxUB, NoDupFringe, Problem, Solver, DefaultBarrierSolver, SimpleDominanceChecker, NoCutoff};
+use ddo::{MaxUB, NoDupFringe, Problem, Solver, DefaultCachingSolver, SimpleDominanceChecker, NoCutoff};
 
 use crate::{dominance::TsptwDominance, heuristics::{TsptwRanking, TsptwWidth}, instance::TsptwInstance, model::Tsptw, relax::TsptwRelax};
 
@@ -39,7 +39,7 @@ pub fn solve(instance: &str, width: Option<usize>, threads: Option<usize>) -> f3
     let width = TsptwWidth::new(pb.nb_variables(), width.unwrap_or(1));
     let dominance = SimpleDominanceChecker::new(TsptwDominance);
     let cutoff = NoCutoff;
-    let mut solver = DefaultBarrierSolver::custom(
+    let mut solver = DefaultCachingSolver::custom(
         &pb,
         &relax,
         &TsptwRanking,

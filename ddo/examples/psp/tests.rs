@@ -48,7 +48,7 @@ mod psp_test_utils {
         let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
         // This solver compile DD that allow the definition of long arcs spanning over several layers.
-        let mut solver = DefaultBarrierSolver::<PspState>::custom(
+        let mut solver = DefaultCachingSolver::<PspState>::custom(
             &problem, 
             &relaxation, 
             &ranking, 
