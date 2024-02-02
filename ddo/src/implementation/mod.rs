@@ -23,13 +23,13 @@
 mod heuristics;
 mod fringe;
 mod mdd;
-mod barrier;
+mod cache;
 mod dominance;
 mod solver;
 
 pub use heuristics::*;
 pub use fringe::*;
 pub use mdd::*;
-pub use barrier::*;
+pub use cache::*;
 pub use dominance::*;
 pub use solver::*;

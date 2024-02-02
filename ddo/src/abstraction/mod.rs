@@ -29,7 +29,7 @@ mod heuristics;
 mod solver;
 mod fringe;
 mod mdd;
-mod barrier;
+mod cache;
 mod dominance;
 
 pub use dp::*;
@@ -37,5 +37,5 @@ pub use heuristics::*;
 pub use solver::*;
 pub use fringe::*;
 pub use mdd::*;
-pub use barrier::*;
+pub use cache::*;
 pub use dominance::*;

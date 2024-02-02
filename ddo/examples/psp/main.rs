@@ -97,7 +97,7 @@ fn main() {
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultBarrierSolver::custom(
+    let mut solver = DefaultCachingSolver::custom(
         &problem, 
         &relaxation, 
         &ranking, 

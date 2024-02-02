@@ -23,7 +23,7 @@
 use std::{fs::File, path::Path, time::{Duration, Instant}};
 
 use clap::Parser;
-use ddo::{Completion, TimeBudget, NoDupFringe, MaxUB, Solution, SimpleDominanceChecker, Problem, DefaultBarrierSolver, Solver};
+use ddo::{Completion, TimeBudget, NoDupFringe, MaxUB, Solution, SimpleDominanceChecker, Problem, DefaultCachingSolver, Solver};
 use dominance::TsptwDominance;
 use heuristics::{TsptwWidth, TsptwRanking};
 use instance::TsptwInstance;
@@ -76,7 +76,7 @@ fn main() {
     let dominance = SimpleDominanceChecker::new(TsptwDominance);
     let cutoff = TimeBudget::new(Duration::from_secs(args.duration.unwrap_or(u64::MAX)));
     let mut fringe = NoDupFringe::new(MaxUB::new(&TsptwRanking));
-    let mut solver = DefaultBarrierSolver::custom(
+    let mut solver = DefaultCachingSolver::custom(
         &pb, 
         &relax,
         &TsptwRanking,

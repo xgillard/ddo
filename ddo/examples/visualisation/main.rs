@@ -261,8 +261,8 @@ fn main() {
     let problem = read_instance(fname).unwrap();
     let relaxation = KPRelax{pb: &problem};
     let ranking = KPranking;
-    let mut barrier = SimpleBarrier::default();
-    barrier.initialize(&problem);
+    let mut cache = SimpleCache::default();
+    cache.initialize(&problem);
     let dominance = EmptyDominanceChecker::default();
 
     let residual = SubProblem { 
@@ -281,7 +281,7 @@ fn main() {
         max_width: 5,
         residual: &residual,
         best_lb: isize::MIN,
-        barrier: &barrier,
+        cache: &cache,
         dominance: &dominance,
     };
 

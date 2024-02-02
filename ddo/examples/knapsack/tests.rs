@@ -47,7 +47,7 @@ pub fn solve_id(id: &str) -> isize {
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultCachingSolver::new(
         &problem, 
         &relaxation, 
         &ranking, 

@@ -45,7 +45,7 @@ pub fn solve_id(id: &str) -> f64 {
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultCachingSolver::new(
         &problem, 
         &relaxation, 
         &ranking, 

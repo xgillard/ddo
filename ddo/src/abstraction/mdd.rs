@@ -17,7 +17,7 @@
 // IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Barrier, DominanceChecker};
+use crate::{SubProblem, Completion, Reason, Problem, Relaxation, StateRanking, Solution, Cutoff, Cache, DominanceChecker};
 
 // FIXME: Replace that with the following enum definition when const generics allow enum types
 /// What type of cut-set are we using for relaxed DDs ?
@@ -66,7 +66,7 @@ pub struct CompilationInput<'a, State> {
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
     /// Data structure containing info about past compilations used to prune the search
-    pub barrier: &'a dyn Barrier<State = State>,
+    pub cache: &'a dyn Cache<State = State>,
     pub dominance: &'a dyn DominanceChecker<State = State>,
 }
 

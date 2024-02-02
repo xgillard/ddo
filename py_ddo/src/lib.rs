@@ -1,6 +1,6 @@
 use std::{time::{Duration, Instant}, hash::Hash, collections::HashMap};
 
-use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWidth, Variable, Decision, Relaxation, Solver, Completion, SeqNoBarrierSolverLel, SeqBarrierSolverLel, SeqBarrierSolverFc, SeqNoBarrierSolverFc};
+use ::ddo::{Problem, Cutoff, TimeBudget, NoCutoff, Fringe, NoDupFringe, StateRanking, MaxUB, SimpleFringe, WidthHeuristic, FixedWidth, NbUnassignedWidth, Variable, Decision, Relaxation, Solver, Completion, SeqNoCachingSolverLel, SeqCachingSolverLel, SeqCachingSolverFc, SeqNoCachingSolverFc};
 
 use pyo3::{prelude::*, types::{PyBool}};
 
@@ -50,7 +50,7 @@ fn maximize(
     relax      : PyObject,
     ranking    : PyObject,
     lel        : bool,
-    use_barrier: bool,
+    use_cache  : bool,
     dedup      : bool,
     width      : Option<usize>,
     timeout    : Option<u64>,
@@ -71,7 +71,7 @@ fn maximize(
             cutoff.as_ref(), 
             fringe.as_mut(),
             lel,
-            use_barrier
+            use_cache
         );
 
         let start = Instant::now();
@@ -105,17 +105,17 @@ fn solver<'a, 'b>(
     cutoff     : &'a dyn Cutoff, 
     fringe     : &'a mut dyn Fringe<State = PyState<'b>>, 
     lel        : bool,
-    use_barrier: bool,
+    use_cache  : bool,
 ) -> Box<dyn Solver + 'a> {
-    match (lel, use_barrier) {
+    match (lel, use_cache) {
         (true, true) => 
-            Box::new(SeqBarrierSolverLel::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+            Box::new(SeqCachingSolverLel::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
         (true, false) => 
-            Box::new(SeqNoBarrierSolverLel::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+            Box::new(SeqNoCachingSolverLel::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
         (false, true) => 
-            Box::new(SeqBarrierSolverFc::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+            Box::new(SeqCachingSolverFc::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
         (false, false) => 
-            Box::new(SeqNoBarrierSolverFc::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
+            Box::new(SeqNoCachingSolverFc::custom(problem, relaxation, ranking, width_heu, cutoff, fringe)),
     }
 }
 
