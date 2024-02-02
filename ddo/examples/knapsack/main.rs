@@ -321,7 +321,7 @@ fn main() {
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultCachingSolver::new(
         &problem, 
         &relaxation, 
         &heuristic, 

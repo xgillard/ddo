@@ -57,8 +57,8 @@ impl NodeFlags {
     pub const F_CUTSET: u8 = 8;
     /// The position of the deleted flag.
     pub const F_DELETED: u8 = 16;
-    /// The position of the barrier flag.
-    pub const F_BARRIER: u8 = 32;
+    /// The position of the cache flag.
+    pub const F_CACHE: u8 = 32;
     /// The position of the above cut-set flag.
     pub const F_ABOVE_CUTSET: u8 = 64;
 
@@ -113,10 +113,10 @@ impl NodeFlags {
     pub fn is_deleted(self) -> bool {
         self.test(NodeFlags::F_DELETED)
     }
-    /// Returns true iff the barrier flag is turned on
+    /// Returns true iff the cache flag is turned on
     #[inline]
-    pub fn is_pruned_by_barrier(self) -> bool {
-        self.test(NodeFlags::F_BARRIER)
+    pub fn is_pruned_by_cache(self) -> bool {
+        self.test(NodeFlags::F_CACHE)
     }
     /// Sets the exact flag to the given value
     #[inline]
@@ -146,10 +146,10 @@ impl NodeFlags {
     pub fn set_deleted(&mut self, deleted: bool) {
         self.set(NodeFlags::F_DELETED, deleted)
     }
-    /// Sets the barrier flag to the given value
+    /// Sets the cache flag to the given value
     #[inline]
-    pub fn set_pruned_by_barrier(&mut self, barrier: bool) {
-        self.set(NodeFlags::F_BARRIER, barrier)
+    pub fn set_pruned_by_cache(&mut self, cache: bool) {
+        self.set(NodeFlags::F_CACHE, cache)
     }
     /// Checks whether all the flags encoded in the given mask are turned on.
     /// Otherwise, it returns false
@@ -299,18 +299,18 @@ mod test_node_flags {
         assert_eq!(true, tested.is_deleted());
     }
     #[test]
-    fn is_pruned_by_barrier_iff_marked_so() {
+    fn is_pruned_by_cache_iff_marked_so() {
         let mut tested = NodeFlags::new_exact();
-        assert_eq!(false, tested.is_pruned_by_barrier());
+        assert_eq!(false, tested.is_pruned_by_cache());
 
-        tested.set_pruned_by_barrier(true);
-        assert_eq!(true, tested.is_pruned_by_barrier());
+        tested.set_pruned_by_cache(true);
+        assert_eq!(true, tested.is_pruned_by_cache());
 
-        tested.set_pruned_by_barrier(false);
-        assert_eq!(false, tested.is_pruned_by_barrier());
+        tested.set_pruned_by_cache(false);
+        assert_eq!(false, tested.is_pruned_by_cache());
 
-        tested.set_pruned_by_barrier(true);
-        assert_eq!(true, tested.is_pruned_by_barrier());
+        tested.set_pruned_by_cache(true);
+        assert_eq!(true, tested.is_pruned_by_cache());
     }
     #[test]
     fn test_yields_the_value_of_the_flag() {
@@ -320,7 +320,7 @@ mod test_node_flags {
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
         tested.set_relaxed(true);
         assert_eq!(true, tested.test(NodeFlags::F_EXACT));
@@ -328,7 +328,7 @@ mod test_node_flags {
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
         tested.set_marked(true);
         assert_eq!(true, tested.test(NodeFlags::F_EXACT));
@@ -336,7 +336,7 @@ mod test_node_flags {
         assert_eq!(true, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
         tested.set_exact(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
@@ -344,7 +344,7 @@ mod test_node_flags {
         assert_eq!(true, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
         tested.set_relaxed(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
@@ -352,7 +352,7 @@ mod test_node_flags {
         assert_eq!(true, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
         tested.set_marked(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
@@ -360,7 +360,7 @@ mod test_node_flags {
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
         tested.set_deleted(true);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
@@ -368,15 +368,15 @@ mod test_node_flags {
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(true, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
 
-        tested.set_pruned_by_barrier(true);
+        tested.set_pruned_by_cache(true);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
         assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(true, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(true, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(true, tested.test(NodeFlags::F_CACHE));
 
         tested.set_deleted(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
@@ -384,15 +384,15 @@ mod test_node_flags {
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(true, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(true, tested.test(NodeFlags::F_CACHE));
 
-        tested.set_pruned_by_barrier(false);
+        tested.set_pruned_by_cache(false);
         assert_eq!(false, tested.test(NodeFlags::F_EXACT));
         assert_eq!(false, tested.test(NodeFlags::F_RELAXED));
         assert_eq!(false, tested.test(NodeFlags::F_MARKED));
         assert_eq!(false, tested.test(NodeFlags::F_CUTSET));
         assert_eq!(false, tested.test(NodeFlags::F_DELETED));
-        assert_eq!(false, tested.test(NodeFlags::F_BARRIER));
+        assert_eq!(false, tested.test(NodeFlags::F_CACHE));
     }
     #[test]
     fn test_checks_the_value_of_more_than_one_flag() {
@@ -714,6 +714,6 @@ mod test_node_flags {
         assert_eq!(false, NodeFlags::default().test(NodeFlags::F_MARKED));
         assert_eq!(false, NodeFlags::default().test(NodeFlags::F_CUTSET));
         assert_eq!(false, NodeFlags::default().test(NodeFlags::F_DELETED));
-        assert_eq!(false, NodeFlags::default().test(NodeFlags::F_BARRIER));
+        assert_eq!(false, NodeFlags::default().test(NodeFlags::F_CACHE));
     }
 }

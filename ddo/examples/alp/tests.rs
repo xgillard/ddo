@@ -45,7 +45,7 @@ pub fn solve_id(id: &str) -> isize {
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 
-    let mut solver = DefaultBarrierSolver::new(
+    let mut solver = DefaultCachingSolver::new(
         &problem, 
         &relaxation, 
         &ranking, 
@@ -60,982 +60,936 @@ pub fn solve_id(id: &str) -> isize {
 }
 
 #[test]
+fn alp_n100_r1_c2_std10_s0() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std10_s0"), 17018);
+}
+
+#[test]
+fn alp_n100_r1_c2_std10_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std10_s1"), 3720);
+}
+
+#[test]
+fn alp_n100_r1_c2_std10_s2() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std10_s2"), 14184);
+}
+
+#[test]
+fn alp_n100_r1_c2_std10_s3() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std10_s3"), 1017);
+}
+
+#[test]
+fn alp_n100_r1_c2_std10_s4() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std10_s4"), 12280);
+}
+
+#[test]
+fn alp_n100_r1_c2_std20_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std20_s1"), 7127);
+}
+
+#[test]
+fn alp_n100_r1_c2_std20_s3() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std20_s3"), 7382);
+}
+
+#[test]
+fn alp_n100_r1_c2_std30_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c2_std30_s1"), 24730);
+}
+
+#[test]
+fn alp_n100_r1_c3_std10_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c3_std10_s1"), 6411);
+}
+
+#[test]
+fn alp_n100_r1_c3_std10_s3() {
+    assert_eq!(solve_id("alp_n100_r1_c3_std10_s3"), 12777);
+}
+
+#[test]
+fn alp_n100_r1_c3_std10_s4() {
+    assert_eq!(solve_id("alp_n100_r1_c3_std10_s4"), 24762);
+}
+
+#[test]
+fn alp_n100_r1_c3_std20_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c3_std20_s1"), 11198);
+}
+
+#[test]
+fn alp_n100_r1_c4_std10_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c4_std10_s1"), 2492);
+}
+
+#[test]
+fn alp_n100_r1_c4_std10_s3() {
+    assert_eq!(solve_id("alp_n100_r1_c4_std10_s3"), 8840);
+}
+
+#[test]
+fn alp_n100_r1_c4_std20_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c4_std20_s1"), 3148);
+}
+
+#[test]
+fn alp_n100_r1_c4_std20_s3() {
+    assert_eq!(solve_id("alp_n100_r1_c4_std20_s3"), 11139);
+}
+
+#[test]
+fn alp_n100_r1_c4_std30_s1() {
+    assert_eq!(solve_id("alp_n100_r1_c4_std30_s1"), 5196);
+}
+
+#[test]
+fn alp_n100_r1_c4_std30_s3() {
+    assert_eq!(solve_id("alp_n100_r1_c4_std30_s3"), 14220);
+}
+
+#[test]
 fn alp_n25_r1_c2_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std10_s0"), 684);
+    assert_eq!(solve_id("alp_n25_r1_c2_std10_s0"), 755);
 }
 
 #[test]
 fn alp_n25_r1_c2_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std10_s1"), 123);
+    assert_eq!(solve_id("alp_n25_r1_c2_std10_s1"), 554);
 }
 
 #[test]
 fn alp_n25_r1_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std10_s2"), 547);
+    assert_eq!(solve_id("alp_n25_r1_c2_std10_s2"), 637);
 }
 
 #[test]
 fn alp_n25_r1_c2_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std10_s3"), 1463);
+    assert_eq!(solve_id("alp_n25_r1_c2_std10_s3"), 1503);
 }
 
 #[test]
 fn alp_n25_r1_c2_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std10_s4"), 650);
+    assert_eq!(solve_id("alp_n25_r1_c2_std10_s4"), 2985);
 }
 
-/// SOMETIMES FAILING WITH MANY THREADS!!!
 #[test]
 fn alp_n25_r1_c2_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std20_s0"), 718);
+    assert_eq!(solve_id("alp_n25_r1_c2_std20_s0"), 1213);
 }
 
 #[test]
 fn alp_n25_r1_c2_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std20_s1"), 131);
+    assert_eq!(solve_id("alp_n25_r1_c2_std20_s1"), 641);
 }
 
 #[test]
 fn alp_n25_r1_c2_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std20_s2"), 1195);
+    assert_eq!(solve_id("alp_n25_r1_c2_std20_s2"), 3368);
 }
 
 #[test]
 fn alp_n25_r1_c2_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std20_s3"), 1118);
-}
-
-#[test]
-fn alp_n25_r1_c2_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std20_s4"), 370);
+    assert_eq!(solve_id("alp_n25_r1_c2_std20_s3"), 1964);
 }
 
 #[test]
 fn alp_n25_r1_c2_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std30_s0"), 809);
+    assert_eq!(solve_id("alp_n25_r1_c2_std30_s0"), 2442);
 }
 
 #[test]
 fn alp_n25_r1_c2_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std30_s1"), 383);
+    assert_eq!(solve_id("alp_n25_r1_c2_std30_s1"), 839);
 }
 
 #[test]
 fn alp_n25_r1_c2_std30_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std30_s2"), 2085);
+    assert_eq!(solve_id("alp_n25_r1_c2_std30_s2"), 9440);
 }
 
 #[test]
 fn alp_n25_r1_c2_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std30_s3"), 1075);
-}
-
-#[test]
-fn alp_n25_r1_c2_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r1_c2_std30_s4"), 292);
+    assert_eq!(solve_id("alp_n25_r1_c2_std30_s3"), 3065);
 }
 
 #[test]
 fn alp_n25_r1_c3_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std10_s0"), 1508);
+    assert_eq!(solve_id("alp_n25_r1_c3_std10_s0"), 574);
 }
 
 #[test]
 fn alp_n25_r1_c3_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std10_s1"), 334);
+    assert_eq!(solve_id("alp_n25_r1_c3_std10_s1"), 182);
 }
 
 #[test]
 fn alp_n25_r1_c3_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std10_s2"), 1507);
+    assert_eq!(solve_id("alp_n25_r1_c3_std10_s2"), 1951);
 }
 
 #[test]
 fn alp_n25_r1_c3_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std10_s3"), 1347);
+    assert_eq!(solve_id("alp_n25_r1_c3_std10_s3"), 4508);
+}
+
+#[test]
+fn alp_n25_r1_c3_std10_s4() {
+    assert_eq!(solve_id("alp_n25_r1_c3_std10_s4"), 1732);
 }
 
 #[test]
 fn alp_n25_r1_c3_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std20_s0"), 1417);
+    assert_eq!(solve_id("alp_n25_r1_c3_std20_s0"), 732);
 }
 
 #[test]
 fn alp_n25_r1_c3_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std20_s1"), 472);
+    assert_eq!(solve_id("alp_n25_r1_c3_std20_s1"), 323);
 }
 
 #[test]
 fn alp_n25_r1_c3_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std20_s2"), 2215);
+    assert_eq!(solve_id("alp_n25_r1_c3_std20_s2"), 4905);
 }
 
 #[test]
 fn alp_n25_r1_c3_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std20_s3"), 1587);
+    assert_eq!(solve_id("alp_n25_r1_c3_std20_s3"), 4426);
+}
+
+#[test]
+fn alp_n25_r1_c3_std20_s4() {
+    assert_eq!(solve_id("alp_n25_r1_c3_std20_s4"), 3745);
 }
 
 #[test]
 fn alp_n25_r1_c3_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std30_s0"), 1343);
+    assert_eq!(solve_id("alp_n25_r1_c3_std30_s0"), 937);
 }
 
 #[test]
 fn alp_n25_r1_c3_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std30_s1"), 705);
+    assert_eq!(solve_id("alp_n25_r1_c3_std30_s1"), 446);
 }
 
 #[test]
 fn alp_n25_r1_c3_std30_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std30_s2"), 3683);
+    assert_eq!(solve_id("alp_n25_r1_c3_std30_s2"), 5767);
 }
 
 #[test]
 fn alp_n25_r1_c3_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c3_std30_s3"), 1578);
+    assert_eq!(solve_id("alp_n25_r1_c3_std30_s3"), 6723);
+}
+
+#[test]
+fn alp_n25_r1_c3_std30_s4() {
+    assert_eq!(solve_id("alp_n25_r1_c3_std30_s4"), 6817);
 }
 
 #[test]
 fn alp_n25_r1_c4_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std10_s0"), 1107);
+    assert_eq!(solve_id("alp_n25_r1_c4_std10_s0"), 349);
 }
 
 #[test]
 fn alp_n25_r1_c4_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std10_s1"), 647);
+    assert_eq!(solve_id("alp_n25_r1_c4_std10_s1"), 826);
 }
 
 #[test]
 fn alp_n25_r1_c4_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std10_s2"), 1167);
+    assert_eq!(solve_id("alp_n25_r1_c4_std10_s2"), 4131);
 }
 
 #[test]
 fn alp_n25_r1_c4_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std10_s3"), 1175);
+    assert_eq!(solve_id("alp_n25_r1_c4_std10_s3"), 4799);
 }
 
 #[test]
 fn alp_n25_r1_c4_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std10_s4"), 1401);
+    assert_eq!(solve_id("alp_n25_r1_c4_std10_s4"), 8850);
 }
 
 #[test]
 fn alp_n25_r1_c4_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std20_s0"), 1331);
+    assert_eq!(solve_id("alp_n25_r1_c4_std20_s0"), 419);
 }
 
 #[test]
 fn alp_n25_r1_c4_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std20_s1"), 923);
+    assert_eq!(solve_id("alp_n25_r1_c4_std20_s1"), 1350);
 }
 
 #[test]
 fn alp_n25_r1_c4_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std20_s2"), 1342);
+    assert_eq!(solve_id("alp_n25_r1_c4_std20_s2"), 4740);
 }
 
 #[test]
 fn alp_n25_r1_c4_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std20_s3"), 1856);
-}
-
-#[test]
-fn alp_n25_r1_c4_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std20_s4"), 1344);
+    assert_eq!(solve_id("alp_n25_r1_c4_std20_s3"), 4715);
 }
 
 #[test]
 fn alp_n25_r1_c4_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std30_s0"), 1605);
+    assert_eq!(solve_id("alp_n25_r1_c4_std30_s0"), 646);
 }
 
 #[test]
 fn alp_n25_r1_c4_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std30_s1"), 1343);
+    assert_eq!(solve_id("alp_n25_r1_c4_std30_s1"), 2209);
 }
 
 #[test]
 fn alp_n25_r1_c4_std30_s2() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std30_s2"), 1838);
+    assert_eq!(solve_id("alp_n25_r1_c4_std30_s2"), 4675);
 }
 
 #[test]
 fn alp_n25_r1_c4_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std30_s3"), 3238);
-}
-
-#[test]
-fn alp_n25_r1_c4_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r1_c4_std30_s4"), 1173);
+    assert_eq!(solve_id("alp_n25_r1_c4_std30_s3"), 5912);
 }
 
 #[test]
 fn alp_n25_r2_c2_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std10_s0"), 9);
+    assert_eq!(solve_id("alp_n25_r2_c2_std10_s0"), 7);
 }
 
 #[test]
 fn alp_n25_r2_c2_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std10_s1"), 15);
+    assert_eq!(solve_id("alp_n25_r2_c2_std10_s1"), 98);
 }
 
 #[test]
 fn alp_n25_r2_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std10_s2"), 99);
+    assert_eq!(solve_id("alp_n25_r2_c2_std10_s2"), 167);
 }
 
 #[test]
 fn alp_n25_r2_c2_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std10_s3"), 17);
+    assert_eq!(solve_id("alp_n25_r2_c2_std10_s3"), 53);
 }
 
 #[test]
 fn alp_n25_r2_c2_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std10_s4"), 8);
+    assert_eq!(solve_id("alp_n25_r2_c2_std10_s4"), 595);
 }
 
 #[test]
 fn alp_n25_r2_c2_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std20_s0"), 29);
+    assert_eq!(solve_id("alp_n25_r2_c2_std20_s0"), 56);
 }
 
 #[test]
 fn alp_n25_r2_c2_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std20_s1"), 22);
+    assert_eq!(solve_id("alp_n25_r2_c2_std20_s1"), 109);
 }
 
 #[test]
 fn alp_n25_r2_c2_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std20_s2"), 274);
+    assert_eq!(solve_id("alp_n25_r2_c2_std20_s2"), 1281);
 }
 
 #[test]
 fn alp_n25_r2_c2_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std20_s3"), 26);
+    assert_eq!(solve_id("alp_n25_r2_c2_std20_s3"), 338);
 }
 
 #[test]
 fn alp_n25_r2_c2_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std20_s4"), 18);
+    assert_eq!(solve_id("alp_n25_r2_c2_std20_s4"), 3043);
 }
 
 #[test]
 fn alp_n25_r2_c2_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std30_s0"), 58);
+    assert_eq!(solve_id("alp_n25_r2_c2_std30_s0"), 203);
 }
 
 #[test]
 fn alp_n25_r2_c2_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std30_s1"), 98);
+    assert_eq!(solve_id("alp_n25_r2_c2_std30_s1"), 165);
 }
 
 #[test]
 fn alp_n25_r2_c2_std30_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std30_s2"), 602);
+    assert_eq!(solve_id("alp_n25_r2_c2_std30_s2"), 4169);
 }
 
 #[test]
 fn alp_n25_r2_c2_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std30_s3"), 77);
-}
-
-#[test]
-fn alp_n25_r2_c2_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c2_std30_s4"), 20);
+    assert_eq!(solve_id("alp_n25_r2_c2_std30_s3"), 1161);
 }
 
 #[test]
 fn alp_n25_r2_c3_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std10_s0"), 116);
+    assert_eq!(solve_id("alp_n25_r2_c3_std10_s0"), 24);
 }
 
 #[test]
 fn alp_n25_r2_c3_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std10_s1"), 11);
+    assert_eq!(solve_id("alp_n25_r2_c3_std10_s1"), 27);
 }
 
 #[test]
 fn alp_n25_r2_c3_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std10_s2"), 377);
+    assert_eq!(solve_id("alp_n25_r2_c3_std10_s2"), 745);
 }
 
 #[test]
 fn alp_n25_r2_c3_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std10_s3"), 144);
+    assert_eq!(solve_id("alp_n25_r2_c3_std10_s3"), 1376);
 }
 
 #[test]
 fn alp_n25_r2_c3_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std10_s4"), 476);
+    assert_eq!(solve_id("alp_n25_r2_c3_std10_s4"), 75);
 }
 
 #[test]
 fn alp_n25_r2_c3_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std20_s0"), 124);
+    assert_eq!(solve_id("alp_n25_r2_c3_std20_s0"), 19);
 }
 
 #[test]
 fn alp_n25_r2_c3_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std20_s1"), 52);
+    assert_eq!(solve_id("alp_n25_r2_c3_std20_s1"), 34);
 }
 
 #[test]
 fn alp_n25_r2_c3_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std20_s2"), 816);
+    assert_eq!(solve_id("alp_n25_r2_c3_std20_s2"), 1777);
 }
 
 #[test]
 fn alp_n25_r2_c3_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std20_s3"), 182);
+    assert_eq!(solve_id("alp_n25_r2_c3_std20_s3"), 1718);
 }
 
 #[test]
 fn alp_n25_r2_c3_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std20_s4"), 563);
+    assert_eq!(solve_id("alp_n25_r2_c3_std20_s4"), 227);
 }
 
 #[test]
 fn alp_n25_r2_c3_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std30_s0"), 160);
+    assert_eq!(solve_id("alp_n25_r2_c3_std30_s0"), 49);
 }
 
 #[test]
 fn alp_n25_r2_c3_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std30_s1"), 124);
+    assert_eq!(solve_id("alp_n25_r2_c3_std30_s1"), 64);
 }
 
 #[test]
 fn alp_n25_r2_c3_std30_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std30_s2"), 1591);
+    assert_eq!(solve_id("alp_n25_r2_c3_std30_s2"), 2197);
 }
 
 #[test]
 fn alp_n25_r2_c3_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c3_std30_s3"), 357);
+    assert_eq!(solve_id("alp_n25_r2_c3_std30_s3"), 2652);
+}
+
+#[test]
+fn alp_n25_r2_c3_std30_s4() {
+    assert_eq!(solve_id("alp_n25_r2_c3_std30_s4"), 477);
 }
 
 #[test]
 fn alp_n25_r2_c4_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std10_s0"), 259);
+    assert_eq!(solve_id("alp_n25_r2_c4_std10_s0"), 48);
 }
 
 #[test]
 fn alp_n25_r2_c4_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std10_s1"), 168);
+    assert_eq!(solve_id("alp_n25_r2_c4_std10_s1"), 320);
 }
 
 #[test]
 fn alp_n25_r2_c4_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std10_s2"), 305);
-}
-
-#[test]
-fn alp_n25_r2_c4_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std10_s3"), 343);
+    assert_eq!(solve_id("alp_n25_r2_c4_std10_s2"), 1790);
 }
 
 #[test]
 fn alp_n25_r2_c4_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std10_s4"), 326);
+    assert_eq!(solve_id("alp_n25_r2_c4_std10_s4"), 2547);
 }
 
 #[test]
 fn alp_n25_r2_c4_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std20_s0"), 310);
+    assert_eq!(solve_id("alp_n25_r2_c4_std20_s0"), 104);
 }
 
 #[test]
 fn alp_n25_r2_c4_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std20_s1"), 398);
+    assert_eq!(solve_id("alp_n25_r2_c4_std20_s1"), 339);
 }
 
 #[test]
 fn alp_n25_r2_c4_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std20_s2"), 390);
+    assert_eq!(solve_id("alp_n25_r2_c4_std20_s2"), 2053);
+}
+
+#[test]
+fn alp_n25_r2_c4_std20_s3() {
+    assert_eq!(solve_id("alp_n25_r2_c4_std20_s3"), 1482);
 }
 
 #[test]
 fn alp_n25_r2_c4_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std20_s4"), 354);
+    assert_eq!(solve_id("alp_n25_r2_c4_std20_s4"), 3281);
 }
 
 #[test]
 fn alp_n25_r2_c4_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std30_s0"), 395);
+    assert_eq!(solve_id("alp_n25_r2_c4_std30_s0"), 143);
 }
 
 #[test]
 fn alp_n25_r2_c4_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std30_s1"), 633);
+    assert_eq!(solve_id("alp_n25_r2_c4_std30_s1"), 638);
 }
 
 #[test]
-fn alp_n25_r2_c4_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r2_c4_std30_s4"), 303);
+fn alp_n25_r2_c4_std30_s2() {
+    assert_eq!(solve_id("alp_n25_r2_c4_std30_s2"), 1859);
+}
+
+#[test]
+fn alp_n25_r2_c4_std30_s3() {
+    assert_eq!(solve_id("alp_n25_r2_c4_std30_s3"), 1873);
 }
 
 #[test]
 fn alp_n25_r3_c2_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std10_s0"), 0);
+    assert_eq!(solve_id("alp_n25_r3_c2_std10_s0"), 3);
 }
 
 #[test]
 fn alp_n25_r3_c2_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std10_s1"), 5);
-}
-
-#[test]
-fn alp_n25_r3_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std10_s2"), 12);
+    assert_eq!(solve_id("alp_n25_r3_c2_std10_s1"), 19);
 }
 
 #[test]
 fn alp_n25_r3_c2_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std10_s3"), 1);
+    assert_eq!(solve_id("alp_n25_r3_c2_std10_s3"), 11);
 }
 
 #[test]
 fn alp_n25_r3_c2_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std10_s4"), 1);
+    assert_eq!(solve_id("alp_n25_r3_c2_std10_s4"), 93);
 }
 
 #[test]
 fn alp_n25_r3_c2_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std20_s0"), 11);
+    assert_eq!(solve_id("alp_n25_r3_c2_std20_s0"), 33);
 }
 
 #[test]
 fn alp_n25_r3_c2_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std20_s1"), 4);
-}
-
-#[test]
-fn alp_n25_r3_c2_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std20_s2"), 110);
+    assert_eq!(solve_id("alp_n25_r3_c2_std20_s1"), 34);
 }
 
 #[test]
 fn alp_n25_r3_c2_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std20_s3"), 0);
+    assert_eq!(solve_id("alp_n25_r3_c2_std20_s3"), 119);
 }
 
 #[test]
 fn alp_n25_r3_c2_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std20_s4"), 3);
+    assert_eq!(solve_id("alp_n25_r3_c2_std20_s4"), 912);
 }
 
 #[test]
 fn alp_n25_r3_c2_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std30_s0"), 18);
+    assert_eq!(solve_id("alp_n25_r3_c2_std30_s0"), 124);
 }
 
 #[test]
 fn alp_n25_r3_c2_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std30_s1"), 40);
-}
-
-#[test]
-fn alp_n25_r3_c2_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std30_s3"), 33);
-}
-
-#[test]
-fn alp_n25_r3_c2_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c2_std30_s4"), 8);
+    assert_eq!(solve_id("alp_n25_r3_c2_std30_s1"), 36);
 }
 
 #[test]
 fn alp_n25_r3_c3_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std10_s0"), 3);
+    assert_eq!(solve_id("alp_n25_r3_c3_std10_s0"), 0);
 }
 
 #[test]
 fn alp_n25_r3_c3_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std10_s1"), 0);
-}
-
-#[test]
-fn alp_n25_r3_c3_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std10_s2"), 74);
-}
-
-#[test]
-fn alp_n25_r3_c3_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std10_s3"), 0);
+    assert_eq!(solve_id("alp_n25_r3_c3_std10_s1"), 3);
 }
 
 #[test]
 fn alp_n25_r3_c3_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std10_s4"), 6);
+    assert_eq!(solve_id("alp_n25_r3_c3_std10_s4"), 23);
 }
 
 #[test]
 fn alp_n25_r3_c3_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std20_s0"), 10);
-}
-
-#[test]
-fn alp_n25_r3_c3_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std20_s1"), 10);
-}
-
-#[test]
-fn alp_n25_r3_c3_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std20_s3"), 14);
+    assert_eq!(solve_id("alp_n25_r3_c3_std20_s0"), 4);
 }
 
 #[test]
 fn alp_n25_r3_c3_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std20_s4"), 38);
+    assert_eq!(solve_id("alp_n25_r3_c3_std20_s4"), 168);
 }
 
 #[test]
 fn alp_n25_r3_c3_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std30_s0"), 22);
-}
-
-#[test]
-fn alp_n25_r3_c3_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std30_s1"), 48);
-}
-
-#[test]
-fn alp_n25_r3_c3_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std30_s3"), 52);
+    assert_eq!(solve_id("alp_n25_r3_c3_std30_s0"), 16);
 }
 
 #[test]
 fn alp_n25_r3_c3_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c3_std30_s4"), 94);
+    assert_eq!(solve_id("alp_n25_r3_c3_std30_s4"), 365);
 }
 
 #[test]
 fn alp_n25_r3_c4_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std10_s0"), 39);
-}
-
-#[test]
-fn alp_n25_r3_c4_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std10_s1"), 53);
-}
-
-#[test]
-fn alp_n25_r3_c4_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std10_s2"), 55);
-}
-
-#[test]
-fn alp_n25_r3_c4_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std10_s3"), 86);
-}
-
-#[test]
-fn alp_n25_r3_c4_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std10_s4"), 19);
+    assert_eq!(solve_id("alp_n25_r3_c4_std10_s0"), 19);
 }
 
 #[test]
 fn alp_n25_r3_c4_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std20_s0"), 76);
-}
-
-#[test]
-fn alp_n25_r3_c4_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std20_s1"), 186);
+    assert_eq!(solve_id("alp_n25_r3_c4_std20_s0"), 45);
 }
 
 #[test]
 fn alp_n25_r3_c4_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std20_s4"), 86);
+    assert_eq!(solve_id("alp_n25_r3_c4_std20_s4"), 1644);
 }
 
 #[test]
 fn alp_n25_r3_c4_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std30_s0"), 189);
-}
-
-#[test]
-fn alp_n25_r3_c4_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r3_c4_std30_s4"), 145);
+    assert_eq!(solve_id("alp_n25_r3_c4_std30_s0"), 69);
 }
 
 #[test]
 fn alp_n25_r4_c2_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std10_s0"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c2_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std10_s1"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std10_s2"), 8);
+    assert_eq!(solve_id("alp_n25_r4_c2_std10_s0"), 0);
 }
 
 #[test]
 fn alp_n25_r4_c2_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std10_s3"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c2_std10_s3"), 3);
 }
 
 #[test]
 fn alp_n25_r4_c2_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std10_s4"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c2_std10_s4"), 33);
 }
 
 #[test]
 fn alp_n25_r4_c2_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std20_s0"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c2_std20_s0"), 0);
 }
 
 #[test]
 fn alp_n25_r4_c2_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std20_s1"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c2_std20_s2() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std20_s2"), 67);
-}
-
-#[test]
-fn alp_n25_r4_c2_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std20_s3"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c2_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std20_s4"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c2_std20_s1"), 5);
 }
 
 #[test]
 fn alp_n25_r4_c2_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std30_s0"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c2_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std30_s1"), 13);
-}
-
-#[test]
-fn alp_n25_r4_c2_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std30_s3"), 8);
-}
-
-#[test]
-fn alp_n25_r4_c2_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c2_std30_s4"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c2_std30_s0"), 45);
 }
 
 #[test]
 fn alp_n25_r4_c3_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std10_s0"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c3_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std10_s1"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c3_std10_s2() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std10_s2"), 12);
-}
-
-#[test]
-fn alp_n25_r4_c3_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std10_s3"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c3_std10_s0"), 0);
 }
 
 #[test]
 fn alp_n25_r4_c3_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std10_s4"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c3_std10_s4"), 19);
 }
 
 #[test]
 fn alp_n25_r4_c3_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std20_s0"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c3_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std20_s1"), 2);
-}
-
-#[test]
-fn alp_n25_r4_c3_std20_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std20_s3"), 5);
-}
-
-#[test]
-fn alp_n25_r4_c3_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std20_s4"), 0);
+    assert_eq!(solve_id("alp_n25_r4_c3_std20_s0"), 0);
 }
 
 #[test]
 fn alp_n25_r4_c3_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std30_s0"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c3_std30_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std30_s1"), 12);
-}
-
-#[test]
-fn alp_n25_r4_c3_std30_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std30_s3"), 31);
-}
-
-#[test]
-fn alp_n25_r4_c3_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c3_std30_s4"), 20);
-}
-
-#[test]
-fn alp_n25_r4_c4_std10_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std10_s0"), 0);
-}
-
-#[test]
-fn alp_n25_r4_c4_std10_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std10_s1"), 20);
-}
-
-#[test]
-fn alp_n25_r4_c4_std10_s3() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std10_s3"), 32);
-}
-
-#[test]
-fn alp_n25_r4_c4_std10_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std10_s4"), 8);
-}
-
-#[test]
-fn alp_n25_r4_c4_std20_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std20_s0"), 10);
-}
-
-#[test]
-fn alp_n25_r4_c4_std20_s1() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std20_s1"), 77);
-}
-
-#[test]
-fn alp_n25_r4_c4_std20_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std20_s4"), 34);
-}
-
-#[test]
-fn alp_n25_r4_c4_std30_s0() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std30_s0"), 26);
-}
-
-#[test]
-fn alp_n25_r4_c4_std30_s4() {
-	assert_eq!(solve_id("alp_n25_r4_c4_std30_s4"), 44);
+    assert_eq!(solve_id("alp_n25_r4_c3_std30_s0"), 0);
 }
 
 #[test]
 fn alp_n50_r1_c2_std10_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std10_s0"), 1156);
+    assert_eq!(solve_id("alp_n50_r1_c2_std10_s0"), 2054);
+}
+
+#[test]
+fn alp_n50_r1_c2_std10_s1() {
+    assert_eq!(solve_id("alp_n50_r1_c2_std10_s1"), 3180);
 }
 
 #[test]
 fn alp_n50_r1_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std10_s2"), 83);
+    assert_eq!(solve_id("alp_n50_r1_c2_std10_s2"), 908);
 }
 
 #[test]
 fn alp_n50_r1_c2_std10_s3() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std10_s3"), 615);
+    assert_eq!(solve_id("alp_n50_r1_c2_std10_s3"), 305);
 }
 
 #[test]
 fn alp_n50_r1_c2_std10_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std10_s4"), 245);
+    assert_eq!(solve_id("alp_n50_r1_c2_std10_s4"), 6235);
 }
 
 #[test]
 fn alp_n50_r1_c2_std20_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std20_s0"), 1245);
+    assert_eq!(solve_id("alp_n50_r1_c2_std20_s0"), 3396);
+}
+
+#[test]
+fn alp_n50_r1_c2_std20_s1() {
+    assert_eq!(solve_id("alp_n50_r1_c2_std20_s1"), 8579);
 }
 
 #[test]
 fn alp_n50_r1_c2_std20_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std20_s2"), 329);
+    assert_eq!(solve_id("alp_n50_r1_c2_std20_s2"), 4173);
 }
 
 #[test]
 fn alp_n50_r1_c2_std20_s3() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std20_s3"), 1125);
+    assert_eq!(solve_id("alp_n50_r1_c2_std20_s3"), 1313);
 }
 
 #[test]
 fn alp_n50_r1_c2_std20_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std20_s4"), 916);
+    assert_eq!(solve_id("alp_n50_r1_c2_std20_s4"), 12646);
 }
 
 #[test]
 fn alp_n50_r1_c2_std30_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std30_s0"), 1506);
+    assert_eq!(solve_id("alp_n50_r1_c2_std30_s0"), 5351);
 }
 
 #[test]
 fn alp_n50_r1_c2_std30_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std30_s2"), 813);
+    assert_eq!(solve_id("alp_n50_r1_c2_std30_s2"), 14233);
 }
 
 #[test]
-fn alp_n50_r1_c2_std30_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c2_std30_s4"), 2471);
+fn alp_n50_r1_c2_std30_s3() {
+    assert_eq!(solve_id("alp_n50_r1_c2_std30_s3"), 3228);
 }
 
 #[test]
 fn alp_n50_r1_c3_std10_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std10_s0"), 662);
-}
-
-#[test]
-fn alp_n50_r1_c3_std10_s1() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std10_s1"), 1166);
+    assert_eq!(solve_id("alp_n50_r1_c3_std10_s0"), 3038);
 }
 
 #[test]
 fn alp_n50_r1_c3_std10_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std10_s2"), 871);
+    assert_eq!(solve_id("alp_n50_r1_c3_std10_s2"), 988);
 }
 
 #[test]
 fn alp_n50_r1_c3_std10_s3() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std10_s3"), 713);
-}
-
-#[test]
-fn alp_n50_r1_c3_std10_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std10_s4"), 2649);
+    assert_eq!(solve_id("alp_n50_r1_c3_std10_s3"), 1097);
 }
 
 #[test]
 fn alp_n50_r1_c3_std20_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std20_s0"), 923);
+    assert_eq!(solve_id("alp_n50_r1_c3_std20_s0"), 13192);
 }
 
 #[test]
 fn alp_n50_r1_c3_std20_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std20_s2"), 1291);
+    assert_eq!(solve_id("alp_n50_r1_c3_std20_s2"), 2168);
 }
 
 #[test]
 fn alp_n50_r1_c3_std20_s3() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std20_s3"), 1212);
-}
-
-#[test]
-fn alp_n50_r1_c3_std20_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std20_s4"), 3106);
-}
-
-#[test]
-fn alp_n50_r1_c3_std30_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std30_s0"), 1458);
+    assert_eq!(solve_id("alp_n50_r1_c3_std20_s3"), 4073);
 }
 
 #[test]
 fn alp_n50_r1_c3_std30_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std30_s2"), 1903);
-}
-
-#[test]
-fn alp_n50_r1_c3_std30_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c3_std30_s4"), 4326);
+    assert_eq!(solve_id("alp_n50_r1_c3_std30_s2"), 7343);
 }
 
 #[test]
 fn alp_n50_r1_c4_std10_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std10_s0"), 1876);
+    assert_eq!(solve_id("alp_n50_r1_c4_std10_s0"), 8966);
+}
+
+#[test]
+fn alp_n50_r1_c4_std10_s1() {
+    assert_eq!(solve_id("alp_n50_r1_c4_std10_s1"), 10806);
 }
 
 #[test]
 fn alp_n50_r1_c4_std10_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std10_s2"), 1385);
+    assert_eq!(solve_id("alp_n50_r1_c4_std10_s2"), 2590);
 }
 
 #[test]
 fn alp_n50_r1_c4_std10_s4() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std10_s4"), 1791);
+    assert_eq!(solve_id("alp_n50_r1_c4_std10_s4"), 1540);
 }
 
 #[test]
-fn alp_n50_r1_c4_std20_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std20_s0"), 2210);
+fn alp_n50_r1_c4_std20_s1() {
+    assert_eq!(solve_id("alp_n50_r1_c4_std20_s1"), 7740);
 }
 
 #[test]
 fn alp_n50_r1_c4_std20_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std20_s2"), 1264);
+    assert_eq!(solve_id("alp_n50_r1_c4_std20_s2"), 3143);
 }
 
 #[test]
-fn alp_n50_r1_c4_std30_s0() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std30_s0"), 2606);
+fn alp_n50_r1_c4_std20_s4() {
+    assert_eq!(solve_id("alp_n50_r1_c4_std20_s4"), 2818);
 }
 
 #[test]
-fn alp_n50_r1_c4_std30_s2() {
-	assert_eq!(solve_id("alp_n50_r1_c4_std30_s2"), 1517);
-}
-
-#[test]
-fn alp_n50_r2_c2_std10_s0() {
-	assert_eq!(solve_id("alp_n50_r2_c2_std10_s0"), 28);
-}
-
-#[test]
-fn alp_n50_r2_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n50_r2_c2_std10_s2"), 24);
+fn alp_n50_r1_c4_std30_s4() {
+    assert_eq!(solve_id("alp_n50_r1_c4_std30_s4"), 6446);
 }
 
 #[test]
 fn alp_n50_r2_c2_std10_s4() {
-	assert_eq!(solve_id("alp_n50_r2_c2_std10_s4"), 14);
+    assert_eq!(solve_id("alp_n50_r2_c2_std10_s4"), 369);
 }
 
 #[test]
-fn alp_n50_r2_c3_std10_s0() {
-	assert_eq!(solve_id("alp_n50_r2_c3_std10_s0"), 80);
-}
-
-#[test]
-fn alp_n50_r2_c3_std10_s4() {
-	assert_eq!(solve_id("alp_n50_r2_c3_std10_s4"), 98);
-}
-
-#[test]
-fn alp_n50_r2_c3_std20_s4() {
-	assert_eq!(solve_id("alp_n50_r2_c3_std20_s4"), 208);
-}
-
-#[test]
-fn alp_n50_r3_c3_std10_s4() {
-	assert_eq!(solve_id("alp_n50_r3_c3_std10_s4"), 5);
+fn alp_n75_r1_c2_std10_s0() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std10_s0"), 2204);
 }
 
 #[test]
 fn alp_n75_r1_c2_std10_s2() {
-	assert_eq!(solve_id("alp_n75_r1_c2_std10_s2"), 176);
+    assert_eq!(solve_id("alp_n75_r1_c2_std10_s2"), 1101);
+}
+
+#[test]
+fn alp_n75_r1_c2_std10_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std10_s3"), 2273);
+}
+
+#[test]
+fn alp_n75_r1_c2_std10_s4() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std10_s4"), 2475);
+}
+
+#[test]
+fn alp_n75_r1_c2_std20_s0() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std20_s0"), 6353);
 }
 
 #[test]
 fn alp_n75_r1_c2_std20_s2() {
-	assert_eq!(solve_id("alp_n75_r1_c2_std20_s2"), 684);
+    assert_eq!(solve_id("alp_n75_r1_c2_std20_s2"), 4661);
+}
+
+#[test]
+fn alp_n75_r1_c2_std20_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std20_s3"), 5629);
+}
+
+#[test]
+fn alp_n75_r1_c2_std20_s4() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std20_s4"), 4520);
+}
+
+#[test]
+fn alp_n75_r1_c2_std30_s0() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std30_s0"), 11642);
 }
 
 #[test]
 fn alp_n75_r1_c2_std30_s2() {
-	assert_eq!(solve_id("alp_n75_r1_c2_std30_s2"), 1625);
+    assert_eq!(solve_id("alp_n75_r1_c2_std30_s2"), 11097);
+}
+
+#[test]
+fn alp_n75_r1_c2_std30_s4() {
+    assert_eq!(solve_id("alp_n75_r1_c2_std30_s4"), 8366);
+}
+
+#[test]
+fn alp_n75_r1_c3_std10_s0() {
+    assert_eq!(solve_id("alp_n75_r1_c3_std10_s0"), 7303);
+}
+
+#[test]
+fn alp_n75_r1_c3_std10_s2() {
+    assert_eq!(solve_id("alp_n75_r1_c3_std10_s2"), 7356);
+}
+
+#[test]
+fn alp_n75_r1_c3_std10_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c3_std10_s3"), 1928);
+}
+
+#[test]
+fn alp_n75_r1_c3_std20_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c3_std20_s3"), 2225);
+}
+
+#[test]
+fn alp_n75_r1_c3_std30_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c3_std30_s3"), 4257);
+}
+
+#[test]
+fn alp_n75_r1_c4_std10_s0() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std10_s0"), 10309);
+}
+
+#[test]
+fn alp_n75_r1_c4_std10_s1() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std10_s1"), 5632);
+}
+
+#[test]
+fn alp_n75_r1_c4_std10_s2() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std10_s2"), 5412);
+}
+
+#[test]
+fn alp_n75_r1_c4_std10_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std10_s3"), 1955);
+}
+
+#[test]
+fn alp_n75_r1_c4_std20_s0() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std20_s0"), 13091);
+}
+
+#[test]
+fn alp_n75_r1_c4_std20_s1() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std20_s1"), 26667);
+}
+
+#[test]
+fn alp_n75_r1_c4_std20_s2() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std20_s2"), 7817);
+}
+
+#[test]
+fn alp_n75_r1_c4_std20_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std20_s3"), 5268);
+}
+
+#[test]
+fn alp_n75_r1_c4_std30_s2() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std30_s2"), 16169);
+}
+
+#[test]
+fn alp_n75_r1_c4_std30_s3() {
+    assert_eq!(solve_id("alp_n75_r1_c4_std30_s3"), 25379);
 }

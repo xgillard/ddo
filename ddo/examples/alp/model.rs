@@ -170,6 +170,8 @@ impl Problem for Alp {
     fn for_each_in_domain(&self, variable: ddo::Variable, state: &Self::State, f: &mut dyn ddo::DecisionCallback) {
         let mut tot_rem = 0;
         let mut used = HashSet::new();
+        let mut decisions = vec![];
+
         for (class, rem) in state.rem.iter().copied().enumerate() {
             if rem > 0 {
                 let aircraft = self.next[class][rem];
@@ -182,9 +184,14 @@ impl Problem for Alp {
 
                     let arrival = self.get_arrival_time(&state.info, aircraft, runway);
                     if arrival <= self.instance.latest[aircraft] {
-                        f.apply(Decision { variable, value: self.to_decision(&AlpDecision { class, runway }) });
+                        decisions.push(self.to_decision(&AlpDecision { class, runway }));
                         used.insert(state.info[runway]);
                     }
+                }
+
+                if used.len() == 0 {
+                    // This aircraft will never be able to land
+                    return;
                 }
             }
 
@@ -193,6 +200,8 @@ impl Problem for Alp {
 
         if tot_rem == 0 {
             f.apply(Decision {variable, value: DUMMY });
+        } else {
+            decisions.iter().for_each(|d| f.apply(Decision { variable, value: *d }));
         }
     }
 }

@@ -26,7 +26,7 @@ use std::{marker::PhantomData, sync::Arc, hash::Hash};
 
 use parking_lot::{Condvar, Mutex};
 
-use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Barrier, DominanceChecker};
+use crate::{Fringe, Decision, Problem, Relaxation, StateRanking, WidthHeuristic, Cutoff, SubProblem, DecisionDiagram, CompilationInput, CompilationType, Solver, Solution, Completion, Reason, Cache, DominanceChecker};
 
 /// The shared data that may only be manipulated within critical sections
 struct Critical<'a, State> {
@@ -82,8 +82,8 @@ struct Critical<'a, State> {
 /// The state which is shared among the many running threads: it provides an
 /// access to the critical data (protected by a mutex) as well as a monitor
 /// (condvar) to park threads in case of node-starvation.
-struct Shared<'a, State, B> where
-    B : Barrier<State = State> + Send + Sync + Default,
+struct Shared<'a, State, C> where
+    C : Cache<State = State> + Send + Sync + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
     problem: &'a (dyn Problem<State = State> + Send + Sync),
@@ -100,7 +100,7 @@ struct Shared<'a, State, B> where
     cutoff: &'a (dyn Cutoff + Send + Sync),
 
     /// Data structure containing info about past compilations used to prune the search
-    barrier: B,
+    cache: C,
     dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
 
     /// This is the shared state data which can only be accessed within critical
@@ -284,12 +284,12 @@ enum WorkLoad<T> {
 ///     }
 /// }
 /// ```
-pub struct ParallelSolver<'a, State, D, B> 
+pub struct ParallelSolver<'a, State, D, C> 
 where D: DecisionDiagram<State = State> + Default,
-      B: Barrier<State = State> + Send + Sync + Default,
+      C: Cache<State = State> + Send + Sync + Default,
 {
     /// This is the shared state. Each thread is going to take a reference to it.
-    shared: Shared<'a, State, B>,
+    shared: Shared<'a, State, C>,
     /// This is a configuration parameter that tunes the number of threads that
     /// will be spawned to solve the problem. By default, this number amounts
     /// to the number of hardware threads available on the machine.
@@ -299,11 +299,11 @@ where D: DecisionDiagram<State = State> + Default,
     _phantom: PhantomData<D>, 
 }
 
-impl<'a, State, D, B>  ParallelSolver<'a, State, D, B>
+impl<'a, State, D, C>  ParallelSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
-    B: Barrier<State = State> + Send + Sync + Default,
+    C: Cache<State = State> + Send + Sync + Default,
 {
     pub fn new(
         problem: &'a (dyn Problem<State = State> + Send + Sync),
@@ -334,7 +334,7 @@ where
                 ranking,
                 width_heu,
                 cutoff,
-                barrier: B::default(),
+                cache: C::default(),
                 dominance,
                 //
                 monitor: Condvar::new(),
@@ -367,7 +367,7 @@ where
     /// can pick it up and the processing can be bootstrapped.
     fn initialize(&mut self) {
         let root = self.root_node();
-        self.shared.barrier.initialize(self.shared.problem);
+        self.shared.cache.initialize(self.shared.problem);
         let mut critical = self.shared.critical.lock();
         critical.fringe.push(root);
         critical.open_by_layer[0] += 1;
@@ -390,7 +390,7 @@ where
     /// it stores cut-set nodes onto the fringe for further parallel processing.
     fn process_one_node(
         mdd: &mut D,
-        shared: &Shared<'a, State, B>,
+        shared: &Shared<'a, State, C>,
         node: SubProblem<State>,
     ) -> Result<(), Reason> {
         // 1. RESTRICTION
@@ -412,7 +412,7 @@ where
             residual: &node,
             //
             best_lb,
-            barrier: &shared.barrier,
+            cache: &shared.cache,
             dominance: shared.dominance,
         };
 
@@ -436,14 +436,14 @@ where
         Ok(())
     }
 
-    fn best_lb(shared: &Shared<'a, State, B>) -> isize {
+    fn best_lb(shared: &Shared<'a, State, C>) -> isize {
         shared.critical.lock().best_lb
     }
 
     /// This private method updates the shared best known node and lower bound in
     /// case the best value of the current `mdd` expansion improves the current
     /// bounds.
-    fn maybe_update_best(mdd: &D, shared: &Shared<'a, State, B>) {
+    fn maybe_update_best(mdd: &D, shared: &Shared<'a, State, C>) {
         let mut shared = shared.critical.lock();
         let dd_best_value = mdd.best_exact_value().unwrap_or(isize::MIN);
         if dd_best_value > shared.best_lb {
@@ -453,7 +453,7 @@ where
     }
     /// If necessary, tightens the bound of nodes in the cut-set of `mdd` and
     /// then add the relevant nodes to the shared fringe.
-    fn enqueue_cutset(mdd: &mut D, shared: &Shared<'a, State, B>, ub: isize) {
+    fn enqueue_cutset(mdd: &mut D, shared: &Shared<'a, State, C>, ub: isize) {
         let mut critical = shared.critical.lock();
         let best_lb = critical.best_lb;
         mdd.drain_cutset(|mut cutset_node| {
@@ -468,7 +468,7 @@ where
         });
     }
     /// Acknowledges that a thread finished processing its node.
-    fn notify_node_finished(shared: &Shared<'a, State, B>, thread_id: usize, depth: usize) {
+    fn notify_node_finished(shared: &Shared<'a, State, C>, thread_id: usize, depth: usize) {
         let mut critical = shared.critical.lock();
         critical.ongoing -= 1;
         critical.upper_bounds[thread_id] = isize::MAX;
@@ -476,7 +476,7 @@ where
         shared.monitor.notify_all();
     }
 
-    fn abort_search(shared: &Shared<'a, State, B>, reason: Reason, current_ub: isize) {
+    fn abort_search(shared: &Shared<'a, State, C>, reason: Reason, current_ub: isize) {
         let mut critical = shared.critical.lock();
         critical.abort_proof = Some(reason);
         if critical.best_ub == isize::MAX {
@@ -485,7 +485,7 @@ where
             critical.best_ub = current_ub.max(critical.best_ub);
         }
         critical.fringe.clear();
-        shared.barrier.clear();
+        shared.cache.clear();
     }
 
     /// Consults the shared state to fetch a workload. Depending on the current
@@ -497,15 +497,14 @@ where
     ///     and thus the problem cannot be considered solved).
     ///   + WorkItem, when the thread successfully obtained a subproblem to
     ///     process.
-    fn get_workload(shared: &Shared<'a, State, B>, thread_id: usize) -> WorkLoad<State>
+    fn get_workload(shared: &Shared<'a, State, C>, thread_id: usize) -> WorkLoad<State>
     {
         let mut critical = shared.critical.lock();
 
-        // Can we clean up the barrier?
+        // Can we clean up the cache?
         while critical.first_active_layer < shared.problem.nb_variables() &&
                 critical.open_by_layer[critical.first_active_layer] + critical.ongoing_by_layer[critical.first_active_layer] == 0 {
-            shared.barrier.clear_layer(critical.first_active_layer);
-            shared.dominance.clear_layer(critical.first_active_layer);
+            shared.cache.clear_layer(critical.first_active_layer);
             critical.first_active_layer += 1;
         }
 
@@ -535,8 +534,8 @@ where
                 return WorkLoad::Starvation;
             }
             
-            if shared.barrier.must_explore(&nn) {
-                shared.barrier.update_threshold(nn.state.clone(), nn.depth, nn.value, true);
+            if shared.cache.must_explore(&nn) {
+                shared.cache.update_threshold(nn.state.clone(), nn.depth, nn.value, true);
                 break;
             } else {
                 critical.open_by_layer[nn.depth] -= 1;
@@ -560,11 +559,11 @@ where
     }
 }
 
-impl<'a, State, D, B> Solver for ParallelSolver<'a, State, D, B>
+impl<'a, State, D, C> Solver for ParallelSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
-    B: Barrier<State = State> + Send + Sync + Default,
+    C: Cache<State = State> + Send + Sync + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers
@@ -651,8 +650,8 @@ where
 mod test_solver {
     use crate::*;
     
-    type DdLel<'a, T> = ParallelSolver<'a, T, DefaultMDDLEL<T>, EmptyBarrier<T>>;
-    type DdFc <'a, T> = ParallelSolver<'a, T, DefaultMDDFC<T>, SimpleBarrier<T>>;
+    type DdLel<'a, T> = ParallelSolver<'a, T, DefaultMDDLEL<T>, EmptyCache<T>>;
+    type DdFc <'a, T> = ParallelSolver<'a, T, DefaultMDDFC<T>, SimpleCache<T>>;
 
     #[test]
     fn by_default_best_lb_is_min_infinity() {
