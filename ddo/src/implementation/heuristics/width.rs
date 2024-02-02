@@ -149,7 +149,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// # };
 /// # let relaxation = KPRelax{pb: &problem};
 /// # let heuristic = KPRanking;
-/// # let dominance = SimpleDominanceChecker::new(KPDominance);
+/// # let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// # let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// # let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -380,7 +380,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
-/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -619,7 +619,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWidth {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
-/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #
@@ -858,7 +858,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// };
 /// let relaxation = KPRelax{pb: &problem};
 /// let heuristic = KPRanking;
-/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else) 
 /// let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 /// #

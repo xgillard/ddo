@@ -31,6 +31,8 @@ struct DominanceEntry<T> {
     value: isize,
 }
 
+type DominanceMap<K, S> = DashMap<K, Vec<DominanceEntry<S>>, fxhash::FxBuildHasher>;
+
 #[derive(Debug)]
 pub struct SimpleDominanceChecker<D>
 where
@@ -38,7 +40,7 @@ where
     D::Key: Eq + PartialEq + Hash,
 {
     dominance: D,
-    data: DashMap<D::Key, Vec<DominanceEntry<D::State>>, fxhash::FxBuildHasher>,
+    data: Vec<DominanceMap<D::Key, D::State>>,
 }
 
 impl<D> SimpleDominanceChecker<D> 
@@ -46,8 +48,12 @@ where
     D: Dominance,
     D::Key: Eq + PartialEq + Hash,
 {
-    pub fn new(dominance: D) -> Self {
-        Self { dominance, data: Default::default() }
+    pub fn new(dominance: D, nb_variables: usize) -> Self {
+        let mut data = vec![];
+        for _ in 0..=nb_variables {
+            data.push(Default::default());
+        }
+        Self { dominance, data }
     }
 }
 
@@ -58,9 +64,13 @@ where
 {
     type State = D::State;
 
-    fn is_dominated_or_insert(&self, state: Arc<Self::State>, value: isize) -> DominanceCheckResult {
+    fn clear_layer(&self, depth: usize) {
+        self.data[depth].clear();
+    }
+
+    fn is_dominated_or_insert(&self, state: Arc<Self::State>, depth: usize, value: isize) -> DominanceCheckResult {
         if let Some(key) = self.dominance.get_key(state.clone()) {
-            match self.data.entry(key) {
+            match self.data[depth].entry(key) {
                 Entry::Occupied(mut e) => {
                     let mut dominated = false;
                     let mut threshold = Some(isize::MAX);
@@ -113,104 +123,104 @@ mod tests {
 
     #[test]
     fn not_dominated_when_keys_are_different() {
-        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue);
+        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![3, 0]), 3));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![2, 0]), 2));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![1, 0]), 1));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![3, 0]), 0, 3));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![2, 0]), 0, 2));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![1, 0]), 0, 1));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 0));
     }
 
     #[test]
     fn dominated_when_keys_are_equal() {
-        let dominance = SimpleDominanceChecker::new(DummyDominance);
+        let dominance = SimpleDominanceChecker::new(DummyDominance, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 3]), 0));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 3]), 0, 0));
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 2]), 2);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 2]), 0, 2);
         assert!(res.dominated);
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 1);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 0, 1);
         assert!(res.dominated);
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 0);
         assert!(res.dominated);
 
-        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue);
+        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 3));
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 2);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 2);
         assert!(res.dominated);
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 1);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 1);
         assert!(res.dominated);
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 0);
         assert!(res.dominated);
 
-        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 3);
+        let res = dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 0, 3);
         assert!(res.dominated);
     }
 
     #[test]
     fn not_dominated_when_keys_are_equal() {
-        let dominance = SimpleDominanceChecker::new(DummyDominance);
+        let dominance = SimpleDominanceChecker::new(DummyDominance, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0, 3]), 3));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0, 3]), 1));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1, 1]), 5));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0, 4]), 3));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0, 3]), 0, 3));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0, 3]), 0, 1));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1, 1]), 0, 5));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0, 4]), 0, 3));
 
-        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue);
+        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 3]), 0));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 1));
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 5));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 3));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 3]), 0, 0));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 0, 1));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 5));
     }
 
     #[test]
     fn pruning_threshold_when_value_is_used() {
-        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue);
+        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
-        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(2) }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 2));
-        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(2) }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 1));
-        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(3) }, dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 0));
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 3));
+        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(2) }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 2));
+        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(2) }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 1));
+        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(3) }, dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 0, 0));
     }
 
     #[test]
     fn entry_is_added_only_when_dominant() {
-        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue);
+        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
-        assert!(dominance.data.get(&0).is_some());
-        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 3));
+        assert!(dominance.data[0].get(&0).is_some());
+        assert_eq!(1, dominance.data[0].get(&0).unwrap().len());
 
-        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(2) }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 1));
-        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: true, threshold: Some(2) }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 1));
+        assert_eq!(1, dominance.data[0].get(&0).unwrap().len());
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 1));
-        assert_eq!(2, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 0, 1));
+        assert_eq!(2, dominance.data[0].get(&0).unwrap().len());
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 5));
-        assert_eq!(3, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, -1]), 0, 5));
+        assert_eq!(3, dominance.data[0].get(&0).unwrap().len());
     }
 
     #[test]
     fn entry_is_removed_when_dominated() {
-        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue);
+        let dominance = SimpleDominanceChecker::new(DummyDominanceWithValue, 0);
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 3));
-        assert!(dominance.data.get(&0).is_some());
-        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 0]), 0, 3));
+        assert!(dominance.data[0].get(&0).is_some());
+        assert_eq!(1, dominance.data[0].get(&0).unwrap().len());
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 5));
-        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 1]), 0, 5));
+        assert_eq!(1, dominance.data[0].get(&0).unwrap().len());
 
-        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 2]), 7));
-        assert_eq!(1, dominance.data.get(&0).unwrap().len());
+        assert_eq!(DominanceCheckResult{ dominated: false, threshold: None }, dominance.is_dominated_or_insert(Arc::new(vec![0, 2]), 0, 7));
+        assert_eq!(1, dominance.data[0].get(&0).unwrap().len());
     }
 
     struct DummyDominance;

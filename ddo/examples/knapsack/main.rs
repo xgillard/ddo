@@ -317,7 +317,7 @@ fn main() {
     let relaxation= KPRelax{pb: &problem};
     let heuristic= KPRanking;
     let width = max_width(problem.nb_variables(), args.width);
-    let dominance = SimpleDominanceChecker::new(KPDominance);
+    let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
     let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 

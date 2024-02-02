@@ -42,7 +42,7 @@ pub fn solve_id(id: &str) -> isize {
     let ranking = KPRanking;
 
     let width = NbUnassignedWidth(problem.nb_variables());
-    let dominance = SimpleDominanceChecker::new(KPDominance);
+    let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 

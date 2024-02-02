@@ -82,7 +82,7 @@ fn main() {
     let ranking = AlpRanking;
 
     let width = max_width(&problem, args.width);
-    let dominance = SimpleDominanceChecker::new(AlpDominance);
+    let dominance = SimpleDominanceChecker::new(AlpDominance, problem.nb_variables());
     let cutoff = cutoff(args.duration);
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 

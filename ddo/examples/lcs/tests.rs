@@ -42,7 +42,7 @@ pub fn solve_id(id: &str) -> isize {
     let ranking = LcsRanking;
 
     let width = FixedWidth(100);
-    let dominance = SimpleDominanceChecker::new(LcsDominance);
+    let dominance = SimpleDominanceChecker::new(LcsDominance, problem.nb_variables());
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 

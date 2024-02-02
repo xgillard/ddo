@@ -41,7 +41,7 @@ pub fn solve_id(id: &str) -> isize {
     let ranking = AlpRanking;
 
     let width = NbUnassignedWidth(problem.nb_variables());
-    let dominance = SimpleDominanceChecker::new(AlpDominance);
+    let dominance = SimpleDominanceChecker::new(AlpDominance, problem.nb_variables());
     let cutoff = NoCutoff;
     let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
 

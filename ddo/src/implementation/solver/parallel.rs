@@ -246,7 +246,7 @@ enum WorkLoad<T> {
 /// let width = FixedWidth(100); // here we mean max 100 nodes per layer
 /// 
 /// // 5. Add a dominance relation checker
-/// let dominance = SimpleDominanceChecker::new(KPDominance);
+/// let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
 /// 
 /// // 6. Decide of a cutoff heuristic (if you don't want to let the solver run for ever)
 /// let cutoff = NoCutoff; // might as well be a TimeBudget (or something else)

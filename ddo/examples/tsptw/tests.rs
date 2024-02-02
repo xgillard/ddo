@@ -37,7 +37,7 @@ pub fn solve(instance: &str, width: Option<usize>, threads: Option<usize>) -> f3
     let mut fringe = NoDupFringe::new(MaxUB::new(&TsptwRanking));
     let relax = TsptwRelax::new(&pb);
     let width = TsptwWidth::new(pb.nb_variables(), width.unwrap_or(1));
-    let dominance = SimpleDominanceChecker::new(TsptwDominance);
+    let dominance = SimpleDominanceChecker::new(TsptwDominance, pb.nb_variables());
     let cutoff = NoCutoff;
     let mut solver = DefaultCachingSolver::custom(
         &pb,
