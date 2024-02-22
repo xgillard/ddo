@@ -85,8 +85,8 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<SrflpInstance, Error> {
     }
 
     if clearance {
-        for i in 0..nb_departments {
-            lengths[i] += 10;
+        for item in lengths.iter_mut().take(nb_departments) {
+            *item += 10;
         }
     }
 

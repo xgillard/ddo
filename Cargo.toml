@@ -6,6 +6,8 @@ members = [
     "xtask",
 ]
 
+resolver = "2"
+
 [profile.release]
 lto              = 'fat'
 panic            = 'abort'

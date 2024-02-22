@@ -94,10 +94,10 @@ impl Problem for Tsptw {
 
     fn transition(&self, state: &TsptwState, d: Decision) -> TsptwState {
         // if it is a true move
-        let mut remaining = state.must_visit.clone();
+        let mut remaining = state.must_visit;
         remaining.remove_inplace(d.value as usize);
         // if it is a possible move
-        let mut maybes = state.maybe_visit.clone();
+        let mut maybes = state.maybe_visit;
         if let Some(maybe) = maybes.as_mut() {
             maybe.remove_inplace(d.value as usize);
         }
@@ -199,7 +199,7 @@ impl Tsptw {
             Position::Node(i) => self.instance.distances[*i as usize][j],
             Position::Virtual(candidates) => 
                 candidates.iter()
-                    .map(|i| self.instance.distances[i as usize][j as usize])
+                    .map(|i| self.instance.distances[i][j])
                     .min()
                     .unwrap()
         }
@@ -209,7 +209,7 @@ impl Tsptw {
             Position::Node(i) => self.instance.distances[*i as usize][j],
             Position::Virtual(candidates) => 
                 candidates.iter()
-                    .map(|i| self.instance.distances[i as usize][j as usize])
+                    .map(|i| self.instance.distances[i][j])
                     .max()
                     .unwrap()
         }

@@ -47,6 +47,6 @@ impl TsptwWidth {
 }
 impl WidthHeuristic<TsptwState> for TsptwWidth {
     fn max_width(&self, state: &SubProblem<TsptwState>) -> usize {
-        self.nb_vars * (state.depth as usize + 1) * self.factor
+        self.nb_vars * (state.depth + 1) * self.factor
     }
 }

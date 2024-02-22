@@ -444,6 +444,7 @@ where
         }
     }
 
+    #[allow(clippy::redundant_closure_call)]
     fn _compute_local_bounds(&mut self, input: &CompilationInput<T>) {
         if self.lel.unwrap().0 < self.layers.len() && input.comp_type == CompilationType::Relaxed {
             // initialize last layer
@@ -472,7 +473,8 @@ where
             }
         }
     }
-
+    
+    #[allow(clippy::redundant_closure_call)]
     fn _compute_thresholds(&mut self, input: &CompilationInput<T>) {
         if input.comp_type == CompilationType::Relaxed || self.is_exact {
             let mut best_known = input.best_lb;
@@ -579,7 +581,8 @@ where
             }
         }
     }
-
+    
+    #[allow(clippy::redundant_closure_call)]
     fn _compute_frontier_cutset(&mut self) {
         // traverse bottom-up
         for Layer{from, to} in self.layers.iter().rev().copied() {
@@ -808,6 +811,7 @@ where
         curr_l.truncate(input.max_width);
     }
 
+    #[allow(clippy::redundant_closure_call)]
     fn _relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
         curr_l.sort_unstable_by(|a, b| {
             get!(node a, self).value_top
@@ -957,6 +961,8 @@ where T: Debug + Eq + PartialEq + Hash + Clone {
         let attributes = self.node_attributes(id, config);
         format!("\t{id} [{attributes}];\n")
     }
+    
+    #[allow(clippy::redundant_closure_call)]
     /// Creates a string representation of the edges incident to one node
     fn edges_of(&self, id: usize) -> String {
         let mut out = String::new();

@@ -132,7 +132,7 @@ impl RelaxHelper {
         self.depth
     }
     fn get_position(&self) -> Position {
-        Position::Virtual(self.position.clone())
+        Position::Virtual(self.position)
     }
     fn get_elapsed(&self) -> ElapsedTime {
         if self.earliest == self.latest {
@@ -147,10 +147,10 @@ impl RelaxHelper {
         }
     }
     fn get_must_visit(&self) -> Set256 {
-        self.all_agree.clone()
+        self.all_agree
     }
     fn get_maybe_visit(&self) -> Option<Set256> {
-        let mut maybe = self.all_maybe.clone(); // three lines: faster because it is in-place
+        let mut maybe = self.all_maybe; // three lines: faster because it is in-place
         maybe.union_inplace(&self.all_must);
         maybe.diff_inplace(&self.all_agree);
 

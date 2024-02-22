@@ -96,10 +96,10 @@ impl Problem for Srflp {
         let d = d.value as usize;
 
         // if it is a true move
-        let mut remaining = state.must_place.clone();
+        let mut remaining = state.must_place;
         remaining.remove_inplace(d);
         // if it is a possible move
-        let mut maybes = state.maybe_place.clone();
+        let mut maybes = state.maybe_place;
         if let Some(maybe) = maybes.as_mut() {
             maybe.remove_inplace(d);
 
