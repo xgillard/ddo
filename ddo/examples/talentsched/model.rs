@@ -110,7 +110,7 @@ impl Problem for TalentSched {
         ret
     }
 
-    fn transition_cost(&self, state: &Self::State, decision: ddo::Decision) -> isize {
+    fn transition_cost(&self, state: &Self::State, _: &Self::State, decision: ddo::Decision) -> isize {
         let scene = decision.value as usize;
 
         let pay = self.get_present(state).diff(self.actors[scene]);

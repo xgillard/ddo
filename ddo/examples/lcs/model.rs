@@ -120,7 +120,7 @@ impl Problem for Lcs {
         LcsState { position }
     }
 
-    fn transition_cost(&self, _: &Self::State, decision: ddo::Decision) -> isize {
+    fn transition_cost(&self, _: &Self::State, _: &Self::State, decision: ddo::Decision) -> isize {
         match decision.value {
             GO_TO_END_OF_STRINGS => 0,
             _ => 1,

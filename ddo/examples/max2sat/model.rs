@@ -291,7 +291,7 @@ impl Problem for Max2Sat {
         ret
     }
 
-    fn transition_cost(&self, state: &State, d: Decision) -> isize {
+    fn transition_cost(&self, state: &State, _: &Self::State, d: Decision) -> isize {
         let k = d.variable;
         let vars = self.varset(state);
         if d.value == F {

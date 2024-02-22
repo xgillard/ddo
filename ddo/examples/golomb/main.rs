@@ -117,7 +117,7 @@ impl Problem for Golomb {
     }
 
     // compute the cost of the decision from the given state
-    fn transition_cost(&self, state: &Self::State, dec: Decision) -> isize {
+    fn transition_cost(&self, state: &Self::State, _: &Self::State, dec: Decision) -> isize {
         // distance between the new mark and the previous one
         -(dec.value - state.last_mark) // put a minus to turn objective into maximization (ddo requirement)
     }

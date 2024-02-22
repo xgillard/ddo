@@ -47,7 +47,7 @@ pub trait Problem {
     fn transition(&self, state: &Self::State, decision: Decision) -> Self::State;
     /// This method is an implementation of the transition cost function mentioned
     /// in the mathematical model of a DP formulation for some problem.
-    fn transition_cost(&self, state: &Self::State, decision: Decision) -> isize;
+    fn transition_cost(&self, source: &Self::State, dest: &Self::State, decision: Decision) -> isize;
     /// Any problem needs to be able to specify an ordering on the variables
     /// in order to decide which variable should be assigned next. This choice
     /// is an **heuristic** choice. The variable ordering does not need to be
@@ -165,7 +165,7 @@ mod tests {
         fn transition(&self, _: &Self::State, _: Decision) -> Self::State {
             todo!()
         }
-        fn transition_cost(&self, _: &Self::State, _: Decision) -> isize {
+        fn transition_cost(&self, _: &Self::State, _: &Self::State, _: Decision) -> isize {
             todo!()
         }
         fn next_variable(&self, _: usize, _: &mut dyn Iterator<Item = &Self::State>)

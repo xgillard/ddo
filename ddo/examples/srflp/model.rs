@@ -129,7 +129,7 @@ impl Problem for Srflp {
         }
     }
 
-    fn transition_cost(&self, state: &SrflpState, d: Decision) -> isize {
+    fn transition_cost(&self, state: &SrflpState, _: &Self::State, d: Decision) -> isize {
         let d = d.value as usize;
 
         let mut cut = 0;

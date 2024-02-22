@@ -148,7 +148,7 @@ impl Problem for Alp {
         }
     }
 
-    fn transition_cost(&self, state: &Self::State, decision: ddo::Decision) -> isize {
+    fn transition_cost(&self, state: &Self::State, _: &Self::State, decision: ddo::Decision) -> isize {
         if decision.value == DUMMY {
             0
         } else {

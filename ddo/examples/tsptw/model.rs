@@ -113,7 +113,7 @@ impl Problem for Tsptw {
         }
     }
 
-    fn transition_cost(&self, state: &TsptwState, d: Decision) -> isize {
+    fn transition_cost(&self, state: &TsptwState, _: &Self::State, d: Decision) -> isize {
         // Tsptw is a minimization problem but the solver works with a 
         // maximization perspective. So we have to negate the min if we want to
         // yield a lower bound.

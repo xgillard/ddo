@@ -84,7 +84,7 @@ use crate::{WidthHeuristic, SubProblem};
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -223,7 +223,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -312,7 +312,7 @@ impl <X> WidthHeuristic<X> for FixedWidth {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -462,7 +462,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWidth {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -551,7 +551,7 @@ impl <X> WidthHeuristic<X> for NbUnassignedWidth {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, next_layer: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -702,7 +702,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -791,7 +791,7 @@ impl <S, X: WidthHeuristic<S>> WidthHeuristic<S> for Times<X> {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {

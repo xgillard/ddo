@@ -166,7 +166,7 @@ enum WorkLoad<T> {
 /// #         }
 /// #         ret
 /// #     }
-/// #     fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+/// #     fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
 /// #         self.profit[dec.variable.id()] as isize * dec.value
 /// #     }
 /// #     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
@@ -1281,7 +1281,7 @@ mod test_solver {
             }
             ret
         }
-        fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+        fn transition_cost(&self, _state: &Self::State, _: &Self::State, dec: Decision) -> isize {
             self.profit[dec.variable.id()] as isize * dec.value
         }
         fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {

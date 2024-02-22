@@ -97,7 +97,7 @@ impl Problem for Knapsack {
         }
         ret
     }
-    fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+    fn transition_cost(&self, _state: &Self::State, _: &Self::State, dec: Decision) -> isize {
         self.profit[dec.variable.id()] as isize * dec.value
     }
 
