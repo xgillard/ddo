@@ -557,6 +557,7 @@ where
 
         WorkLoad::WorkItem { node: nn }
     }
+
 }
 
 impl<'a, State, D, C> Solver for ParallelSolver<'a, State, D, C>
@@ -632,6 +633,10 @@ where
             critical.best_sol = Some(solution);
             critical.best_lb  = value;
         }
+    }
+    /// Returns the number of nodes that have been explored so far.
+    fn explored(&self) -> usize {
+        self.shared.critical.lock().explored
     }
 }
 

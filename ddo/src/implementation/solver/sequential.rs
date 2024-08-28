@@ -459,6 +459,7 @@ where
 
         WorkLoad::WorkItem { node: nn }
     }
+
 }
 
 impl<'a, State, D, C> Solver for SequentialSolver<'a, State, D, C>
@@ -517,6 +518,10 @@ where
             self.best_sol = Some(solution);
             self.best_lb  = value;
         }
+    }
+    /// Returns the number of nodes that have been explored so far.
+    fn explored(&self) -> usize {
+        self.explored
     }
 }
 

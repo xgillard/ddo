@@ -90,5 +90,8 @@ pub trait Solver {
         
             (u - l) as f32 / u as f32
         }
-    }    
+    }
+
+    /// Returns the number of nodes that have been explored during the search.
+    fn explored() -> usize;
 }
