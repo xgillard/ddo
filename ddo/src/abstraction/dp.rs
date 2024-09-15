@@ -68,6 +68,10 @@ pub trait Problem {
     fn is_impacted_by(&self, _var: Variable, _state: &Self::State) -> bool {
         true
     }
+    // This function can be implemented by a problem that provides some kind of learned oracle to provide decision support
+    fn perform_ml_decision_inference(&self, _var: Variable, _state:&Self::State) -> Option<Decision>{
+        None
+    }
 }
 
 /// A relaxation encapsulates the relaxation $\Gamma$ and $\oplus$ which are

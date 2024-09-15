@@ -25,6 +25,7 @@ use std::{path::Path, fs::File, io::{BufReader, BufRead}, time::{Duration, Insta
 use clap::Parser;
 use ddo::*;
 use ordered_float::OrderedFloat;
+use tensorflow::Tensor;
 
 #[cfg(test)]
 mod tests;
@@ -59,14 +60,47 @@ pub struct Knapsack {
     weight: Vec<usize>,
     /// the order in which the items are considered
     order: Vec<usize>,
+    // Optional ml model to support decision making
+    ml_model: Option<TfModel>
 }
 
 impl Knapsack {
-    pub fn new(capacity: usize, profit: Vec<isize>, weight: Vec<usize>) -> Self {
+    pub fn new(capacity: usize, profit: Vec<isize>, weight: Vec<usize>, ml_model:Option<TfModel>) -> Self {
         let mut order = (0..profit.len()).collect::<Vec<usize>>();
         order.sort_unstable_by_key(|i| OrderedFloat(- profit[*i] as f64 / weight[*i] as f64));
 
-        Knapsack { capacity, profit, weight, order }
+        Knapsack { capacity, profit, weight, order, ml_model }
+    }
+}
+
+impl ModelHelper for Knapsack{
+    type State = KnapsackState;
+    //TODO - Calculate selection status properly
+    fn state_to_input_tensor(&self,state: &Self::State) -> Result<Tensor<f32>, tensorflow::Status>{
+        let values = self.profit.clone();
+        let weights = self.weight.clone();
+        let capacity = [state.capacity as isize];
+        let selection_status = [1,1,1,1,1,0,0,0,0,0];
+        let input: Vec<f32> = values.iter().map(|x| *x as f32).
+                                chain(weights.iter().map(|x| *x as f32)).
+                                chain(capacity.iter().map(|x| *x as f32)).
+                                chain(selection_status.iter().map(|x| *x as f32)).
+                                collect();
+
+        let tensor = Tensor::new(&[1,(3*values.len()+1) as u64]).with_values(&input)?;
+        println!("Output tensor is {:?}", tensor);
+        Ok(tensor)
+    }
+
+    fn extract_decision_from_model_output(&self, state: &Self::State, output: Tensor<f32>) -> Option<Decision>{
+        //TODO - Am I interpreting model output correctly?
+        if let Some(variable) = self.next_variable(state.depth, &mut vec![].iter()){
+            return Some(Decision {
+                variable,
+                value: if output[variable.0] > 0.5{TAKE_IT} else {LEAVE_IT_OUT},
+                })
+        }
+        None
     }
 }
 
@@ -122,6 +156,16 @@ impl Problem for Knapsack {
         } else {
             None
         }
+    }
+    fn perform_ml_decision_inference(&self, _var: Variable, state:&Self::State) -> Option<Decision>{
+        if let Some(model) = &self.ml_model {
+            let output = self.perform_inference(&model,state);
+            self.extract_decision_from_model_output(state,output)
+        }
+        else{
+            None
+        }
+        
     }
 }
 
@@ -242,6 +286,16 @@ struct Args {
     /// as many nodes in a layer as there are unassigned variables in the global problem.
     #[clap(short, long)]
     width: Option<usize>,
+    /// Option to use ML model for restriction builidng
+    /// Path to pb file for model
+    #[clap(short, long, default_value = "")]
+    model: String,
+    /// Whether or not to write output to json file
+    #[clap(short, long, action)]
+    json_output: bool,
+    /// Path to write output file to
+    #[clap(short='x', long, default_value = "")]
+    outfolder: String,
 }
 
 /// This enumeration simply groups the kind of errors that might occur when parsing a
@@ -264,8 +318,8 @@ pub enum Error {
 
 /// This function is used to read a knapsack instance from file. It returns either a
 /// knapsack instance if everything went on well or an error describing the problem.
-pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
-    let f = File::open(fname)?;
+fn read_instance(args:&Args) -> Result<Knapsack, Error> {
+    let f = File::open(&args.fname)?;
     let f = BufReader::new(f);
     
     let mut is_first = true;
@@ -295,9 +349,14 @@ pub fn read_instance<P: AsRef<Path>>(fname: P) -> Result<Knapsack, Error> {
             count += 1;
         }
     }
-    Ok(Knapsack::new(capa, profit, weight))
+    let model: Option<TfModel> = if !args.model.is_empty(){Some(read_model(&args.model,"test_input".to_string(),"test_output".to_string()).unwrap())} 
+                                else {None};
+    Ok(Knapsack::new(capa, profit, weight,model))
 }
 
+pub fn read_model<P: AsRef<Path>>(model_path: P,input: String, output:String) -> Result<TfModel, Error>{
+    Ok(TfModel::new(model_path,input,output))
+}
 /// An utility function to return an max width heuristic that can either be a fixed width
 /// policy (if w is fixed) or an adaptive policy returning the number of unassigned variables
 /// in the overall problem.
@@ -313,7 +372,7 @@ fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> +
 /// to create a fast an effective solver for the knapsack problem.
 fn main() {
     let args = Args::parse();
-    let problem = read_instance(&args.fname).unwrap();
+    let problem = read_instance(&args).unwrap();
     let relaxation= KPRelax{pb: &problem};
     let heuristic= KPRanking;
     let width = max_width(problem.nb_variables(), args.width);

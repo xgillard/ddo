@@ -61,6 +61,8 @@ impl NodeFlags {
     pub const F_CACHE: u8 = 32;
     /// The position of the above cut-set flag.
     pub const F_ABOVE_CUTSET: u8 = 64;
+    /// The position of the must keep flag - signifies that node should not be pruned or merged away if possible
+    pub const F_MUST_KEEP: u8 = 128;
 
     /// Creates a new set of flags, either initialized with exact on or with
     /// relaxed on.
@@ -118,6 +120,11 @@ impl NodeFlags {
     pub fn is_pruned_by_cache(self) -> bool {
         self.test(NodeFlags::F_CACHE)
     }
+    /// Returns true iff the must keep flag is turned on
+    #[inline]
+    pub fn is_must_keep(self) -> bool {
+        self.test(NodeFlags::F_MUST_KEEP)
+    }
     /// Sets the exact flag to the given value
     #[inline]
     pub fn set_exact(&mut self, exact: bool) {
@@ -150,6 +157,11 @@ impl NodeFlags {
     #[inline]
     pub fn set_pruned_by_cache(&mut self, cache: bool) {
         self.set(NodeFlags::F_CACHE, cache)
+    }
+    /// Sets the must keep flag to the given value
+    #[inline]
+    pub fn set_must_keep(&mut self, must_keep: bool) {
+        self.set(NodeFlags::F_MUST_KEEP, must_keep)
     }
     /// Checks whether all the flags encoded in the given mask are turned on.
     /// Otherwise, it returns false

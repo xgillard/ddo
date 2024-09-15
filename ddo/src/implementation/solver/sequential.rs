@@ -342,10 +342,11 @@ where
             return Ok(());
         }
 
-        let width = self.width_heu.max_width(&node);
+        // let width = self.width_heu.max_width(&node);
+        let restriction_width = self.width_heu.restriction_width(&node);
         let compilation = CompilationInput {
             comp_type: CompilationType::Restricted,
-            max_width: width,
+            max_width: restriction_width,
             problem: self.problem,
             relaxation: self.relaxation,
             ranking: self.ranking,
@@ -365,9 +366,10 @@ where
 
         // 2. RELAXATION
         let best_lb = self.best_lb;
+        let relaxation_width = self.width_heu.relaxation_width(&node);
         let compilation = CompilationInput {
             comp_type: CompilationType::Relaxed,
-            max_width: width,
+            max_width: relaxation_width,
             problem: self.problem,
             relaxation: self.relaxation,
             ranking: self.ranking,

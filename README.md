@@ -133,7 +133,7 @@ impl Problem for Knapsack {
         }
         ret
     }
-    fn transition_cost(&self, _state: &Self::State, dec: Decision) -> isize {
+    fn transition_cost(&self, _state: &Self::State, _next: &Self::State, dec: Decision) -> isize {
         self.profit[dec.variable.id()] as isize * dec.value
     }
 
@@ -337,6 +337,7 @@ please cite:
 ```
 
 ## Changelog
++ Version 2.0.0 gives the transition_cost function an access to the target state which is reached by applying the given transition
 + Version 0.3.0 adds a cutoff mechanism which may force the solver to stop trying to prove the optimum. Some return types have been adapted to take that possibility into account.
 
 ## References

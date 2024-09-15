@@ -362,14 +362,34 @@ where
                 let rub = input.relaxation.fast_upper_bound(state.as_ref());
                 self.nodes[node_id.0].rub = rub;
                 let ub = rub.saturating_add(self.nodes[node_id.0].value_top);
+                let is_exact_node = self.nodes[node_id.0].flags.is_exact();
+                
                 if ub > input.best_lb {
+                    let is_must_keep_match = |decision| {
+                        // TO DO: only call model if node exact and we are restricting
+                        match input.comp_type {
+                            CompilationType::Restricted =>{
+                                if is_exact_node {
+                                    let must_keep_decision:Option<Decision> = input.problem.perform_ml_decision_inference(var,&state);
+                                    match must_keep_decision {
+                                        Some(x) => return x == decision,
+                                        None => return false };
+                                }
+                                else{
+                                    false
+                                }
+
+                            },
+                            _ => false
+                        }
+                    };
                     input.problem.for_each_in_domain(var, state.as_ref(), &mut |decision| {
-                        self._branch_on(*node_id, decision, input.problem)
+                        self._branch_on(*node_id, decision, input.problem,is_must_keep_match(decision))
                     })
                 }
             }
-
             self.curr_depth += 1;
+            
         }
 
         self._finalize(input);
@@ -727,6 +747,7 @@ where
         from_id: NodeId,
         decision: Decision,
         problem: &dyn Problem<State = T>,
+        must_keep: bool 
     ) {
         let state = get!(node from_id, self).state.as_ref();
         let next_state = Arc::new(problem.transition(state, decision));
@@ -738,6 +759,7 @@ where
                 let node_id = NodeId(self.nodes.len());
                 let mut flags = NodeFlags::new_exact();
                 flags.set_exact(parent.flags.is_exact());
+                flags.set_must_keep(must_keep);
 
                 self.nodes.push(Node {
                     state: next_state,
@@ -797,11 +819,21 @@ where
     }
 
     fn _restrict(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        // curr_l.sort_unstable_by(|a, b| {
+        //     get!(node a, self).value_top
+        //         .cmp(&get!(node b, self).value_top)
+        //         .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
+        //         .reverse()
+        // }); // reverse because greater means more likely to be kept
+
         curr_l.sort_unstable_by(|a, b| {
+            get!(node a, self).flags.is_must_keep().cmp(&get!(node b, self).flags.is_must_keep()) // make sure any must_keep nodes are higher in the ranking
+            .then_with(|| {
             get!(node a, self).value_top
                 .cmp(&get!(node b, self).value_top)
-                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
-                .reverse()
+                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref())) 
+            })
+            .reverse()
         }); // reverse because greater means more likely to be kept
 
         for drop_id in curr_l.iter().skip(input.max_width).copied() {
@@ -813,11 +845,21 @@ where
 
     #[allow(clippy::redundant_closure_call)]
     fn _relax(&mut self, input: &CompilationInput<T>, curr_l: &mut Vec<NodeId>) {
+        // curr_l.sort_unstable_by(|a, b| {
+        //     get!(node a, self).value_top
+        //         .cmp(&get!(node b, self).value_top)
+        //         .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
+        //         .reverse()
+        // }); // reverse because greater means more likely to be kept
+
         curr_l.sort_unstable_by(|a, b| {
+            get!(node a, self).flags.is_must_keep().cmp(&get!(node b, self).flags.is_must_keep()) // make sure any must_keep nodes are higher in the ranking
+            .then_with(|| {
             get!(node a, self).value_top
                 .cmp(&get!(node b, self).value_top)
-                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref()))
-                .reverse()
+                .then_with(|| input.ranking.compare(get!(node a, self).state.as_ref(), get!(node b, self).state.as_ref())) 
+            })
+            .reverse()
         }); // reverse because greater means more likely to be kept
 
         //--

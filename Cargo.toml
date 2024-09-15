@@ -13,3 +13,8 @@ lto              = 'fat'
 panic            = 'abort'
 opt-level        = 3
 incremental      = true
+
+[profile.release-with-debug]
+inherits         = "release"
+debug            = true
+

@@ -1,0 +1,13 @@
+Metadata-Version: 2.1
+Name: jssp
+Version: 0.0.1
+Summary: package description
+Author-email: Example Author <author@example.com>
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: numpy==1.20.3
+Requires-Dist: matplotlib==3.5.1
+Requires-Dist: torch==1.10.2
+Requires-Dist: torchvision==0.11.3
+Requires-Dist: gym==0.21.0
+Requires-Dist: numba==0.54.1

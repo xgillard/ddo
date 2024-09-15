@@ -24,6 +24,9 @@ derive_builder   = "0.12"
 num_cpus         = "1.15"
 parking_lot      = "0.12"
 compare          = "0.1"
+pyo3             = "0.19.0"
+tensorflow       = "0.18.0"
+serde_json       = "1.0.128"
 
 [dev-dependencies]
 thiserror        = "1.0"

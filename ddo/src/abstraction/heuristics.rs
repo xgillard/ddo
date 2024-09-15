@@ -61,6 +61,16 @@ use crate::SubProblem;
 pub trait WidthHeuristic<State> {
     /// Estimates a good maximum width for an MDD rooted in the given state
     fn max_width(&self, state: &SubProblem<State>) -> usize;
+    /// Allows the possibility of a specific width for restriction
+    /// By default same as max width but own heuristics can be applied
+    fn restriction_width(&self, state: &SubProblem<State>) -> usize {
+        self.max_width(state)
+    }
+    /// Allows the possibility of a specific width for relaxation
+    /// By default same as max width but own heuristics can be applied
+    fn relaxation_width(&self, state: &SubProblem<State>) -> usize {
+        self.max_width(state)
+    }
 }
 
 /// A state ranking is an heuristic that imposes a partial order on states.

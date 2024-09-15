@@ -6,3 +6,8 @@
 /examples/target
 launch.json
 /py_ddo/.env
+experiments/*
+resources/knapsack_subset/*
+venv/*
+perf.*
+trained_models/*
