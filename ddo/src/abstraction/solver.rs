@@ -93,5 +93,5 @@ pub trait Solver {
     }
 
     /// Returns the number of nodes that have been explored during the search.
-    fn explored() -> usize;
+    fn explored(&self) -> usize;
 }
