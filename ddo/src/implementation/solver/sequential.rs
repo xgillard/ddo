@@ -200,7 +200,7 @@ enum WorkLoad<T> {
 /// }
 /// ```
 pub struct SequentialSolver<'a, State, D = DefaultMDDLEL<State>, C = EmptyCache<State>> 
-where D: DecisionDiagram<State = State> + Default,
+where D: DecisionDiagram<State> + Default,
       C: Cache<State> + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
@@ -257,7 +257,7 @@ where D: DecisionDiagram<State = State> + Default,
 impl<'a, State, D, C>  SequentialSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
+    D: DecisionDiagram<State> + Default,
     C: Cache<State> + Default,
 {
     pub fn new(
@@ -465,7 +465,7 @@ where
 impl<'a, State, D, C> Solver for SequentialSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
+    D: DecisionDiagram<State> + Default,
     C: Cache<State> + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to

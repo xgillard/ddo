@@ -285,7 +285,7 @@ enum WorkLoad<T> {
 /// }
 /// ```
 pub struct ParallelSolver<'a, State, D, C> 
-where D: DecisionDiagram<State = State> + Default,
+where D: DecisionDiagram<State> + Default,
       C: Cache<State> + Send + Sync + Default,
 {
     /// This is the shared state. Each thread is going to take a reference to it.
@@ -302,7 +302,7 @@ where D: DecisionDiagram<State = State> + Default,
 impl<'a, State, D, C>  ParallelSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
+    D: DecisionDiagram<State> + Default,
     C: Cache<State> + Send + Sync + Default,
 {
     pub fn new(
@@ -563,7 +563,7 @@ where
 impl<'a, State, D, C> Solver for ParallelSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
+    D: DecisionDiagram<State> + Default,
     C: Cache<State> + Send + Sync + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
