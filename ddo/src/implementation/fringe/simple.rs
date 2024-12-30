@@ -41,14 +41,12 @@ impl <O> SimpleFringe<O> where O: SubProblemRanking {
         Self{ heap: BinaryHeap::from_vec_cmp(vec![], CompareSubProblem::new(o)) }
     }
 }
-impl <O> Fringe for SimpleFringe<O> where O: SubProblemRanking {
-    type State = O::State;
-    
-    fn push(&mut self, node: SubProblem<Self::State>) {
+impl <O> Fringe<O::State> for SimpleFringe<O> where O: SubProblemRanking {
+    fn push(&mut self, node: SubProblem<O::State>) {
         self.heap.push(node)
     }
 
-    fn pop(&mut self) -> Option<SubProblem<Self::State>> {
+    fn pop(&mut self) -> Option<SubProblem<O::State>> {
         self.heap.pop()
     }
 

@@ -227,7 +227,7 @@ where D: DecisionDiagram<State = State> + Default,
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Fringe<State = State>),
+    fringe: &'a mut (dyn Fringe<State>),
     /// This is a counter that tracks the number of nodes that have effectively
     /// been explored. That is, the number of nodes that have been popped from
     /// the fringe, and for which a restricted and relaxed mdd have been developed.
@@ -267,7 +267,7 @@ where
         width: &'a (dyn WidthHeuristic<State>),
         dominance: &'a (dyn DominanceChecker<State>),
         cutoff: &'a (dyn Cutoff), 
-        fringe: &'a mut (dyn Fringe<State = State>),
+        fringe: &'a mut (dyn Fringe<State>),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, dominance, cutoff, fringe)
     }
@@ -279,7 +279,7 @@ where
         width_heu: &'a (dyn WidthHeuristic<State>),
         dominance: &'a (dyn DominanceChecker<State>),
         cutoff: &'a (dyn Cutoff),
-        fringe: &'a mut (dyn Fringe<State = State>),
+        fringe: &'a mut (dyn Fringe<State>),
     ) -> Self {
         SequentialSolver {
             problem,

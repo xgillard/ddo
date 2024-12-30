@@ -68,13 +68,11 @@ where
     recycle_bin: Vec<NodeId>,
 }
 
-impl<O> Fringe for NoDupFringe<O>
+impl<O> Fringe<O::State> for NoDupFringe<O>
 where
     O: SubProblemRanking,
     O::State: Eq + Hash + Clone,
 {
-    type State = O::State;
-
     /// Pushes one node onto the heap while ensuring that only one copy of the
     /// node (identified by its state) is kept in the heap.
     ///
@@ -141,7 +139,7 @@ where
 
     /// Pops the best node out of the heap. Here, the best is defined as the
     /// node having the best upper bound, with the longest `value`.
-    fn pop(&mut self) -> Option<SubProblem<Self::State>> {
+    fn pop(&mut self) -> Option<SubProblem<O::State>> {
         if self.is_empty() {
             return None;
         }

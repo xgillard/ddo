@@ -40,7 +40,7 @@ struct Critical<'a, State> {
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
+    fringe: &'a mut (dyn Fringe<State> + Send + Sync),
     /// This is the number of nodes that are currently being explored.
     ///
     /// # Note
@@ -312,7 +312,7 @@ where
         width: &'a (dyn WidthHeuristic<State> + Send + Sync),
         dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync), 
-        fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
+        fringe: &'a mut (dyn Fringe<State> + Send + Sync),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, dominance, cutoff, fringe, num_cpus::get())
     }
@@ -324,7 +324,7 @@ where
         width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
         dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync),
-        fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
+        fringe: &'a mut (dyn Fringe<State> + Send + Sync),
         nb_threads: usize,
     ) -> Self {
         ParallelSolver {
