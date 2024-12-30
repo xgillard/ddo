@@ -67,7 +67,7 @@ pub struct CompilationInput<'a, State> {
     pub best_lb: isize,
     /// Data structure containing info about past compilations used to prune the search
     pub cache: &'a dyn Cache<State>,
-    pub dominance: &'a dyn DominanceChecker<State = State>,
+    pub dominance: &'a dyn DominanceChecker<State>,
 }
 
 /// This trait describes the operations that can be expected from an abstract
