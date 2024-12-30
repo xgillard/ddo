@@ -251,7 +251,7 @@ where D: DecisionDiagram<State = State> + Default,
     mdd: D,
     /// Data structure containing info about past compilations used to prune the search
     cache: C,
-    dominance: &'a (dyn DominanceChecker<State = State>),
+    dominance: &'a (dyn DominanceChecker<State>),
 }
 
 impl<'a, State, D, C>  SequentialSolver<'a, State, D, C>
@@ -265,7 +265,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width: &'a (dyn WidthHeuristic<State>),
-        dominance: &'a (dyn DominanceChecker<State = State>),
+        dominance: &'a (dyn DominanceChecker<State>),
         cutoff: &'a (dyn Cutoff), 
         fringe: &'a mut (dyn Fringe<State = State>),
     ) -> Self {
@@ -277,7 +277,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width_heu: &'a (dyn WidthHeuristic<State>),
-        dominance: &'a (dyn DominanceChecker<State = State>),
+        dominance: &'a (dyn DominanceChecker<State>),
         cutoff: &'a (dyn Cutoff),
         fringe: &'a mut (dyn Fringe<State = State>),
     ) -> Self {

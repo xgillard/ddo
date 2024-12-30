@@ -101,7 +101,7 @@ struct Shared<'a, State, C> where
 
     /// Data structure containing info about past compilations used to prune the search
     cache: C,
-    dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
+    dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
 
     /// This is the shared state data which can only be accessed within critical
     /// sections. Therefore, it is protected by a mutex which prevents concurrent
@@ -310,7 +310,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
         ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width: &'a (dyn WidthHeuristic<State> + Send + Sync),
-        dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
+        dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync), 
         fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
     ) -> Self {
@@ -322,7 +322,7 @@ where
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
         ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
-        dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
+        dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync),
         fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
         nb_threads: usize,

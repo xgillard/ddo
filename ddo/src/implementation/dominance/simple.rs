@@ -57,18 +57,16 @@ where
     }
 }
 
-impl<D> DominanceChecker for SimpleDominanceChecker<D> 
+impl<D> DominanceChecker<D::State> for SimpleDominanceChecker<D> 
 where
     D: Dominance,
     D::Key: Eq + PartialEq + Hash,
 {
-    type State = D::State;
-
     fn clear_layer(&self, depth: usize) {
         self.data[depth].clear();
     }
 
-    fn is_dominated_or_insert(&self, state: Arc<Self::State>, depth: usize, value: isize) -> DominanceCheckResult {
+    fn is_dominated_or_insert(&self, state: Arc<D::State>, depth: usize, value: isize) -> DominanceCheckResult {
         if let Some(key) = self.dominance.get_key(state.clone()) {
             match self.data[depth].entry(key) {
                 Entry::Occupied(mut e) => {
@@ -110,7 +108,7 @@ where
         }
     }
 
-    fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering {
+    fn cmp(&self, a: &D::State, val_a: isize, b: &D::State, val_b: isize) -> Ordering {
         self.dominance.cmp(a, val_a, b, val_b)
     }
 }

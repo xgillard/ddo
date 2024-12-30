@@ -21,27 +21,25 @@ use std::{marker::PhantomData, cmp::Ordering, sync::Arc};
 use crate::{DominanceChecker, DominanceCheckResult};
 
 /// Implementation of a dominance checker that never detects any dominance relation
-pub struct EmptyDominanceChecker<T>
+pub struct EmptyDominanceChecker<State>
 {
-    _phantom: PhantomData<T>,
+    _phantom: PhantomData<State>,
 }
 
-impl<T> Default for EmptyDominanceChecker<T> {
+impl<State> Default for EmptyDominanceChecker<State> {
     fn default() -> Self {
         Self { _phantom: Default::default() }
     }
 }
 
-impl<T> DominanceChecker for EmptyDominanceChecker<T> {
-    type State = T;
-
+impl<State> DominanceChecker<State> for EmptyDominanceChecker<State> {
     fn clear_layer(&self, _: usize) {}
 
-    fn is_dominated_or_insert(&self, _: Arc<Self::State>, _: usize, _: isize) -> DominanceCheckResult {
+    fn is_dominated_or_insert(&self, _: Arc<State>, _: usize, _: isize) -> DominanceCheckResult {
         DominanceCheckResult { dominated: false, threshold: None }
     }
 
-    fn cmp(&self, _: &Self::State, _: isize, _: &Self::State, _: isize) -> Ordering {
+    fn cmp(&self, _: &State, _: isize, _: &State, _: isize) -> Ordering {
         Ordering::Equal
     }
 }
