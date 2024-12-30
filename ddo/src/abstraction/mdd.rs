@@ -66,7 +66,7 @@ pub struct CompilationInput<'a, State> {
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
     /// Data structure containing info about past compilations used to prune the search
-    pub cache: &'a dyn Cache<State = State>,
+    pub cache: &'a dyn Cache<State>,
     pub dominance: &'a dyn DominanceChecker<State = State>,
 }
 

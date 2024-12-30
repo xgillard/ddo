@@ -83,7 +83,7 @@ struct Critical<'a, State> {
 /// access to the critical data (protected by a mutex) as well as a monitor
 /// (condvar) to park threads in case of node-starvation.
 struct Shared<'a, State, C> where
-    C : Cache<State = State> + Send + Sync + Default,
+    C : Cache<State> + Send + Sync + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
     problem: &'a (dyn Problem<State = State> + Send + Sync),
@@ -286,7 +286,7 @@ enum WorkLoad<T> {
 /// ```
 pub struct ParallelSolver<'a, State, D, C> 
 where D: DecisionDiagram<State = State> + Default,
-      C: Cache<State = State> + Send + Sync + Default,
+      C: Cache<State> + Send + Sync + Default,
 {
     /// This is the shared state. Each thread is going to take a reference to it.
     shared: Shared<'a, State, C>,
@@ -303,7 +303,7 @@ impl<'a, State, D, C>  ParallelSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
-    C: Cache<State = State> + Send + Sync + Default,
+    C: Cache<State> + Send + Sync + Default,
 {
     pub fn new(
         problem: &'a (dyn Problem<State = State> + Send + Sync),
@@ -564,7 +564,7 @@ impl<'a, State, D, C> Solver for ParallelSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
     D: DecisionDiagram<State = State> + Default,
-    C: Cache<State = State> + Send + Sync + Default,
+    C: Cache<State> + Send + Sync + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers

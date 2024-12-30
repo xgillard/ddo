@@ -33,33 +33,31 @@ use crate::{Cache, Threshold};
 /// Simple implementation of Cache using one hashmap for each layer,
 /// each protected with a read-write lock.
 #[derive(Debug)]
-pub struct SimpleCache<T>
-where T: Hash + Eq {
-    thresholds_by_layer: Vec<DashMap<Arc<T>, Threshold, fxhash::FxBuildHasher>>,
+pub struct SimpleCache<State>
+where State: Hash + Eq {
+    thresholds_by_layer: Vec<DashMap<Arc<State>, Threshold, fxhash::FxBuildHasher>>,
 }
-impl <T> Default for SimpleCache<T> 
-where T: Hash + Eq {
+impl <State> Default for SimpleCache<State> 
+where State: Hash + Eq {
     fn default() -> Self {
         Self { thresholds_by_layer: vec![] }
     }
 }
 
-impl<T> Cache for SimpleCache<T>
-where T: Hash + Eq {
-    type State = T;
-
-    fn initialize(&mut self, problem: &dyn crate::Problem<State = Self::State>) {
+impl<State> Cache<State> for SimpleCache<State>
+where State: Hash + Eq {
+    fn initialize(&mut self, problem: &dyn crate::Problem<State = State>) {
         let nb_variables = problem.nb_variables();
         for _ in 0..=nb_variables {
             self.thresholds_by_layer.push(Default::default());
         }
     }
 
-    fn get_threshold(&self, state: &T, depth: usize) -> Option<Threshold> {
+    fn get_threshold(&self, state: &State, depth: usize) -> Option<Threshold> {
         self.thresholds_by_layer[depth].get(state).as_deref().copied()
     }
 
-    fn update_threshold(&self, state: Arc<T>, depth: usize, value: isize, explored: bool) {
+    fn update_threshold(&self, state: Arc<State>, depth: usize, value: isize, explored: bool) {
         self.thresholds_by_layer[depth].entry(state)
             .and_modify(|e| *e = Threshold { value, explored }.max(*e))
             .or_insert(Threshold { value, explored });
