@@ -49,17 +49,17 @@ enum Action {
 /// items remain ordered in the priority queue while guaranteeing that a
 /// given state will only ever be present *ONCE* in the priority queue (the
 /// node with the longest path to state is the only kept copy).
-pub struct NoDupFringe<O>
+pub struct NoDupFringe<State, Ranking>
 where
-    O: SubProblemRanking,
-    O::State: Eq + Hash + Clone,
+    Ranking: SubProblemRanking<State>,
+    State: Eq + Hash + Clone,
 {
     /// This is the comparator used to order the nodes in the binary heap
-    cmp: CompareSubProblem<O>,
+    cmp: CompareSubProblem<State, Ranking>,
     /// A mapping that associates some state to a node identifier.
-    states: FxHashMap<Arc<O::State>, NodeId>,
+    states: FxHashMap<Arc<State>, NodeId>,
     /// The actual payload (nodes) ordered in the list
-    nodes: Vec<SubProblem<O::State>>,
+    nodes: Vec<SubProblem<State>>,
     /// The position of the items in the heap
     pos: Vec<usize>,
     /// This is the actual heap which orders nodes.
@@ -68,10 +68,10 @@ where
     recycle_bin: Vec<NodeId>,
 }
 
-impl<O> Fringe<O::State> for NoDupFringe<O>
+impl<State, Ranking> Fringe<State> for NoDupFringe<State, Ranking>
 where
-    O: SubProblemRanking,
-    O::State: Eq + Hash + Clone,
+    Ranking: SubProblemRanking<State>,
+    State: Eq + Hash + Clone,
 {
     /// Pushes one node onto the heap while ensuring that only one copy of the
     /// node (identified by its state) is kept in the heap.
@@ -83,7 +83,7 @@ where
     /// UB and or longer longest path), the priority of the node will be
     /// increased. As always, in the event where the newly pushed node has a
     /// longer longest path than the pre-existing node, that one will be kept.
-    fn push(&mut self, mut node: SubProblem<O::State>) {
+    fn push(&mut self, mut node: SubProblem<State>) {
         let state = Arc::clone(&node.state);
 
         let action = match self.states.entry(state) {
@@ -139,7 +139,7 @@ where
 
     /// Pops the best node out of the heap. Here, the best is defined as the
     /// node having the best upper bound, with the longest `value`.
-    fn pop(&mut self) -> Option<SubProblem<O::State>> {
+    fn pop(&mut self) -> Option<SubProblem<State>> {
         if self.is_empty() {
             return None;
         }
@@ -178,14 +178,14 @@ where
     }
 }
 
-impl<O> NoDupFringe<O>
+impl<State, Ranking> NoDupFringe<State, Ranking>
 where
-    O: SubProblemRanking,
-    O::State: Eq + Hash + Clone,
+    Ranking: SubProblemRanking<State>,
+    State: Eq + Hash + Clone,
 {
     /// Creates a new instance of the no dup heap which uses cmp as
     /// comparison criterion.
-    pub fn new(ranking: O) -> Self {
+    pub fn new(ranking: Ranking) -> Self {
         Self {
             cmp: CompareSubProblem::new(ranking),
             states: Default::default(),
@@ -533,10 +533,10 @@ mod test_no_dup_fringe {
     }
 
         
-    fn empty_fringe() -> NoDupFringe<MaxUB<'static, UsizeRanking>> {
+    fn empty_fringe() -> NoDupFringe<usize, MaxUB<'static, UsizeRanking>> {
         NoDupFringe::new(MaxUB::new(&UsizeRanking))
     }
-    fn non_empty_fringe() -> NoDupFringe<MaxUB<'static, UsizeRanking>> {
+    fn non_empty_fringe() -> NoDupFringe<usize, MaxUB<'static, UsizeRanking>> {
         let mut fringe = empty_fringe();
         fringe.push(SubProblem{
             state: Arc::new(42),
@@ -637,12 +637,12 @@ mod test_no_dup_fringe {
         assert!(heap.is_empty());
     }
 
-    fn push_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFringe<T>, nodes: &[SubProblem<usize>]) {
+    fn push_all<T: SubProblemRanking<usize>>(heap: &mut NoDupFringe<usize, T>, nodes: &[SubProblem<usize>]) {
         for n in nodes.iter() {
             heap.push(n.clone());
         }
     }
-    fn pop_all<T: SubProblemRanking<State = usize>>(heap: &mut NoDupFringe<T>) -> Vec<usize> {
+    fn pop_all<T: SubProblemRanking<usize>>(heap: &mut NoDupFringe<usize, T>) -> Vec<usize> {
         let mut popped = vec![];
         while let Some(n) = heap.pop() {
             popped.push(*n.state)

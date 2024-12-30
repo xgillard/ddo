@@ -80,9 +80,7 @@ impl <'a, O: StateRanking> MaxUB<'a, O> {
         Self(x)
     }
 }
-impl<O: StateRanking> SubProblemRanking for MaxUB<'_, O> {
-    type State = O::State;
-
+impl<O: StateRanking> SubProblemRanking<O::State> for MaxUB<'_, O> {
     fn compare(&self, l: &SubProblem<O::State>, r: &SubProblem<O::State>) -> Ordering {
         l.ub.cmp(&r.ub)
             .then_with(|| l.value.cmp(&r.value))

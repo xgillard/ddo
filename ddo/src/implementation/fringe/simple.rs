@@ -32,21 +32,27 @@ use crate::*;
 /// solvers. Hence, you don't need to take any action in order to use the
 /// `SimpleFringe`.
 /// 
-pub struct SimpleFringe<O: SubProblemRanking> {
-    heap: BinaryHeap<SubProblem<O::State>, CompareSubProblem<O>>
+pub struct SimpleFringe<State, Ranking> where
+    Ranking: SubProblemRanking<State>
+{
+    heap: BinaryHeap<SubProblem<State>, CompareSubProblem<State, Ranking>>
 }
-impl <O> SimpleFringe<O> where O: SubProblemRanking {
+impl <State, Ranking> SimpleFringe<State, Ranking> where
+    Ranking: SubProblemRanking<State>
+{
     /// This creates a new simple fringe which uses a custom fringe order.
-    pub fn new(o: O) -> Self {
-        Self{ heap: BinaryHeap::from_vec_cmp(vec![], CompareSubProblem::new(o)) }
+    pub fn new(ranking: Ranking) -> Self {
+        Self{ heap: BinaryHeap::from_vec_cmp(vec![], CompareSubProblem::new(ranking)) }
     }
 }
-impl <O> Fringe<O::State> for SimpleFringe<O> where O: SubProblemRanking {
-    fn push(&mut self, node: SubProblem<O::State>) {
+impl <State, Ranking> Fringe<State> for SimpleFringe<State, Ranking>
+where Ranking: SubProblemRanking<State>
+{
+    fn push(&mut self, node: SubProblem<State>) {
         self.heap.push(node)
     }
 
-    fn pop(&mut self) -> Option<SubProblem<O::State>> {
+    fn pop(&mut self) -> Option<SubProblem<State>> {
         self.heap.pop()
     }
 
