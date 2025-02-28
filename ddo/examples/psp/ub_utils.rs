@@ -22,7 +22,6 @@ use smallbitset::Set32;
 /// returns the cost the minimum spanning trees for all subset of items
 pub fn all_mst(changeover: &Vec<Vec<usize>>) -> Vec<usize> {
     let n_items = changeover.len() as u8;
-
     let n_poss = 2_u32.pow(n_items as u32);
     let mut ret = vec![];
     for i in 0..n_poss {
