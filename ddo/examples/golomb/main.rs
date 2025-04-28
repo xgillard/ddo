@@ -41,6 +41,10 @@ type BitSet = Set256;
 #[cfg(test)]
 mod tests;
 
+pub const KNOWN_OPTIMAL_COSTS: [usize; 29] = [
+    0, 0, 1, 3, 6, 11, 17, 25, 34, 44, 55, 72, 85, 106, 127, 151, 177, 199, 216, 246, 283, 333,
+    356, 372, 425, 480, 492, 553, 585,
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GolombState {
@@ -76,9 +80,31 @@ impl Problem for Golomb {
 
     // create the edges (decisions) from the given state
     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback) {
-        let n2 = self.n * self.n;
-        let next_mark = state.last_mark as usize+ 1;
-        for i in next_mark..n2 {
+        let lb = (if state.number_of_marks < self.n - 1 {
+            std::cmp::max(
+                state.last_mark + 1,
+                std::cmp::max(
+                    (state.number_of_marks * (state.number_of_marks - 1) / 2) as isize,
+                    KNOWN_OPTIMAL_COSTS[state.number_of_marks + 1] as isize,
+                ),
+            )
+        } else {
+            std::cmp::max(
+                state.last_mark + 1,
+                std::cmp::max(
+                    (state.number_of_marks * (state.number_of_marks - 1) / 2) as isize,
+                    KNOWN_OPTIMAL_COSTS[state.number_of_marks] as isize + 1,
+                ),
+            )
+        }) as usize;
+
+        let ub = if state.number_of_marks < self.n / 2 {
+            (self.n * self.n + 1) / 2 - KNOWN_OPTIMAL_COSTS[self.n / 2 - state.number_of_marks] as usize
+        } else {
+            self.n * self.n + 1 - KNOWN_OPTIMAL_COSTS[self.n - state.number_of_marks] as usize
+        };
+
+        for i in lb..=ub {
             if state.marks.iter().any(|j| state.distances.contains(i - j)) {
                 continue; // this distance is already present, invalid mark at it (all different)
             } else {
@@ -165,16 +191,14 @@ impl Relaxation for GolombRelax<'_> {
     }
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
-        // known solution for n = 0..13
-        const KNOWN_SOLUTION: [isize; 14] = [0, 0, 1, 3, 6, 11, 17, 25, 34, 44, 55, 72, 85, 106];
-        // there is n-k marks left to place, therefore we need at least golomb(n-k) to place them
-        -KNOWN_SOLUTION[self.pb.n - state.number_of_marks]
+        // there is n-k marks left to place, therefore we need at least golomb(n-k) to place the
+        -(KNOWN_OPTIMAL_COSTS[self.pb.n - state.number_of_marks] as isize)
     }
 
 }
 
 /// The last bit of information which we need to provide when implementing a ddo-based
-/// solver is a `StateRanking`. This is an heuristic which is used to select the most
+/// solver is a `StateRanking`. This is a heuristic which is used to select the most
 /// and least promising nodes as a means to only delete/merge the *least* promising nodes
 /// when compiling restricted and relaxed DDs.
 pub struct GolombRanking;
@@ -211,18 +235,6 @@ struct Args {
     width: Option<usize>,
 }
 
-
-/// An utility function to return an max width heuristic that can either be a fixed width
-/// policy (if w is fixed) or an adaptive policy returning the number of unassigned variables
-/// in the overall problem.
-fn max_width<T>(nb_vars: usize, w: Option<usize>) -> Box<dyn WidthHeuristic<T> + Send + Sync> {
-    if let Some(w) = w {
-        Box::new(FixedWidth(w))
-    } else {
-        Box::new(NbUnassignedWidth(nb_vars))
-    }
-}
-
 /// This is your executable's entry point. It is the place where all the pieces are put together
 /// to create a fast an effective solver for the Golomb problem.
 fn main() {
@@ -230,12 +242,17 @@ fn main() {
     let problem = Golomb::new(args.size);
     let relaxation = GolombRelax{pb: &problem};
     let heuristic = GolombRanking;
-    let width = max_width(problem.nb_variables(), args.width);
+    let width =
+        if args.width.is_some() {
+            Box::new(FixedWidth(args.width.unwrap()))
+        } else {
+            Box::new(FixedWidth(4))
+        };
     let dominance = EmptyDominanceChecker::default();
     let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
-    let mut solver = DefaultCachingSolver::new(
+    let mut solver = SeqCachingSolverLel::new(
         &problem,
         &relaxation,
         &heuristic,
@@ -258,6 +275,7 @@ fn main() {
     });
 
     println!("Duration:   {:.3} seconds", duration.as_secs_f32());
+    println!("#Nodes   :  {} ",           solver.explored());
     println!("Objective:  {}",            best_value.unwrap_or(-1));
     println!("Upper Bnd:  {}",            upper_bound);
     println!("Lower Bnd:  {}",            lower_bound);

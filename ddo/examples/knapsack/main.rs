@@ -316,15 +316,20 @@ fn main() {
     let problem = read_instance(&args.fname).unwrap();
     let relaxation= KPRelax{pb: &problem};
     let heuristic= KPRanking;
-    let width = max_width(problem.nb_variables(), args.width);
+    let width =
+        if args.width.is_some() {
+            Box::new(FixedWidth(args.width.unwrap()))
+        } else {
+            Box::new(FixedWidth(2))
+        };
     let dominance = SimpleDominanceChecker::new(KPDominance, problem.nb_variables());
-    let cutoff = TimeBudget::new(Duration::from_secs(15));//NoCutoff;
-    let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
+    let cutoff = NoCutoff; // TimeBudget::new(Duration::from_secs(15));
+    let mut fringe = NoDupFringe::new(MaxUB::new(&heuristic));
 
-    let mut solver = DefaultCachingSolver::new(
+    let mut solver = SeqCachingSolverFc::new(
         &problem, 
         &relaxation, 
-        &heuristic, 
+        &heuristic,
         width.as_ref(), 
         &dominance,
         &cutoff, 

@@ -94,10 +94,11 @@ fn main() {
     let width = max_width(&problem, args.width);
     let dominance = EmptyDominanceChecker::default();
     let cutoff = cutoff(args.duration);
-    let mut fringe = NoDupFringe::new(MaxUB::new(&ranking));
+    let mut fringe = SimpleFringe::new(MaxUB::new(&ranking));//NoDupFringe::new(MaxUB::new(&ranking));
 
     // This solver compile DD that allow the definition of long arcs spanning over several layers.
-    let mut solver = DefaultCachingSolver::custom(
+    /*
+    let mut solver = SeqNoCachingSolverPooled::custom(
         &problem, 
         &relaxation, 
         &ranking, 
@@ -105,8 +106,22 @@ fn main() {
         &dominance,
         cutoff.as_ref(), 
         &mut fringe,
-        args.threads,
+    );*/
+
+    // This solver compile DD that allow the definition of long arcs spanning over several layers.
+    let mut solver = SeqCachingSolverLel::custom(
+        &problem,
+        &relaxation,
+        &ranking,
+        width.as_ref(),
+        &dominance,
+        cutoff.as_ref(),
+        &mut fringe,
     );
+
+
+
+
 
     let start = Instant::now();
     let Completion{ is_exact, best_value } = solver.maximize();
