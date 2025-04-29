@@ -227,14 +227,13 @@ fn main() {
         if args.width.is_some() {
             Box::new(FixedWidth(args.width.unwrap()))
         } else {
-            Box::new(FixedWidth(args.size*args.size))
+            Box::new(FixedWidth(10))
         };
     let dominance = EmptyDominanceChecker::default();
-    let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));//NoCutoff;
-    let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
+    let cutoff = NoCutoff;
+    let mut fringe = NoDupFringe::new(MaxUB::new(&heuristic));
 
-    //let mut solver = SeqNoCachingSolverLel::new(
-    let mut solver = SeqCachingSolverLel::new(
+    let mut solver = SeqCachingSolverFc::new(
         &problem,
         &relaxation,
         &heuristic,
