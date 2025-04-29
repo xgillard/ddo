@@ -33,7 +33,7 @@ use smallbitset::Set256;
 use clap::Parser;
 use ddo::*;
 
-/// This is a type alias. We've decided to opt for a bitset size of 256 bits 
+/// This is a type alias. We've decided to opt for a bitset size of 256 bits
 /// (which is large but in the event where we would like an even larger bitset,
 /// this type makes the example future proof)
 type BitSet = Set256;
@@ -51,7 +51,7 @@ pub struct GolombState {
     marks: BitSet, // the set of marks
     distances: BitSet, // the set of pairwise distances
     number_of_marks: usize, // the number of marks
-    last_mark: isize, // location of last mark
+    last_mark: usize, // location of last mark
 }
 
 /// Instance of the Golomb problem.
@@ -75,35 +75,17 @@ impl Problem for Golomb {
     type State = GolombState;
 
     fn nb_variables(&self) -> usize {
-        self.n
+        self.n-1 // n-1 vars as the first mark is always at 0
     }
 
     // create the edges (decisions) from the given state
     fn for_each_in_domain(&self, variable: Variable, state: &Self::State, f: &mut dyn DecisionCallback) {
-        let lb = (if state.number_of_marks < self.n - 1 {
-            std::cmp::max(
-                state.last_mark + 1,
-                std::cmp::max(
-                    (state.number_of_marks * (state.number_of_marks - 1) / 2) as isize,
-                    KNOWN_OPTIMAL_COSTS[state.number_of_marks + 1] as isize,
-                ),
-            )
-        } else {
-            std::cmp::max(
-                state.last_mark + 1,
-                std::cmp::max(
-                    (state.number_of_marks * (state.number_of_marks - 1) / 2) as isize,
-                    KNOWN_OPTIMAL_COSTS[state.number_of_marks] as isize + 1,
-                ),
-            )
-        }) as usize;
-
+        let lb = state.last_mark + 1;
         let ub = if state.number_of_marks < self.n / 2 {
             (self.n * self.n + 1) / 2 - KNOWN_OPTIMAL_COSTS[self.n / 2 - state.number_of_marks] as usize
         } else {
             self.n * self.n + 1 - KNOWN_OPTIMAL_COSTS[self.n - state.number_of_marks] as usize
         };
-
         for i in lb..=ub {
             if state.marks.iter().any(|j| state.distances.contains(i - j)) {
                 continue; // this distance is already present, invalid mark at it (all different)
@@ -119,13 +101,13 @@ impl Problem for Golomb {
         GolombState {
             marks: BitSet::singleton(0),
             distances: BitSet::empty(),
-            number_of_marks: 0,
-            last_mark: -1,
+            number_of_marks: 1,
+            last_mark: 0,
         }
     }
 
     fn initial_value(&self) -> isize {
-        1
+        0
     }
 
     // compute the next state from the current state and the decision
@@ -138,20 +120,19 @@ impl Problem for Golomb {
             ret.distances.add_inplace(l - i);
         }
         ret.number_of_marks += 1; // increment the number of marks
-        ret.last_mark = dec.value; // update the last mark
+        ret.last_mark = l; // update the last mark
         ret
     }
 
     // compute the cost of the decision from the given state
     fn transition_cost(&self, state: &Self::State, _: &Self::State, dec: Decision) -> isize {
         // distance between the new mark and the previous one
-        -(dec.value - state.last_mark) // put a minus to turn objective into maximization (ddo requirement)
+        -(dec.value - state.last_mark as isize) // put a minus to turn objective into maximization (ddo requirement)
     }
 
     // next variable to branch on
     fn next_variable(&self, depth: usize, _: &mut dyn Iterator<Item = &Self::State>) -> Option<Variable> {
-        let n = self.nb_variables();
-        if depth < n {
+        if depth < self.nb_variables() {
             Some(Variable(depth))
         } else {
             None
@@ -169,7 +150,7 @@ impl Relaxation for GolombRelax<'_> {
         let mut intersection_marks = BitSet::full();
         let mut intersection_distances = BitSet::full();
         let mut number_of_marks = usize::MAX;
-        let mut last_mark = isize::MAX;
+        let mut last_mark = usize::MAX;
 
         for state in states {
             intersection_marks.inter_inplace(&state.marks);
@@ -191,8 +172,8 @@ impl Relaxation for GolombRelax<'_> {
     }
 
     fn fast_upper_bound(&self, state: &Self::State) -> isize {
-        // there is n-k marks left to place, therefore we need at least golomb(n-k) to place the
-        -(KNOWN_OPTIMAL_COSTS[self.pb.n - state.number_of_marks] as isize)
+        // there is n-k marks left to place, therefore we need at least golomb(n-k) to place them
+        -((KNOWN_OPTIMAL_COSTS[self.pb.n - state.number_of_marks]) as isize)
     }
 
 }
@@ -246,12 +227,13 @@ fn main() {
         if args.width.is_some() {
             Box::new(FixedWidth(args.width.unwrap()))
         } else {
-            Box::new(FixedWidth(4))
+            Box::new(FixedWidth(args.size*args.size))
         };
     let dominance = EmptyDominanceChecker::default();
     let cutoff = TimeBudget::new(Duration::from_secs(args.timeout));//NoCutoff;
     let mut fringe = SimpleFringe::new(MaxUB::new(&heuristic));
 
+    //let mut solver = SeqNoCachingSolverLel::new(
     let mut solver = SeqCachingSolverLel::new(
         &problem,
         &relaxation,
