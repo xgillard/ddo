@@ -33,9 +33,9 @@ struct LayerId(usize);
 
 /// Represents an effective node from the decision diagram
 #[derive(Debug, Clone)]
-struct Node<T> {
+struct Node<State> {
     /// The state associated to this node
-    state: Arc<T>,
+    state: Arc<State>,
     /// The length of the longest path between the problem root and this
     /// specific node
     value_top: isize,
@@ -114,9 +114,9 @@ struct Layer {
 /// - Relaxed: either the last exact layer of the frontier cut-set can be chosen
 ///            within the CompilationInput
 #[derive(Debug, Clone)]
-pub struct Pooled<T>
+pub struct Pooled<State>
 where
-    T: Eq + PartialEq + Hash + Clone,
+    State: Eq + PartialEq + Hash + Clone,
 {
     /// This map stores the information about the structure of all the layers
     /// in this decision diagram
@@ -124,7 +124,7 @@ where
     /// All the nodes composing this decision diagram. The vector comprises 
     /// nodes from all layers in the DD. A nice property is that all nodes
     /// belonging to one same layer form a sequence in the ‘nodes‘ vector.
-    nodes: Vec<Node<T>>,
+    nodes: Vec<Node<State>>,
     /// This vector stores the information about all edges connecting the nodes 
     /// of the decision diagram.
     edges: Vec<Edge>,
@@ -139,7 +139,7 @@ where
     /// The rationale being that two transitions to the same state in the same
     /// layer should lead to the same node. This indexation helps ensuring 
     /// the uniqueness constraint in amortized O(1).
-    pool: FxHashMap<Arc<T>, NodeId>,
+    pool: FxHashMap<Arc<State>, NodeId>,
 
     /// Keeps track of the decisions that have been taken to reach the root
     /// of this DD, starting from the problem root.
@@ -212,22 +212,20 @@ macro_rules! append_edge_to {
     };
 }
 
-impl<T> Default for Pooled<T>
+impl<State> Default for Pooled<State>
 where
-    T: Eq + PartialEq + Hash + Clone,
+    State: Eq + PartialEq + Hash + Clone,
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> DecisionDiagram for Pooled<T>
+impl<State> DecisionDiagram<State> for Pooled<State>
 where
-    T: Eq + PartialEq + Hash + Clone,
+    State: Eq + PartialEq + Hash + Clone,
 {
-    type State = T;
-
-    fn compile(&mut self, input: &CompilationInput<Self::State>) -> Result<Completion, Reason> {
+    fn compile(&mut self, input: &CompilationInput<State>) -> Result<Completion, Reason> {
         self._compile(input)
     }
 
@@ -253,7 +251,7 @@ where
 
     fn drain_cutset<F>(&mut self, func: F)
     where
-        F: FnMut(SubProblem<Self::State>) {
+        F: FnMut(SubProblem<State>) {
         self._drain_cutset(func)
     }
 }

@@ -19,7 +19,7 @@
 
 //! This module provide some convenient utilities to work with used defined heuristics.
 
-use std::cmp::Ordering;
+use std::{cmp::Ordering, marker::PhantomData};
 
 use compare::Compare;
 
@@ -68,16 +68,22 @@ use crate::{SubProblemRanking, SubProblem};
 /// let heap = BinaryHeap::from_vec_cmp(vec![], comparator);
 /// ```
 #[derive(Debug, Clone, Copy)]
-pub struct CompareSubProblem<X:SubProblemRanking>(X);
-impl <X:SubProblemRanking> CompareSubProblem<X> {
+pub struct CompareSubProblem<State, Ranking: SubProblemRanking<State>> {
+    ranking: Ranking,
+    _state: PhantomData<State>,
+}
+impl <State, Ranking: SubProblemRanking<State>> CompareSubProblem<State, Ranking> {
     /// Creates a new instance
-    pub fn new(x: X) -> Self {
-        Self(x)
+    pub fn new(ranking: Ranking) -> Self {
+        Self {
+            ranking,
+            _state: Default::default(),
+        }
     }
 }
-impl <X:SubProblemRanking> Compare<SubProblem<X::State>> for CompareSubProblem<X> {
-    fn compare(&self, l: &SubProblem<X::State>, r: &SubProblem<X::State>) -> Ordering {
-        self.0.compare(l, r)
+impl <State, Ranking: SubProblemRanking<State>> Compare<SubProblem<State>> for CompareSubProblem<State, Ranking> {
+    fn compare(&self, l: &SubProblem<State>, r: &SubProblem<State>) -> Ordering {
+        self.ranking.compare(l, r)
     }
 }
 
@@ -96,9 +102,7 @@ mod test {
             a.cmp(b)
         }
     }
-    impl SubProblemRanking for CharRanking {
-        type State = char;
-
+    impl SubProblemRanking<char> for CharRanking {
         fn compare(&self, a: &SubProblem<char>, b: &SubProblem<char>) -> Ordering {
             <Self as StateRanking>::compare(self, a.state.deref(), b.state.deref())
         }

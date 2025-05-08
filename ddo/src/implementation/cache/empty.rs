@@ -30,33 +30,31 @@ use crate::*;
 
 /// Dummy implementation of Cache with no information stored at all.
 #[derive(Debug, Clone, Copy)]
-pub struct EmptyCache<T> {
-    phantom: PhantomData<T>,
+pub struct EmptyCache<State> {
+    phantom: PhantomData<State>,
 }
-impl <T> Default for EmptyCache<T> {
+impl <State> Default for EmptyCache<State> {
     fn default() -> Self {
         EmptyCache { phantom: Default::default() }
     }
 }
-impl <T> EmptyCache<T> {
+impl <State> EmptyCache<State> {
     pub fn new() -> Self {
         Default::default()
     }
 }
 
-impl<T> Cache for EmptyCache<T> {
-    type State = T;
+impl<State> Cache<State> for EmptyCache<State> {
+    #[inline(always)]
+    fn initialize(&mut self, _: &dyn Problem<State = State>) {}
 
     #[inline(always)]
-    fn initialize(&mut self, _: &dyn Problem<State = Self::State>) {}
-
-    #[inline(always)]
-    fn get_threshold(&self, _: &T, _: usize) -> Option<Threshold> {
+    fn get_threshold(&self, _: &State, _: usize) -> Option<Threshold> {
         None
     }
 
     #[inline(always)]
-    fn update_threshold(&self, _: Arc<T>, _: usize, _: isize, _: bool) {}
+    fn update_threshold(&self, _: Arc<State>, _: usize, _: isize, _: bool) {}
 
     #[inline(always)]
     fn clear_layer(&self, _: usize) {}
@@ -65,7 +63,7 @@ impl<T> Cache for EmptyCache<T> {
     fn clear(&self) {}
 
     #[inline(always)]
-    fn must_explore(&self, _: &SubProblem<Self::State>) -> bool {
+    fn must_explore(&self, _: &SubProblem<State>) -> bool {
         true
     }
 }

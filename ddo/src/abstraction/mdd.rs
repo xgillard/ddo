@@ -66,20 +66,16 @@ pub struct CompilationInput<'a, State> {
     /// The best known lower bound at the time when the dd is being compiled
     pub best_lb: isize,
     /// Data structure containing info about past compilations used to prune the search
-    pub cache: &'a dyn Cache<State = State>,
-    pub dominance: &'a dyn DominanceChecker<State = State>,
+    pub cache: &'a dyn Cache<State>,
+    pub dominance: &'a dyn DominanceChecker<State>,
 }
 
 /// This trait describes the operations that can be expected from an abstract
 /// decision diagram regardless of the way it is implemented.
-pub trait DecisionDiagram {
-    /// This associated type corresponds to the `State` type of the problems 
-    /// that can be solved when using this DD.
-    type State;
-
+pub trait DecisionDiagram<State> {
     /// This method provokes the compilation of the DD based on the given 
     /// compilation input (compilation type, and root subproblem)
-    fn compile(&mut self, input: &CompilationInput<Self::State>) 
+    fn compile(&mut self, input: &CompilationInput<State>) 
         -> Result<Completion, Reason>;
     /// Returns true iff the DD which has been compiled is an exact DD.
     fn is_exact(&self) -> bool;
@@ -110,5 +106,5 @@ pub trait DecisionDiagram {
     /// this method will be called at most once per relaxed DD compilation.
     fn drain_cutset<F>(&mut self, func: F)
     where
-        F: FnMut(SubProblem<Self::State>);
+        F: FnMut(SubProblem<State>);
 }

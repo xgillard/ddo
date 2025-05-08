@@ -110,18 +110,16 @@ pub struct DominanceCheckResult {
     pub threshold: Option<isize>,
 }
 
-pub trait DominanceChecker {
-    type State;
-    
+pub trait DominanceChecker<State> {
     /// Removes all entries associated with states at the given depth.
     fn clear_layer(&self, depth: usize);
 
     /// Returns true if the state is dominated by a stored one, and a potential
     /// pruning threshold, and inserts the (key, value) pair otherwise
-    fn is_dominated_or_insert(&self, state: Arc<Self::State>, depth: usize, value: isize) -> DominanceCheckResult;
+    fn is_dominated_or_insert(&self, state: Arc<State>, depth: usize, value: isize) -> DominanceCheckResult;
 
     /// Comparator to order states by increasing value, regardless of their key
-    fn cmp(&self, a: &Self::State, val_a: isize, b: &Self::State, val_b: isize) -> Ordering;
+    fn cmp(&self, a: &State, val_a: isize, b: &State, val_b: isize) -> Ordering;
     
 }
 

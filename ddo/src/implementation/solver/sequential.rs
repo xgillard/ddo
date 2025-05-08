@@ -200,8 +200,8 @@ enum WorkLoad<T> {
 /// }
 /// ```
 pub struct SequentialSolver<'a, State, D = DefaultMDDLEL<State>, C = EmptyCache<State>> 
-where D: DecisionDiagram<State = State> + Default,
-      C: Cache<State = State> + Default,
+where D: DecisionDiagram<State> + Default,
+      C: Cache<State> + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
     problem: &'a (dyn Problem<State = State>),
@@ -227,7 +227,7 @@ where D: DecisionDiagram<State = State> + Default,
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Fringe<State = State>),
+    fringe: &'a mut (dyn Fringe<State>),
     /// This is a counter that tracks the number of nodes that have effectively
     /// been explored. That is, the number of nodes that have been popped from
     /// the fringe, and for which a restricted and relaxed mdd have been developed.
@@ -251,23 +251,23 @@ where D: DecisionDiagram<State = State> + Default,
     mdd: D,
     /// Data structure containing info about past compilations used to prune the search
     cache: C,
-    dominance: &'a (dyn DominanceChecker<State = State>),
+    dominance: &'a (dyn DominanceChecker<State>),
 }
 
 impl<'a, State, D, C>  SequentialSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
-    C: Cache<State = State> + Default,
+    D: DecisionDiagram<State> + Default,
+    C: Cache<State> + Default,
 {
     pub fn new(
         problem: &'a (dyn Problem<State = State>),
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width: &'a (dyn WidthHeuristic<State>),
-        dominance: &'a (dyn DominanceChecker<State = State>),
+        dominance: &'a (dyn DominanceChecker<State>),
         cutoff: &'a (dyn Cutoff), 
-        fringe: &'a mut (dyn Fringe<State = State>),
+        fringe: &'a mut (dyn Fringe<State>),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, dominance, cutoff, fringe)
     }
@@ -277,9 +277,9 @@ where
         relaxation: &'a (dyn Relaxation<State = State>),
         ranking: &'a (dyn StateRanking<State = State>),
         width_heu: &'a (dyn WidthHeuristic<State>),
-        dominance: &'a (dyn DominanceChecker<State = State>),
+        dominance: &'a (dyn DominanceChecker<State>),
         cutoff: &'a (dyn Cutoff),
-        fringe: &'a mut (dyn Fringe<State = State>),
+        fringe: &'a mut (dyn Fringe<State>),
     ) -> Self {
         SequentialSolver {
             problem,
@@ -465,8 +465,8 @@ where
 impl<'a, State, D, C> Solver for SequentialSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
-    C: Cache<State = State> + Default,
+    D: DecisionDiagram<State> + Default,
+    C: Cache<State> + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers

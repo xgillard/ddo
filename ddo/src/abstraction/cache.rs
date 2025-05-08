@@ -24,12 +24,10 @@ use crate::{Threshold, SubProblem, Problem};
 /// This trait abstracts away the implementation details of the solver cache.
 /// That is, a Cache represents the data structure that stores thresholds that
 /// condition the re-exploration of nodes with a state already reached previously.
-pub trait Cache {
-    type State;
-
+pub trait Cache<State> {
     /// Returns true if the subproblem still must be explored,
     /// given the thresholds contained in the cache.
-    fn must_explore(&self, subproblem: &SubProblem<Self::State>) -> bool {
+    fn must_explore(&self, subproblem: &SubProblem<State>) -> bool {
         let threshold = self.get_threshold(subproblem.state.as_ref(), subproblem.depth);
         if let Some(threshold) = threshold {
             subproblem.value > threshold.value || (subproblem.value == threshold.value && !threshold.explored)
@@ -39,13 +37,13 @@ pub trait Cache {
     }
 
     /// Prepare the cache to be used with the given problem
-    fn initialize(&mut self, problem: &dyn Problem<State = Self::State>);
+    fn initialize(&mut self, problem: &dyn Problem<State = State>);
 
     /// Returns the threshold currently associated with the given state, if any.
-    fn get_threshold(&self, state: &Self::State, depth: usize) -> Option<Threshold>;
+    fn get_threshold(&self, state: &State, depth: usize) -> Option<Threshold>;
 
     /// Updates the threshold associated with the given state, only if it is increased.
-    fn update_threshold(&self, state: Arc<Self::State>, depth: usize, value: isize, explored: bool);
+    fn update_threshold(&self, state: Arc<State>, depth: usize, value: isize, explored: bool);
 
     /// Removes all thresholds associated with states at the given depth.
     fn clear_layer(&self, depth: usize);

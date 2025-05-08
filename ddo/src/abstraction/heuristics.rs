@@ -85,15 +85,11 @@ pub trait StateRanking {
 /// sub-problems on the solver fringe. This order is used by the framework 
 /// as a means to impose a given ordering on the nodes that are popped from
 /// the solver fringe.
-pub trait SubProblemRanking {
-    /// As is the case for `Problem` and `Relaxation`, a `SubProblemRanking` 
-    /// must tell the kind of states it is able to operate on.
-    type State;
-
+pub trait SubProblemRanking<State> {
     /// This method compares two sub-problems and determines which is the one 
     /// that needs to be popped off the fringe first. In this ordering, greater
     /// means more likely to be popped first.
-    fn compare(&self, a: &SubProblem<Self::State>, b: &SubProblem<Self::State>) -> Ordering;
+    fn compare(&self, a: &SubProblem<State>, b: &SubProblem<State>) -> Ordering;
 }
 
 /// This trait encapsulates a criterion (external to the solver) which imposes

@@ -40,7 +40,7 @@ struct Critical<'a, State> {
     /// any of the nodes remaining on the fringe. As a consequence, the
     /// exploration can be stopped as soon as a node with an ub <= current best
     /// lower bound is popped.
-    fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
+    fringe: &'a mut (dyn Fringe<State> + Send + Sync),
     /// This is the number of nodes that are currently being explored.
     ///
     /// # Note
@@ -83,7 +83,7 @@ struct Critical<'a, State> {
 /// access to the critical data (protected by a mutex) as well as a monitor
 /// (condvar) to park threads in case of node-starvation.
 struct Shared<'a, State, C> where
-    C : Cache<State = State> + Send + Sync + Default,
+    C : Cache<State> + Send + Sync + Default,
 {
     /// A reference to the problem being solved with branch-and-bound MDD
     problem: &'a (dyn Problem<State = State> + Send + Sync),
@@ -101,7 +101,7 @@ struct Shared<'a, State, C> where
 
     /// Data structure containing info about past compilations used to prune the search
     cache: C,
-    dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
+    dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
 
     /// This is the shared state data which can only be accessed within critical
     /// sections. Therefore, it is protected by a mutex which prevents concurrent
@@ -285,8 +285,8 @@ enum WorkLoad<T> {
 /// }
 /// ```
 pub struct ParallelSolver<'a, State, D, C> 
-where D: DecisionDiagram<State = State> + Default,
-      C: Cache<State = State> + Send + Sync + Default,
+where D: DecisionDiagram<State> + Default,
+      C: Cache<State> + Send + Sync + Default,
 {
     /// This is the shared state. Each thread is going to take a reference to it.
     shared: Shared<'a, State, C>,
@@ -302,17 +302,17 @@ where D: DecisionDiagram<State = State> + Default,
 impl<'a, State, D, C>  ParallelSolver<'a, State, D, C>
 where 
     State: Eq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
-    C: Cache<State = State> + Send + Sync + Default,
+    D: DecisionDiagram<State> + Default,
+    C: Cache<State> + Send + Sync + Default,
 {
     pub fn new(
         problem: &'a (dyn Problem<State = State> + Send + Sync),
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
         ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width: &'a (dyn WidthHeuristic<State> + Send + Sync),
-        dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
+        dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync), 
-        fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
+        fringe: &'a mut (dyn Fringe<State> + Send + Sync),
     ) -> Self {
         Self::custom(problem, relaxation, ranking, width, dominance, cutoff, fringe, num_cpus::get())
     }
@@ -322,9 +322,9 @@ where
         relaxation: &'a (dyn Relaxation<State = State> + Send + Sync),
         ranking: &'a (dyn StateRanking<State = State> + Send + Sync),
         width_heu: &'a (dyn WidthHeuristic<State> + Send + Sync),
-        dominance: &'a (dyn DominanceChecker<State = State> + Send + Sync),
+        dominance: &'a (dyn DominanceChecker<State> + Send + Sync),
         cutoff: &'a (dyn Cutoff + Send + Sync),
-        fringe: &'a mut (dyn Fringe<State = State> + Send + Sync),
+        fringe: &'a mut (dyn Fringe<State> + Send + Sync),
         nb_threads: usize,
     ) -> Self {
         ParallelSolver {
@@ -563,8 +563,8 @@ where
 impl<'a, State, D, C> Solver for ParallelSolver<'a, State, D, C>
 where
     State: Eq + PartialEq + Hash + Clone,
-    D: DecisionDiagram<State = State> + Default,
-    C: Cache<State = State> + Send + Sync + Default,
+    D: DecisionDiagram<State> + Default,
+    C: Cache<State> + Send + Sync + Default,
 {
     /// Applies the branch and bound algorithm proposed by Bergman et al. to
     /// solve the problem to optimality. To do so, it spawns `nb_threads` workers

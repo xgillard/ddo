@@ -23,17 +23,15 @@ use crate::SubProblem;
 /// This trait abstracts away the implementation details of the solver fringe.
 /// That is, a Fringe represents the global priority queue which stores all 
 /// the nodes remaining to explore.
-pub trait Fringe {
-    type State;
-
+pub trait Fringe<State> {
     /// This is how you push a node onto the fringe.
-    fn push(&mut self, node: SubProblem<Self::State>);
+    fn push(&mut self, node: SubProblem<State>);
     /// This method yields the most promising node from the fringe.
     /// # Note:
     /// The solvers rely on the assumption that a fringe will pop nodes in
     /// descending upper bound order. Hence, it is a requirement for any fringe
     /// implementation to enforce that requirement.
-    fn pop(&mut self) -> Option<SubProblem<Self::State>>;
+    fn pop(&mut self) -> Option<SubProblem<State>>;
     /// This method clears the fringe: it removes all nodes from the queue.
     fn clear(&mut self);
     /// Yields the length of the queue.
