@@ -22,6 +22,7 @@
 //! By default, it uses as many threads as the number of hardware threads
 //! available on the machine.
 use std::clone::Clone;
+use std::time::Instant;
 use std::{marker::PhantomData, sync::Arc, hash::Hash};
 
 use parking_lot::{Condvar, Mutex};
@@ -111,6 +112,8 @@ struct Shared<'a, State, C> where
     /// The corollary, it that whenever a node has completed the processing of
     /// a subproblem, it must wake-up all parked threads waiting on this monitor.
     monitor: Condvar,
+    /// Useful for logging only
+    start_time: Option<Instant>,
 }
 /// The workload a thread can get from the shared state
 enum WorkLoad<T> {
@@ -294,6 +297,10 @@ where D: DecisionDiagram<State = State> + Default,
     /// will be spawned to solve the problem. By default, this number amounts
     /// to the number of hardware threads available on the machine.
     nb_threads: usize,
+    /// THIS IS MEANT FOR ROMAIN FONTAINE'S EXPERIMENT ONLY.
+    /// the purpose of this field is to log the time & objective value whenever 
+    /// an improving solution is found.
+    log_solution_time: bool,
     /// This is just a marker that allows us to remember the exact type of the
     /// mdds to be instantiated.
     _phantom: PhantomData<D>, 
@@ -337,6 +344,8 @@ where
                 cache: C::default(),
                 dominance,
                 //
+                start_time: None,
+                //
                 monitor: Condvar::new(),
                 critical: Mutex::new(Critical {
                     best_sol: None,
@@ -353,9 +362,18 @@ where
                 }),
             },
             nb_threads,
+            log_solution_time: false,
             _phantom: Default::default(),
         }
     }
+
+    /// Meant for romain fontaine's experiment: 
+    /// activates the logging of a solution whenever an improving solution is found.
+    pub fn with_logging(mut self) -> Self {
+        self.log_solution_time = true;
+        self
+    }
+
     /// Sets the number of threads used by the solver
     pub fn with_nb_threads(mut self, nb_threads: usize) -> Self {
         self.nb_threads = nb_threads;
@@ -371,6 +389,10 @@ where
         let mut critical = self.shared.critical.lock();
         critical.fringe.push(root);
         critical.open_by_layer[0] += 1;
+        
+        if self.log_solution_time {
+            self.shared.start_time = Some(Instant::now());
+        }
     }
 
     fn root_node(&self) -> SubProblem<State> {
@@ -444,11 +466,16 @@ where
     /// case the best value of the current `mdd` expansion improves the current
     /// bounds.
     fn maybe_update_best(mdd: &D, shared: &Shared<'a, State, C>) {
-        let mut shared = shared.critical.lock();
+        let mut critical = shared.critical.lock();
         let dd_best_value = mdd.best_exact_value().unwrap_or(isize::MIN);
-        if dd_best_value > shared.best_lb {
-            shared.best_lb = dd_best_value;
-            shared.best_sol = mdd.best_exact_solution();
+        if dd_best_value > critical.best_lb {
+            critical.best_lb = dd_best_value;
+            critical.best_sol = mdd.best_exact_solution();
+
+            if let Some(t) = shared.start_time {
+                let duration = t.elapsed();
+                println!("({duration:?}) :: {dd_best_value} ")
+            }
         }
     }
     /// If necessary, tightens the bound of nodes in the cut-set of `mdd` and
