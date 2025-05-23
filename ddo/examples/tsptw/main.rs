@@ -65,6 +65,9 @@ struct Args {
     /// (in seconds)
     #[clap(short, long)]
     duration: Option<u64>,
+    /// Log solution time
+    #[clap(short, long)]
+    log_solution_time: bool,
 }
 
 fn main() {
@@ -86,6 +89,10 @@ fn main() {
         &mut fringe,
         args.threads.unwrap_or(num_cpus::get())
     );
+
+    if args.log_solution_time {
+        solver = solver.with_logging();
+    }
 
     let start    = Instant::now();
     let outcome  = solver.maximize();

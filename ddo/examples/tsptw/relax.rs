@@ -21,11 +21,10 @@
 //! for the TSP + TW problem.
 
 use ddo::{Relaxation, Problem};
-use smallbitset::Set256;
 
 use crate::{
     model::Tsptw,
-    state::{ElapsedTime, Position, TsptwState},
+    state::{ElapsedTime, Position, TsptwState, BitSet},
 };
 use std::cell::RefCell;
 
@@ -66,33 +65,33 @@ impl<'a> TsptwRelax<'a> {
 #[derive(Clone)]
 struct RelaxHelper {
     depth: u16,
-    position: Set256,
+    position: BitSet,
     earliest: usize,
     latest: usize,
-    all_must: Set256,
-    all_agree: Set256,
-    all_maybe: Set256,
+    all_must: BitSet,
+    all_agree: BitSet,
+    all_maybe: BitSet,
 }
 impl RelaxHelper {
     fn new() -> Self {
         Self {
             depth: 0_u16,
-            position: Set256::default(),
+            position: BitSet::default(),
             earliest: usize::max_value(),
             latest: usize::min_value(),
-            all_must: Set256::default(),
-            all_agree: (Set256::default()).flip(),
-            all_maybe: Set256::default(),
+            all_must: BitSet::default(),
+            all_agree: (BitSet::default()).flip(),
+            all_maybe: BitSet::default(),
         }
     }
     fn clear(&mut self) {
         self.depth = 0_u16;
         self.earliest = usize::max_value();
         self.latest = usize::min_value();
-        self.position = Set256::default();
-        self.all_must = Set256::default();
-        self.all_agree = (Set256::default()).flip();
-        self.all_maybe = Set256::default();
+        self.position = BitSet::default();
+        self.all_must = BitSet::default();
+        self.all_agree = (BitSet::default()).flip();
+        self.all_maybe = BitSet::default();
     }
     fn track_depth(&mut self, depth: u16) {
         self.depth = self.depth.max(depth);
@@ -118,11 +117,11 @@ impl RelaxHelper {
             }
         };
     }
-    fn track_must_visit(&mut self, bs: &Set256) {
+    fn track_must_visit(&mut self, bs: &BitSet) {
         self.all_agree.inter_inplace(bs);
         self.all_must.union_inplace(bs);
     }
-    fn track_maybe(&mut self, bs: &Option<Set256>) {
+    fn track_maybe(&mut self, bs: &Option<BitSet>) {
         if let Some(bs) = bs.as_ref() {
             self.all_maybe.union_inplace(bs);
         }
@@ -146,10 +145,10 @@ impl RelaxHelper {
             }
         }
     }
-    fn get_must_visit(&self) -> Set256 {
+    fn get_must_visit(&self) -> BitSet {
         self.all_agree
     }
-    fn get_maybe_visit(&self) -> Option<Set256> {
+    fn get_maybe_visit(&self) -> Option<BitSet> {
         let mut maybe = self.all_maybe; // three lines: faster because it is in-place
         maybe.union_inplace(&self.all_must);
         maybe.diff_inplace(&self.all_agree);

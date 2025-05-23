@@ -21,10 +21,16 @@
 //! TSPTW problem.
 
 use std::hash::Hash;
-
-use smallbitset::Set256;
-
+use smallbitset::{bitset, conversion};
 use crate::instance::TimeWindow;
+
+// you may safely ignore the warning about #cfg being used inside a macro.
+// the warning is right, but it will not matter here.
+bitset!(Set512, 512, 128, u128);
+conversion!(Set512, [u128;4]);
+
+/// An alias for the actual type to use.
+pub type BitSet = Set512;
 
 /// This represents a state of the problem: 
 /// the salesman is at a given position in his tour and a given amount of time
@@ -37,9 +43,9 @@ pub struct TsptwState {
     /// The amount of time which has elapsed since the salesman left the depot
     pub elapsed  : ElapsedTime,
     /// These are the nodes he still has to visit
-    pub must_visit : Set256,
+    pub must_visit : BitSet,
     /// These are the nodes he still might visit but is not forced to
-    pub maybe_visit: Option<Set256>,
+    pub maybe_visit: Option<BitSet>,
     /// This is the 'depth' in the tour, the number of cities that have already
     /// been visited
     pub depth: u16
@@ -52,7 +58,7 @@ pub enum Position {
     Node(u16),
     /// Or he can be in one node among a pool of nodes 
     /// (relaxed node == salesman is shroedinger's cat)
-    Virtual(Set256),
+    Virtual(BitSet),
 }
 
 /// This represents a given duration which may either be a fixed amount

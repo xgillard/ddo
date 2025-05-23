@@ -21,9 +21,8 @@
 //! of the TSP+TW. (Implementation of the `Problem` trait).
 
 use ddo::{Problem, Variable, Decision};
-use smallbitset::Set256;
 
-use crate::{instance::TsptwInstance, state::{ElapsedTime, Position, TsptwState}};
+use crate::{instance::TsptwInstance, state::{ElapsedTime, Position, TsptwState, BitSet}};
 
 
 /// This is the structure encapsulating the Tsptw problem.
@@ -34,7 +33,7 @@ pub struct Tsptw {
 }
 impl Tsptw {
     pub fn new(inst: TsptwInstance) -> Self {
-        let mut must_visit = Set256::default();
+        let mut must_visit = BitSet::default();
         (1..inst.nb_nodes).for_each(|i| {must_visit.add_inplace(i as usize);});
         let state = TsptwState {
             position  : Position::Node(0),
